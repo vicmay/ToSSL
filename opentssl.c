@@ -2066,6 +2066,7 @@ static char *GenerateSslContextHandleName(void) {
 //   -ciphers "ECDHE+AESGCM"
 //   -cert <pem>   -key <pem>
 //   -cafile <pem> -verify 0|1
+//   -alpn {proto1 proto2 ...} (e.g., {h2 http/1.1})
 // Returns: handle name (e.g., sslctx1)
 static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (!sslContextTableInitialized) {
@@ -2076,6 +2077,7 @@ static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
     int verify = 0;
     const char *cert = NULL, *key = NULL, *cafile = NULL, *ciphers = NULL;
     Tcl_Obj *protocolsObj = NULL;
+    Tcl_Obj *alpnObj = NULL;
     for (int i = 1; i < objc; i += 2) {
         if (i + 1 >= objc) break;
         const char *opt = Tcl_GetString(objv[i]);
@@ -2091,6 +2093,8 @@ static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
             cafile = Tcl_GetString(objv[i+1]);
         } else if (strcmp(opt, "-verify") == 0) {
             if (Tcl_GetIntFromObj(interp, objv[i+1], &verify) != TCL_OK) return TCL_ERROR;
+        } else if (strcmp(opt, "-alpn") == 0) {
+            alpnObj = objv[i+1];
         } else {
             Tcl_SetResult(interp, "Unknown option to opentssl::ssl::context create", TCL_STATIC);
             return TCL_ERROR;
@@ -2168,6 +2172,36 @@ static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
     }
     // Peer verification
     SSL_CTX_set_verify(ctx, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
+    // ALPN support
+    if (alpnObj) {
+        int alpnLen;
+        Tcl_Obj **alpnElems;
+        if (Tcl_ListObjGetElements(interp, alpnObj, &alpnLen, &alpnElems) == TCL_OK && alpnLen > 0) {
+            // ALPN wire format: list of length-prefixed strings
+            unsigned char *alpn_wire = (unsigned char *)ckalloc(256);
+            int offset = 0;
+            for (int j = 0; j < alpnLen; ++j) {
+                const char *proto = Tcl_GetString(alpnElems[j]);
+                int plen = (int)strlen(proto);
+                if (plen < 1 || plen > 255 || offset + plen + 1 > 255) {
+                    ckfree((char *)alpn_wire);
+                    SSL_CTX_free(ctx);
+                    Tcl_SetResult(interp, "Invalid ALPN protocol list", TCL_STATIC);
+                    return TCL_ERROR;
+                }
+                alpn_wire[offset++] = (unsigned char)plen;
+                memcpy(alpn_wire + offset, proto, plen);
+                offset += plen;
+            }
+            if (SSL_CTX_set_alpn_protos(ctx, alpn_wire, offset) != 0) {
+                ckfree((char *)alpn_wire);
+                SSL_CTX_free(ctx);
+                Tcl_SetResult(interp, "Failed to set ALPN protocols", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            ckfree((char *)alpn_wire);
+        }
+    }
     // Allocate handle and store SSL_CTX
     SslContextHandle *handle = (SslContextHandle *)ckalloc(sizeof(SslContextHandle));
     handle->ctx = ctx;

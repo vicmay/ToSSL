@@ -47,13 +47,30 @@ OpenTSSL is fully compatible with OpenSSL 3.x. All deprecated API usage has been
 
 #### Create an SSL/TLS Context
 ```tcl
-set ctx [opentssl::ssl::context create -protocols {TLSv1.2 TLSv1.3} -ciphers "ECDHE+AESGCM" -cert $cert -key $key -cafile $ca -verify 1]
+set ctx [opentssl::ssl::context create -protocols {TLSv1.2 TLSv1.3} -ciphers "ECDHE+AESGCM" -cert $cert -key $key -cafile $ca -verify 1 -alpn {h2 http/1.1}]
 ```
 - `-protocols`: List of allowed protocol versions (e.g., {TLSv1.2 TLSv1.3})
 - `-ciphers`: Cipher string (OpenSSL syntax)
 - `-cert`, `-key`: PEM certificate/private key (optional)
 - `-cafile`: PEM CA file (optional)
 - `-verify`: 1 to require peer cert, 0 to skip (default 0)
+- `-alpn`: List of ALPN protocol names to advertise (for HTTP/2, etc). Example: `{h2 http/1.1}`
+
+**ALPN (Application-Layer Protocol Negotiation):**
+- Use `-alpn` to advertise supported application protocols (e.g., HTTP/2 and HTTP/1.1) to clients.
+- This enables negotiation of HTTP/2 (`h2`) or fallback to HTTP/1.1 as required by modern browsers and HTTP/2 clients.
+- If ALPN negotiation fails or is not supported by the peer, the connection may fall back to another protocol or fail, depending on the client/server configuration.
+
+**Example (HTTP/2-ready context):**
+```tcl
+set ctx [opentssl::ssl::context create \
+    -protocols {TLSv1.2 TLSv1.3} \
+    -ciphers "ECDHE+AESGCM" \
+    -cert mycert.pem -key mykey.pem \
+    -cafile ca.pem -verify 1 \
+    -alpn {h2 http/1.1}]
+```
+This context will negotiate HTTP/2 if the client supports it, otherwise HTTP/1.1.
 - **Returns:** SSL context handle (e.g., sslctx1)
 
 #### Wrap a Tcl Socket in SSL/TLS (with optional session resumption)
