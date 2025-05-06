@@ -24,6 +24,7 @@
 
 // opentssl::key::parse <pem>
 static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 2) {
         Tcl_WrongNumArgs(interp, 1, objv, "pem");
         return TCL_ERROR;
@@ -35,100 +36,57 @@ static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         Tcl_SetResult(interp, "OpenSSL: BIO allocation failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    // Try as RSA private key
-    RSA *rsa = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
-    int is_private = 1;
-    if (rsa) {
-        int bits = RSA_bits(rsa);
+    // Try as any private key (RSA, DSA, EC, etc.)
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    if (pkey) {
+        int bits = EVP_PKEY_get_bits(pkey);
+        int type = EVP_PKEY_base_id(pkey);
         Tcl_Obj *dict = Tcl_NewDictObj();
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("rsa", -1));
+        if (type == EVP_PKEY_RSA) {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("rsa", -1));
+        } else if (type == EVP_PKEY_DSA) {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
+        } else if (type == EVP_PKEY_EC) {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ec", -1));
+            char curve[80] = {0};
+            OSSL_PARAM params[2] = { OSSL_PARAM_utf8_string("group", curve, sizeof(curve)), OSSL_PARAM_END };
+            EVP_PKEY_get_params(pkey, params);
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve[0] ? curve : "unknown", -1));
+        } else {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("unknown", -1));
+        }
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("kind", -1), Tcl_NewStringObj("private", -1));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(bits));
         Tcl_SetObjResult(interp, dict);
-        RSA_free(rsa);
+        EVP_PKEY_free(pkey);
         BIO_free(bio);
         return TCL_OK;
     }
-    // Try as RSA public key
+    // Try as any public key
     BIO_free(bio);
     bio = BIO_new_mem_buf((void*)pem, pem_len);
-    rsa = PEM_read_bio_RSA_PUBKEY(bio, NULL, NULL, NULL);
-    if (rsa) {
-        int bits = RSA_bits(rsa);
+    pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (pkey) {
+        int bits = EVP_PKEY_get_bits(pkey);
+        int type = EVP_PKEY_base_id(pkey);
         Tcl_Obj *dict = Tcl_NewDictObj();
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("rsa", -1));
+        if (type == EVP_PKEY_RSA) {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("rsa", -1));
+        } else if (type == EVP_PKEY_DSA) {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
+        } else if (type == EVP_PKEY_EC) {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ec", -1));
+            char curve[80] = {0};
+            OSSL_PARAM params[2] = { OSSL_PARAM_utf8_string("group", curve, sizeof(curve)), OSSL_PARAM_END };
+            EVP_PKEY_get_params(pkey, params);
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve[0] ? curve : "unknown", -1));
+        } else {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("unknown", -1));
+        }
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("kind", -1), Tcl_NewStringObj("public", -1));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(bits));
         Tcl_SetObjResult(interp, dict);
-        RSA_free(rsa);
-        BIO_free(bio);
-        return TCL_OK;
-    }
-    // Try as DSA private key
-    BIO_free(bio);
-    bio = BIO_new_mem_buf((void*)pem, pem_len);
-    DSA *dsa = PEM_read_bio_DSAPrivateKey(bio, NULL, NULL, NULL);
-    if (dsa) {
-        int bits = DSA_bits(dsa);
-        Tcl_Obj *dict = Tcl_NewDictObj();
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("kind", -1), Tcl_NewStringObj("private", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(bits));
-        Tcl_SetObjResult(interp, dict);
-        DSA_free(dsa);
-        BIO_free(bio);
-        return TCL_OK;
-    }
-    // Try as DSA public key
-    BIO_free(bio);
-    bio = BIO_new_mem_buf((void*)pem, pem_len);
-    dsa = PEM_read_bio_DSA_PUBKEY(bio, NULL, NULL, NULL);
-    if (dsa) {
-        int bits = DSA_bits(dsa);
-        Tcl_Obj *dict = Tcl_NewDictObj();
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("kind", -1), Tcl_NewStringObj("public", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(bits));
-        Tcl_SetObjResult(interp, dict);
-        DSA_free(dsa);
-        BIO_free(bio);
-        return TCL_OK;
-    }
-    // Try as EC private key
-    BIO_free(bio);
-    bio = BIO_new_mem_buf((void*)pem, pem_len);
-    EC_KEY *ec = PEM_read_bio_ECPrivateKey(bio, NULL, NULL, NULL);
-    if (ec) {
-        const EC_GROUP *group = EC_KEY_get0_group(ec);
-        int bits = EC_GROUP_order_bits(group);
-        int nid = EC_GROUP_get_curve_name(group);
-        const char *curve = OBJ_nid2sn(nid);
-        Tcl_Obj *dict = Tcl_NewDictObj();
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ec", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("kind", -1), Tcl_NewStringObj("private", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve ? curve : "unknown", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(bits));
-        Tcl_SetObjResult(interp, dict);
-        EC_KEY_free(ec);
-        BIO_free(bio);
-        return TCL_OK;
-    }
-    // Try as EC public key
-    BIO_free(bio);
-    bio = BIO_new_mem_buf((void*)pem, pem_len);
-    ec = PEM_read_bio_EC_PUBKEY(bio, NULL, NULL, NULL);
-    if (ec) {
-        const EC_GROUP *group = EC_KEY_get0_group(ec);
-        int bits = EC_GROUP_order_bits(group);
-        int nid = EC_GROUP_get_curve_name(group);
-        const char *curve = OBJ_nid2sn(nid);
-        Tcl_Obj *dict = Tcl_NewDictObj();
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ec", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("kind", -1), Tcl_NewStringObj("public", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve ? curve : "unknown", -1));
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(bits));
-        Tcl_SetObjResult(interp, dict);
-        EC_KEY_free(ec);
+        EVP_PKEY_free(pkey);
         BIO_free(bio);
         return TCL_OK;
     }
@@ -139,6 +97,7 @@ static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 
 // opentssl::key::write -key <key> -format <pem|der>
 static int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 5) {
         Tcl_WrongNumArgs(interp, 1, objv, "-key dict -format pem");
         return TCL_ERROR;
@@ -176,6 +135,7 @@ static int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 
 // opentssl::key::generate ?-type <rsa> ?-bits <n>?
 static int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
 
     const char *type = "rsa";
     int bits = 2048;
@@ -199,19 +159,21 @@ static int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
     BIO *priv = BIO_new(BIO_s_mem());
     BIO *pub = BIO_new(BIO_s_mem());
     if (strcmp(type, "rsa") == 0) {
-        BIGNUM *e = BN_new();
-        RSA *rsa = RSA_new();
-        if (!rsa || !e || !BN_set_word(e, RSA_F4) || !RSA_generate_key_ex(rsa, bits, e, NULL)) {
-            if (rsa) RSA_free(rsa);
-            if (e) BN_free(e);
+        EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+        EVP_PKEY *pkey = NULL;
+        if (!ctx || EVP_PKEY_keygen_init(ctx) <= 0 ||
+            EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) <= 0 ||
+            EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+            if (ctx) EVP_PKEY_CTX_free(ctx);
+            if (pkey) EVP_PKEY_free(pkey);
             BIO_free(priv);
             BIO_free(pub);
             Tcl_SetResult(interp, "OpenSSL: RSA generation failed", TCL_STATIC);
             return TCL_ERROR;
         }
-        PEM_write_bio_RSAPrivateKey(priv, rsa, NULL, NULL, 0, NULL, NULL);
-        PEM_write_bio_RSA_PUBKEY(pub, rsa);
-        int keybits = RSA_bits(rsa);
+        PEM_write_bio_PrivateKey(priv, pkey, NULL, NULL, 0, NULL, NULL);
+        PEM_write_bio_PUBKEY(pub, pkey);
+        int keybits = EVP_PKEY_get_bits(pkey);
         char *priv_pem = NULL, *pub_pem = NULL;
         long priv_len = BIO_get_mem_data(priv, &priv_pem);
         long pub_len = BIO_get_mem_data(pub, &pub_pem);
@@ -220,41 +182,65 @@ static int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), Tcl_NewStringObj(priv_pem, priv_len));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("rsa", -1));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(keybits));
-        RSA_free(rsa);
-        BN_free(e);
+        EVP_PKEY_free(pkey);
+        EVP_PKEY_CTX_free(ctx);
         BIO_free(priv);
         BIO_free(pub);
         Tcl_SetObjResult(interp, dict);
         return TCL_OK;
     } else if (strcmp(type, "dsa") == 0) {
-        // DSA block unchanged
+        EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL);
+        EVP_PKEY *pkey = NULL;
+        if (!ctx || EVP_PKEY_keygen_init(ctx) <= 0 ||
+            EVP_PKEY_CTX_set_dsa_paramgen_bits(ctx, bits) <= 0 ||
+            EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+            if (ctx) EVP_PKEY_CTX_free(ctx);
+            if (pkey) EVP_PKEY_free(pkey);
+            BIO_free(priv);
+            BIO_free(pub);
+            Tcl_SetResult(interp, "OpenSSL: DSA generation failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        PEM_write_bio_PrivateKey(priv, pkey, NULL, NULL, 0, NULL, NULL);
+        PEM_write_bio_PUBKEY(pub, pkey);
+        int keybits = EVP_PKEY_get_bits(pkey);
+        char *priv_pem = NULL, *pub_pem = NULL;
+        long priv_len = BIO_get_mem_data(priv, &priv_pem);
+        long pub_len = BIO_get_mem_data(pub, &pub_pem);
+        Tcl_Obj *dict = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("public", -1), Tcl_NewStringObj(pub_pem, pub_len));
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), Tcl_NewStringObj(priv_pem, priv_len));
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(keybits));
+        EVP_PKEY_free(pkey);
+        EVP_PKEY_CTX_free(ctx);
+        BIO_free(priv);
+        BIO_free(pub);
+        Tcl_SetObjResult(interp, dict);
+        return TCL_OK;
     } else if (strcmp(type, "ec") == 0) {
         const char *curve = "prime256v1";
-        // Parse -curve option if present
         for (int i = 1; i < objc; i += 2) {
             const char *opt = Tcl_GetString(objv[i]);
             if (strcmp(opt, "-curve") == 0 && i+1 < objc) {
                 curve = Tcl_GetString(objv[i+1]);
             }
         }
-        int nid = OBJ_sn2nid(curve);
-        if (nid == NID_undef) {
-            Tcl_SetResult(interp, "Unknown EC curve", TCL_STATIC);
-            BIO_free(priv);
-            BIO_free(pub);
-            return TCL_ERROR;
-        }
-        EC_KEY *ec = EC_KEY_new_by_curve_name(nid);
-        if (!ec || !EC_KEY_generate_key(ec)) {
-            if (ec) EC_KEY_free(ec);
+        EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+        EVP_PKEY *pkey = NULL;
+        if (!ctx || EVP_PKEY_keygen_init(ctx) <= 0 ||
+            EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, OBJ_sn2nid(curve)) <= 0 ||
+            EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+            if (ctx) EVP_PKEY_CTX_free(ctx);
+            if (pkey) EVP_PKEY_free(pkey);
             BIO_free(priv);
             BIO_free(pub);
             Tcl_SetResult(interp, "OpenSSL: EC key generation failed", TCL_STATIC);
             return TCL_ERROR;
         }
-        PEM_write_bio_ECPrivateKey(priv, ec, NULL, NULL, 0, NULL, NULL);
-        PEM_write_bio_EC_PUBKEY(pub, ec);
-        int keybits = EC_GROUP_order_bits(EC_KEY_get0_group(ec));
+        PEM_write_bio_PrivateKey(priv, pkey, NULL, NULL, 0, NULL, NULL);
+        PEM_write_bio_PUBKEY(pub, pkey);
+        int keybits = EVP_PKEY_get_bits(pkey);
         char *priv_pem = NULL, *pub_pem = NULL;
         long priv_len = BIO_get_mem_data(priv, &priv_pem);
         long pub_len = BIO_get_mem_data(pub, &pub_pem);
@@ -264,23 +250,28 @@ static int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ec", -1));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve, -1));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(keybits));
-        EC_KEY_free(ec);
+        EVP_PKEY_free(pkey);
+        EVP_PKEY_CTX_free(ctx);
         BIO_free(priv);
         BIO_free(pub);
         Tcl_SetObjResult(interp, dict);
         return TCL_OK;
     } else if (strcmp(type, "dsa") == 0) {
-        DSA *dsa = DSA_new();
-        if (!dsa || !DSA_generate_parameters_ex(dsa, bits, NULL, 0, NULL, NULL, NULL) || !DSA_generate_key(dsa)) {
-            if (dsa) DSA_free(dsa);
+        EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL);
+        EVP_PKEY *pkey = NULL;
+        if (!ctx || EVP_PKEY_keygen_init(ctx) <= 0 ||
+            EVP_PKEY_CTX_set_dsa_paramgen_bits(ctx, bits) <= 0 ||
+            EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+            if (ctx) EVP_PKEY_CTX_free(ctx);
+            if (pkey) EVP_PKEY_free(pkey);
             BIO_free(priv);
             BIO_free(pub);
             Tcl_SetResult(interp, "OpenSSL: DSA generation failed", TCL_STATIC);
             return TCL_ERROR;
         }
-        PEM_write_bio_DSAPrivateKey(priv, dsa, NULL, NULL, 0, NULL, NULL);
-        PEM_write_bio_DSA_PUBKEY(pub, dsa);
-        int keybits = DSA_bits(dsa);
+        PEM_write_bio_PrivateKey(priv, pkey, NULL, NULL, 0, NULL, NULL);
+        PEM_write_bio_PUBKEY(pub, pkey);
+        int keybits = EVP_PKEY_get_bits(pkey);
         char *priv_pem = NULL, *pub_pem = NULL;
         long priv_len = BIO_get_mem_data(priv, &priv_pem);
         long pub_len = BIO_get_mem_data(pub, &pub_pem);
@@ -289,7 +280,8 @@ static int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), Tcl_NewStringObj(priv_pem, priv_len));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(keybits));
-        DSA_free(dsa);
+        EVP_PKEY_free(pkey);
+        EVP_PKEY_CTX_free(ctx);
         BIO_free(priv);
         BIO_free(pub);
         Tcl_SetObjResult(interp, dict);
@@ -310,6 +302,7 @@ static void bin2hex(const unsigned char *in, int len, char *out) {
 
 // opentssl::digest -alg <name> <data>
 static int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 4) {
         Tcl_WrongNumArgs(interp, 1, objv, "-alg name data");
         return TCL_ERROR;
@@ -353,6 +346,7 @@ static int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 
 // opentssl::randbytes nbytes
 static int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 2) {
         Tcl_WrongNumArgs(interp, 1, objv, "nbytes");
         return TCL_ERROR;
@@ -373,6 +367,7 @@ static int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
 
 // opentssl::encrypt -alg <name> -key <key> -iv <iv> <data>
 static int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 8) {
         Tcl_WrongNumArgs(interp, 1, objv, "-alg name -key key -iv iv data");
         return TCL_ERROR;
@@ -429,6 +424,7 @@ static int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
 
 // opentssl::decrypt -alg <name> -key <key> -iv <iv> <data>
 static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 8) {
         Tcl_WrongNumArgs(interp, 1, objv, "-alg name -key key -iv iv data");
         return TCL_ERROR;
@@ -488,6 +484,7 @@ static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
 
 // opentssl::rsa::generate ?-bits n?
 static int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     int bits = 2048;
     if (objc == 3) {
         const char *opt = Tcl_GetString(objv[1]);
@@ -503,22 +500,24 @@ static int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
         Tcl_WrongNumArgs(interp, 1, objv, "?-bits n?");
         return TCL_ERROR;
     }
-    RSA *rsa = RSA_new();
-    BIGNUM *e = BN_new();
-    if (!rsa || !e || !BN_set_word(e, RSA_F4) || !RSA_generate_key_ex(rsa, bits, e, NULL)) {
-        if (rsa) RSA_free(rsa);
-        if (e) BN_free(e);
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+    EVP_PKEY *pkey = NULL;
+    if (!ctx || EVP_PKEY_keygen_init(ctx) <= 0 ||
+        EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) <= 0 ||
+        EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+        if (ctx) EVP_PKEY_CTX_free(ctx);
+        if (pkey) EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "OpenSSL: RSA key generation failed", TCL_STATIC);
         return TCL_ERROR;
     }
     // Write private key to PEM
     BIO *priv = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSAPrivateKey(priv, rsa, NULL, NULL, 0, NULL, NULL);
+    PEM_write_bio_PrivateKey(priv, pkey, NULL, NULL, 0, NULL, NULL);
     char *priv_pem = NULL;
     long priv_len = BIO_get_mem_data(priv, &priv_pem);
     // Write public key to PEM
     BIO *pub = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSA_PUBKEY(pub, rsa);
+    PEM_write_bio_PUBKEY(pub, pkey);
     char *pub_pem = NULL;
     long pub_len = BIO_get_mem_data(pub, &pub_pem);
     // Build result dict
@@ -529,13 +528,14 @@ static int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
     // Cleanup
     BIO_free(priv);
     BIO_free(pub);
-    RSA_free(rsa);
-    BN_free(e);
+    EVP_PKEY_free(pkey);
+    EVP_PKEY_CTX_free(ctx);
     return TCL_OK;
 }
 
 // opentssl::rsa::encrypt -pubkey <pem> <data>
 static int RsaEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 4) {
         Tcl_WrongNumArgs(interp, 1, objv, "-pubkey pem data");
         return TCL_ERROR;
@@ -550,31 +550,54 @@ static int RsaEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     int datalen;
     unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &datalen);
     BIO *bio = BIO_new_mem_buf((void*)pem, pem_len);
-    RSA *rsa = PEM_read_bio_RSA_PUBKEY(bio, NULL, NULL, NULL);
-    if (!rsa) {
+    EVP_PKEY *pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (!pkey) {
         BIO_free(bio);
         Tcl_SetResult(interp, "OpenSSL: failed to parse public key", TCL_STATIC);
         return TCL_ERROR;
     }
-    int rsa_size = RSA_size(rsa);
-    unsigned char *out = (unsigned char *)ckalloc(rsa_size);
-    int outlen = RSA_public_encrypt(datalen, data, out, rsa, RSA_PKCS1_OAEP_PADDING);
-    if (outlen == -1) {
-        RSA_free(rsa);
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!ctx) {
+        EVP_PKEY_free(pkey);
         BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_CTX allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    if (EVP_PKEY_encrypt_init(ctx) <= 0 || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_encrypt_init failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    size_t outlen = 0;
+    if (EVP_PKEY_encrypt(ctx, NULL, &outlen, data, datalen) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_encrypt (size) failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    unsigned char *out = (unsigned char *)ckalloc(outlen);
+    if (EVP_PKEY_encrypt(ctx, out, &outlen, data, datalen) <= 0) {
         ckfree((char *)out);
-        Tcl_SetResult(interp, "OpenSSL: RSA encryption failed", TCL_STATIC);
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_encrypt failed", TCL_STATIC);
         return TCL_ERROR;
     }
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, outlen));
-    RSA_free(rsa);
-    BIO_free(bio);
     ckfree((char *)out);
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
     return TCL_OK;
 }
 
 // opentssl::rsa::decrypt -privkey <pem> <ciphertext>
 static int RsaDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 4) {
         Tcl_WrongNumArgs(interp, 1, objv, "-privkey pem ciphertext");
         return TCL_ERROR;
@@ -589,26 +612,48 @@ static int RsaDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     int datalen;
     unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &datalen);
     BIO *bio = BIO_new_mem_buf((void*)pem, pem_len);
-    RSA *rsa = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
-    if (!rsa) {
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    if (!pkey) {
         BIO_free(bio);
         Tcl_SetResult(interp, "OpenSSL: failed to parse private key", TCL_STATIC);
         return TCL_ERROR;
     }
-    int rsa_size = RSA_size(rsa);
-    unsigned char *out = (unsigned char *)ckalloc(rsa_size);
-    int outlen = RSA_private_decrypt(datalen, data, out, rsa, RSA_PKCS1_OAEP_PADDING);
-    if (outlen == -1) {
-        RSA_free(rsa);
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!ctx) {
+        EVP_PKEY_free(pkey);
         BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_CTX allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    if (EVP_PKEY_decrypt_init(ctx) <= 0 || EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_decrypt_init failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    size_t outlen = 0;
+    if (EVP_PKEY_decrypt(ctx, NULL, &outlen, data, datalen) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_decrypt (size) failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    unsigned char *out = (unsigned char *)ckalloc(outlen);
+    if (EVP_PKEY_decrypt(ctx, out, &outlen, data, datalen) <= 0) {
         ckfree((char *)out);
-        Tcl_SetResult(interp, "OpenSSL: RSA decryption failed", TCL_STATIC);
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: EVP_PKEY_decrypt failed", TCL_STATIC);
         return TCL_ERROR;
     }
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, outlen));
-    RSA_free(rsa);
-    BIO_free(bio);
     ckfree((char *)out);
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
     return TCL_OK;
 }
 
@@ -617,6 +662,7 @@ static int RsaDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
 
 // opentssl::x509::parse <pem>
 static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 2) {
         Tcl_WrongNumArgs(interp, 1, objv, "pem");
         return TCL_ERROR;
@@ -647,8 +693,8 @@ static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     BN_free(bn);
     OPENSSL_free(serial_hex);
     // Validity
-    ASN1_TIME *notBefore = X509_get0_notBefore(cert);
-    ASN1_TIME *notAfter = X509_get0_notAfter(cert);
+    const ASN1_TIME *notBefore = X509_get0_notBefore(cert);
+    const ASN1_TIME *notAfter = X509_get0_notAfter(cert);
     BIO *mem = BIO_new(BIO_s_mem());
     ASN1_TIME_print(mem, notBefore);
     char notbefore_str[64] = {0};
@@ -707,6 +753,7 @@ static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
 
 // opentssl::rsa::sign -privkey <pem> -alg <digest> <data>
 static int RsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 6) {
         Tcl_WrongNumArgs(interp, 1, objv, "-privkey pem -alg digest data");
         return TCL_ERROR;
@@ -765,6 +812,7 @@ static int RsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
 
 // opentssl::rsa::verify -pubkey <pem> -alg <digest> <data> <signature>
 static int RsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 7) {
         Tcl_WrongNumArgs(interp, 1, objv, "-pubkey pem -alg digest data signature");
         return TCL_ERROR;
@@ -818,6 +866,7 @@ static int RsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
 
 // opentssl::x509::create -subject dn -issuer dn -pubkey pem -privkey pem -days n [-san {dns1 dns2 ...}]
 static int X509CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc < 11 || objc > 13) {
         Tcl_WrongNumArgs(interp, 1, objv, "-subject dn -issuer dn -pubkey pem -privkey pem -days n [-san {dns1 dns2 ...}]");
         return TCL_ERROR;
@@ -972,6 +1021,7 @@ static int X509CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
 
 // opentssl::x509::verify -cert <pem> -ca <pem>
 static int X509VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
     if (objc != 5) {
         Tcl_WrongNumArgs(interp, 1, objv, "-cert pem -ca pem");
         return TCL_ERROR;
