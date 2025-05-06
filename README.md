@@ -286,9 +286,10 @@ Verifies a PKCS#7 signature (detached or attached) using the provided CA certifi
 - `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
 - Returns: 1 if signature is valid, 0 otherwise
 
-### `opentssl::pkcs7::encrypt -cert <cert> <data> ?-pem 0|1?`
-Encrypts data to a recipient using PKCS#7 enveloped data (S/MIME/CMS).
-- `-cert <cert>`: PEM certificate (string)
+### `opentssl::pkcs7::encrypt -cert <cert1> ?-cert <cert2> ...? ?-cipher <cipher>? <data> ?-pem 0|1?`
+Encrypts data to one or more recipients using PKCS#7 enveloped data (S/MIME/CMS).
+- `-cert <cert>`: PEM certificate for a recipient (may be specified multiple times)
+- `-cipher <cipher>`: Symmetric cipher to use (default: aes-256-cbc; e.g. aes-128-cbc, des-ede3-cbc)
 - `<data>`: Data to encrypt (byte array or string)
 - `-pem 0|1`: 1 for PEM output (default), 0 for DER (binary)
 - Returns: PKCS#7 envelope (PEM string or DER byte array)
@@ -300,6 +301,31 @@ Decrypts PKCS#7 enveloped data (S/MIME/CMS) using the provided private key and c
 - `<pkcs7>`: PKCS#7 envelope (PEM string or DER byte array)
 - `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
 - Returns: Decrypted data (byte array)
+
+### `opentssl::pkcs7::info <pkcs7> ?-pem 0|1?`
+Returns a Tcl dict describing the PKCS#7 structure (type, signers, recipients, cipher).
+- `<pkcs7>`: PKCS#7 envelope or signature (PEM string or DER byte array)
+- `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
+- Returns: Tcl dict with keys:
+  - `type`: PKCS#7 type (e.g., signed, enveloped)
+  - `signers`: list of {issuer serial} for signed data
+  - `recipients`: list of {issuer serial} for enveloped data
+  - `cipher`: encryption algorithm for enveloped data
+
+#### Usage Example
+```tcl
+set info [opentssl::pkcs7::info $pkcs7]
+puts "Type: [dict get $info type]"
+if {[dict exists $info signers]} {
+    puts "Signers: [dict get $info signers]"
+}
+if {[dict exists $info recipients]} {
+    puts "Recipients: [dict get $info recipients]"
+    puts "Cipher: [dict get $info cipher]"
+}
+```
+- For signed data, `signers` is a list of dicts with `issuer` and `serial`.
+- For enveloped data, `recipients` is a list of dicts with `issuer` and `serial`, and `cipher` is the encryption algorithm.
 
 ### `opentssl::digest -alg <name> <data>`
 Computes the hash of `<data>` using the specified digest algorithm (e.g., sha256, sha512, md5).
@@ -557,24 +583,25 @@ puts "Valid? $ok"
 - **Returns:** 1 if signature is valid, 0 otherwise
 
 ### Encrypt Data (PKCS#7 Envelope)
-Encrypt data for a recipient using PKCS#7 (S/MIME enveloped data):
+Encrypt data for one or more recipients using PKCS#7 (S/MIME enveloped data):
 
-#### PEM output (default):
+#### Single recipient, PEM output (default):
 ```tcl
 set env [opentssl::pkcs7::encrypt -cert $cert $data]
 set f [open "env.p7m" w]
 puts -nonewline $f $env
 close $f
 ```
-#### DER output:
+#### Multiple recipients, custom cipher, DER output:
 ```tcl
-set env [opentssl::pkcs7::encrypt -cert $cert -pem 0 $data]
+set env [opentssl::pkcs7::encrypt -cert $cert1 -cert $cert2 -cipher aes-128-cbc -pem 0 $data]
 set f [open "env.p7m" wb]
 puts -nonewline $f $env
 close $f
 ```
 - **Arguments:**
-  - `-cert <cert>`: PEM certificate (string)
+  - `-cert <cert>`: PEM certificate for a recipient (may be specified multiple times)
+  - `-cipher <cipher>`: Symmetric cipher (default: aes-256-cbc)
   - `<data>`: Data to encrypt (byte array or string)
   - `-pem 0|1`: 1 for PEM output (default), 0 for DER (binary)
 - **Returns:** PKCS#7 envelope (PEM string or DER byte array)

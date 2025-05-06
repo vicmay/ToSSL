@@ -216,13 +216,15 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
   - PKCS7_sign, PKCS7_verify, PKCS7_encrypt, PKCS7_decrypt, S/MIME APIs
 - **Tcl Commands:**
   - `opentssl::pkcs7::sign -cert <cert> -key <key> <data>`
-  - `opentssl::pkcs7::verify -ca <ca> <pkcs7>`
+  - `opentssl::pkcs7::verify -ca <ca> <pkcs7> <data>`
   - `opentssl::pkcs7::encrypt -cert <cert> <data>`
   - `opentssl::pkcs7::decrypt -key <key> -cert <cert> <pkcs7>`
-- **Status:** ⏳ **Planned**
+- **Status:** ✅ **Complete**
 - **Notes:**
-  - PKCS#7/S-MIME support is planned. Will use OpenSSL APIs for PKCS#7 and S/MIME operations.
-  - Usage examples and documentation will be added once implemented.
+  - PKCS#7/S-MIME sign, verify, encrypt, and decrypt commands are implemented and documented.
+  - Multi-recipient encryption and cipher selection are implemented and documented.
+  - Usage examples and API documentation are available in the README.
+  - Next steps (optional): diagnostics/info command for PKCS#7, test/demo scripts for PKCS#7/S-MIME workflows.
 
 ## 11. SSL/TLS Context/Session (Advanced)
 - **Functions:**
