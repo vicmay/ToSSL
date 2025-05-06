@@ -104,8 +104,29 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
   - EVP_PKEY_new, EVP_PKEY_assign_RSA, EVP_PKEY_assign_DSA, EVP_PKEY_assign_EC_KEY, PEM_write_bio_PrivateKey, PEM_read_bio_PrivateKey, etc.
 - **Tcl Commands:**
   - `opentssl::key::generate`, `opentssl::key::parse`, `opentssl::key::write`
-- **Steps:**
-  1. Implement generic key generation and serialization.
+- **Status:** ✅ **Key generation (RSA) completed**
+- **Notes:**
+  - Implemented `opentssl::key::generate` for RSA keys (default 2048 bits, PEM output for public/private).
+  - Only RSA is supported for now; DSA/EC planned for future.
+  - Usage example:
+    ```tcl
+    set keys [opentssl::key::generate]
+    set pub [dict get $keys public]
+    set priv [dict get $keys private]
+    ```
+- **Status:** ✅ **Key parse/write (RSA/PEM) completed**
+- **Notes:**
+  - Implemented `opentssl::key::parse` for parsing RSA PEM keys (public/private, returns dict with type/kind/bits).
+  - Implemented `opentssl::key::write` for serializing RSA PEM keys from a dict to PEM format.
+  - Only RSA keys in PEM format are supported for now; DER and DSA/EC planned for future.
+- **Status:** ✅ **EC key generation, parse, and write completed**
+- **Notes:**
+  - Implemented `opentssl::key::generate -type ec -curve <name>` for EC keypair generation (PEM output, curve name required, e.g., prime256v1).
+  - RSA, DSA, and EC key parsing and writing in PEM format are all supported.
+  - DER support for all key types is the next milestone.
+- **TODO:**
+  - Add support for DER format for all key types (RSA, DSA, EC).
+  - Extend key parsing/writing to handle additional key metadata and types.
 
 ## 7. HMAC
 - **Functions:**

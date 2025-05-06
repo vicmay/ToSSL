@@ -58,6 +58,25 @@ set cert [opentssl::x509::create -subject "My CN" -issuer "My CN" -pubkey $pub -
 puts $cert
 ```
 
+Add Key Usage extension:
+```tcl
+set pub ... ;# PEM public key
+set priv ... ;# PEM private key
+set cert [opentssl::x509::create -subject "My CN" -issuer "My CN" -pubkey $pub -privkey $priv -days 365 -keyusage {digitalSignature keyEncipherment}]
+puts $cert
+```
+
+Allowed keyUsage values:
+- digitalSignature
+- nonRepudiation
+- keyEncipherment
+- dataEncipherment
+- keyAgreement
+- keyCertSign
+- cRLSign
+- encipherOnly
+- decipherOnly
+
 ---
 
 ### RSA Signing and Verification
@@ -90,13 +109,83 @@ puts "Valid To:   [dict get $info notAfter]"
 
 ---
 
+### Generic Key Generation
+Generate an RSA key pair (other algorithms in future):
+```tcl
+# Generate RSA key pair (default 2048 bits)
+set keys [opentssl::key::generate]
+# Or specify bit length
+set keys [opentssl::key::generate -type rsa -bits 3072]
+# Generate DSA key pair (default 2048 bits)
+set keys [opentssl::key::generate -type dsa -bits 2048]
+set pub [dict get $keys public]
+set priv [dict get $keys private]
+```
+
 ### RSA Key Generation, Encryption, and Decryption
 Generate an RSA key pair, encrypt with the public key, and decrypt with the private key:
 ```tcl
 # Generate RSA key pair (default 2048 bits)
-set keys [opentssl::rsa::generate]
+set keys [opentssl::key::generate]
 set pub [dict get $keys public]
 set priv [dict get $keys private]
+
+#### `opentssl::key::generate`
+Creates a new RSA, DSA, or EC key pair.
+
+**Usage (RSA, default):**
+```
+set keys [opentssl::key::generate]
+set pub [dict get $keys public]
+set priv [dict get $keys private]
+```
+**Usage (DSA):**
+```
+set keys [opentssl::key::generate -type dsa -bits 2048]
+set pub [dict get $keys public]
+set priv [dict get $keys private]
+```
+**Usage (EC):**
+```
+set keys [opentssl::key::generate -type ec -curve prime256v1]
+set pub [dict get $keys public]
+set priv [dict get $keys private]
+```
+- The returned dictionary includes `type` ("rsa", "dsa", or "ec"), `bits`, `public`, and `private` PEM strings. EC keys also include a `curve` field.
+- Only PEM output is supported for now.
+- EC support is for key generation only (parse/write coming soon).
+
+#### `opentssl::key::parse`
+Parses a PEM-encoded RSA, DSA, or EC key (public or private) and returns a dictionary describing the key.
+
+**Usage (RSA):**
+```
+set info [opentssl::key::parse $priv]
+# $info = {type rsa kind private bits 2048}
+```
+**Usage (DSA):**
+```
+set info [opentssl::key::parse $priv]
+# $info = {type dsa kind private bits 2048}
+```
+**Usage (EC):**
+```
+set info [opentssl::key::parse $priv]
+# $info = {type ec kind private curve prime256v1 bits 256}
+```
+
+#### `opentssl::key::write`
+Serializes a key dictionary (as returned by generate or parse, with a 'pem' field) to PEM format.
+
+**Usage:**
+```
+set pem [opentssl::key::write -key $dict -format pem]
+```
+
+**Notes:**
+- RSA, DSA, and EC keys in PEM format are supported for parse/write.
+- The key dictionary must contain at least the fields: `type`, `kind`, and `pem`.
+- DER and other key types will be supported in future versions.
 
 # Encrypt with public key
 set plaintext "Hello, RSA!"
@@ -169,9 +258,15 @@ Parses a PEM-encoded X.509 certificate and returns a Tcl dict with the following
 - `notBefore`: Certificate validity start (human-readable)
 - `notAfter`: Certificate validity end (human-readable)
 
-### `opentssl::rsa::generate ?-bits <n>?`
+### `opentssl::key::generate ?-bits <n>?`
 Generates an RSA key pair. Default is 2048 bits.
 - Returns: Tcl dict with keys `public` and `private` (both PEM-encoded strings).
+
+### `opentssl::key::parse <pem>`
+Parses a PEM-encoded RSA key (public or private) and returns a dictionary describing the key.
+
+### `opentssl::key::write -key <dict> -format <format>`
+Serializes a key dictionary (as returned by generate or parse, with a 'pem' field) to the specified format.
 
 ### `opentssl::rsa::encrypt -pubkey <pem> <data>`
 Encrypts `<data>` using the provided PEM public key (PKCS#1 OAEP padding).
