@@ -286,6 +286,21 @@ Verifies a PKCS#7 signature (detached or attached) using the provided CA certifi
 - `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
 - Returns: 1 if signature is valid, 0 otherwise
 
+### `opentssl::pkcs7::encrypt -cert <cert> <data> ?-pem 0|1?`
+Encrypts data to a recipient using PKCS#7 enveloped data (S/MIME/CMS).
+- `-cert <cert>`: PEM certificate (string)
+- `<data>`: Data to encrypt (byte array or string)
+- `-pem 0|1`: 1 for PEM output (default), 0 for DER (binary)
+- Returns: PKCS#7 envelope (PEM string or DER byte array)
+
+### `opentssl::pkcs7::decrypt -key <key> -cert <cert> <pkcs7> ?-pem 0|1?`
+Decrypts PKCS#7 enveloped data (S/MIME/CMS) using the provided private key and certificate.
+- `-key <key>`: PEM private key (string)
+- `-cert <cert>`: PEM certificate (string)
+- `<pkcs7>`: PKCS#7 envelope (PEM string or DER byte array)
+- `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
+- Returns: Decrypted data (byte array)
+
 ### `opentssl::digest -alg <name> <data>`
 Computes the hash of `<data>` using the specified digest algorithm (e.g., sha256, sha512, md5).
 - Returns: Hex-encoded string of the digest.
@@ -540,6 +555,49 @@ puts "Valid? $ok"
   - `<data>`: Data to verify (byte array or string)
   - `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
 - **Returns:** 1 if signature is valid, 0 otherwise
+
+### Encrypt Data (PKCS#7 Envelope)
+Encrypt data for a recipient using PKCS#7 (S/MIME enveloped data):
+
+#### PEM output (default):
+```tcl
+set env [opentssl::pkcs7::encrypt -cert $cert $data]
+set f [open "env.p7m" w]
+puts -nonewline $f $env
+close $f
+```
+#### DER output:
+```tcl
+set env [opentssl::pkcs7::encrypt -cert $cert -pem 0 $data]
+set f [open "env.p7m" wb]
+puts -nonewline $f $env
+close $f
+```
+- **Arguments:**
+  - `-cert <cert>`: PEM certificate (string)
+  - `<data>`: Data to encrypt (byte array or string)
+  - `-pem 0|1`: 1 for PEM output (default), 0 for DER (binary)
+- **Returns:** PKCS#7 envelope (PEM string or DER byte array)
+
+### Decrypt PKCS#7 Envelope
+Decrypt PKCS#7 enveloped data using your private key and certificate:
+
+#### PEM input (default):
+```tcl
+set plain [opentssl::pkcs7::decrypt -key $key -cert $cert $env]
+puts "Decrypted: $plain"
+```
+#### DER input:
+```tcl
+set plain [opentssl::pkcs7::decrypt -key $key -cert $cert -pem 0 $env]
+puts "Decrypted: $plain"
+```
+- **Arguments:**
+  - `-key <key>`: PEM private key (string)
+  - `-cert <cert>`: PEM certificate (string)
+  - `<env>`: PKCS#7 envelope (PEM string or DER byte array)
+  - `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
+- **Returns:** Decrypted data (byte array)
 
 ---
 
