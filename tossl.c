@@ -590,21 +590,44 @@ static int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
         return TCL_ERROR;
     }
     outlen += tmplen;
-    EVP_CIPHER_CTX_free(ctx);
-    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(outbuf, outlen));
-    return TCL_OK;
+    int is_gcm = 0;
+    if (alg && (strstr(alg, "gcm") != NULL)) {
+        is_gcm = 1;
+    }
+    if (is_gcm) {
+        unsigned char tag[16];
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 16, tag)) {
+            EVP_CIPHER_CTX_free(ctx);
+            Tcl_SetResult(interp, "OpenSSL: failed to get GCM tag", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        Tcl_Obj *dict = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("ciphertext", -1), Tcl_NewByteArrayObj(outbuf, outlen));
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("tag", -1), Tcl_NewByteArrayObj(tag, 16));
+        EVP_CIPHER_CTX_free(ctx);
+        Tcl_SetObjResult(interp, dict);
+        return TCL_OK;
+    } else {
+        EVP_CIPHER_CTX_free(ctx);
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(outbuf, outlen));
+        return TCL_OK;
+    }
 }
 
-// tossl::decrypt -alg <name> -key <key> -iv <iv> <data>
+
+// tossl::decrypt -alg <name> -key <key> -iv <iv> <data> ?-tag tag?
 static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 8) {
-        Tcl_WrongNumArgs(interp, 1, objv, "-alg name -key key -iv iv data");
+    // Accepts 8 (no tag) or 10 (with -tag) arguments
+    if (objc != 8 && objc != 10) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name -key key -iv iv data ?-tag tag?");
         return TCL_ERROR;
     }
     const char *alg = NULL;
     unsigned char *key = NULL, *iv = NULL, *data = NULL;
-    int keylen = 0, ivlen = 0, datalen = 0;
+    unsigned char *tag = NULL;
+    int keylen = 0, ivlen = 0, datalen = 0, taglen = 0;
+    int data_idx = 7;
     for (int i = 1; i < 7; i += 2) {
         const char *opt = Tcl_GetString(objv[i]);
         if (strcmp(opt, "-alg") == 0) {
@@ -618,7 +641,17 @@ static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
             return TCL_ERROR;
         }
     }
-    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[7], &datalen);
+    // If -tag is present, parse it
+    if (objc == 10) {
+        const char *opt = Tcl_GetString(objv[8]);
+        if (strcmp(opt, "-tag") != 0) {
+            Tcl_SetResult(interp, "Unknown option (expected -tag)", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        tag = (unsigned char *)Tcl_GetByteArrayFromObj(objv[9], &taglen);
+        data_idx = 7;
+    }
+    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[data_idx], &datalen);
     const EVP_CIPHER *cipher = EVP_get_cipherbyname(alg);
     if (!cipher) {
         Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
@@ -634,6 +667,18 @@ static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
         Tcl_SetResult(interp, "OpenSSL: DecryptInit failed", TCL_STATIC);
         return TCL_ERROR;
     }
+    int is_gcm = 0;
+    if (alg && (strstr(alg, "gcm") != NULL)) {
+        is_gcm = 1;
+    }
+    // For GCM, set tag before final
+    if (is_gcm) {
+        if (tag == NULL || taglen != 16) {
+            EVP_CIPHER_CTX_free(ctx);
+            Tcl_SetResult(interp, "GCM mode requires -tag of 16 bytes", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
     unsigned char outbuf[datalen + EVP_CIPHER_block_size(cipher)];
     int outlen = 0, tmplen = 0;
     if (!EVP_DecryptUpdate(ctx, outbuf, &outlen, data, datalen)) {
@@ -641,9 +686,16 @@ static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
         Tcl_SetResult(interp, "OpenSSL: DecryptUpdate failed", TCL_STATIC);
         return TCL_ERROR;
     }
+    if (is_gcm) {
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, tag)) {
+            EVP_CIPHER_CTX_free(ctx);
+            Tcl_SetResult(interp, "OpenSSL: failed to set GCM tag", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
     if (!EVP_DecryptFinal_ex(ctx, outbuf + outlen, &tmplen)) {
         EVP_CIPHER_CTX_free(ctx);
-        Tcl_SetResult(interp, "OpenSSL: DecryptFinal failed (bad padding or key?)", TCL_STATIC);
+        Tcl_SetResult(interp, "OpenSSL: DecryptFinal failed (bad tag, padding, or key?)", TCL_STATIC);
         return TCL_ERROR;
     }
     outlen += tmplen;
@@ -651,6 +703,7 @@ static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(outbuf, outlen));
     return TCL_OK;
 }
+
 
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
@@ -1653,19 +1706,44 @@ static int EcSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
         return TCL_ERROR;
     }
-    unsigned char sig[EVP_PKEY_size(pkey)];
+    // Two-step signature allocation for OpenSSL 3.x
     size_t siglen = 0;
     int ok = EVP_DigestSignInit(mdctx, NULL, md, NULL, pkey) &&
              EVP_DigestSignUpdate(mdctx, data, datalen) &&
-             EVP_DigestSignFinal(mdctx, sig, &siglen);
+             EVP_DigestSignFinal(mdctx, NULL, &siglen);
+    if (!ok) {
+        EVP_MD_CTX_free(mdctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        char errbuf[512];
+        unsigned long err = ERR_get_error();
+        if (err) {
+            ERR_error_string_n(err, errbuf, sizeof(errbuf));
+            Tcl_SetObjResult(interp, Tcl_NewStringObj(errbuf, -1));
+        } else {
+            Tcl_SetResult(interp, "OpenSSL: EC signing failed", TCL_STATIC);
+        }
+        return TCL_ERROR;
+    }
+    unsigned char *sig = ckalloc(siglen);
+    ok = EVP_DigestSignFinal(mdctx, sig, &siglen);
     EVP_MD_CTX_free(mdctx);
     EVP_PKEY_free(pkey);
     BIO_free(bio);
     if (!ok) {
-        Tcl_SetResult(interp, "OpenSSL: EC signing failed", TCL_STATIC);
+        ckfree((char *)sig);
+        char errbuf[512];
+        unsigned long err = ERR_get_error();
+        if (err) {
+            ERR_error_string_n(err, errbuf, sizeof(errbuf));
+            Tcl_SetObjResult(interp, Tcl_NewStringObj(errbuf, -1));
+        } else {
+            Tcl_SetResult(interp, "OpenSSL: EC signing failed", TCL_STATIC);
+        }
         return TCL_ERROR;
     }
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(sig, siglen));
+    ckfree((char *)sig);
     return TCL_OK;
 }
 
@@ -1767,19 +1845,44 @@ static int RsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
         Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
         return TCL_ERROR;
     }
-    unsigned char sig[EVP_PKEY_size(pkey)];
+    // Two-step signature allocation for OpenSSL 3.x
     size_t siglen = 0;
     int ok = EVP_DigestSignInit(mdctx, NULL, md, NULL, pkey) &&
              EVP_DigestSignUpdate(mdctx, data, datalen) &&
-             EVP_DigestSignFinal(mdctx, sig, &siglen);
+             EVP_DigestSignFinal(mdctx, NULL, &siglen);
+    if (!ok) {
+        EVP_MD_CTX_free(mdctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        char errbuf[512];
+        unsigned long err = ERR_get_error();
+        if (err) {
+            ERR_error_string_n(err, errbuf, sizeof(errbuf));
+            Tcl_SetObjResult(interp, Tcl_NewStringObj(errbuf, -1));
+        } else {
+            Tcl_SetResult(interp, "OpenSSL: signing failed", TCL_STATIC);
+        }
+        return TCL_ERROR;
+    }
+    unsigned char *sig = ckalloc(siglen);
+    ok = EVP_DigestSignFinal(mdctx, sig, &siglen);
     EVP_MD_CTX_free(mdctx);
     EVP_PKEY_free(pkey);
     BIO_free(bio);
     if (!ok) {
-        Tcl_SetResult(interp, "OpenSSL: signing failed", TCL_STATIC);
+        ckfree((char *)sig);
+        char errbuf[512];
+        unsigned long err = ERR_get_error();
+        if (err) {
+            ERR_error_string_n(err, errbuf, sizeof(errbuf));
+            Tcl_SetObjResult(interp, Tcl_NewStringObj(errbuf, -1));
+        } else {
+            Tcl_SetResult(interp, "OpenSSL: signing failed", TCL_STATIC);
+        }
         return TCL_ERROR;
     }
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(sig, siglen));
+    ckfree((char *)sig);
     return TCL_OK;
 }
 
