@@ -13,6 +13,12 @@ OpenTSSL is a Tcl extension that provides access to OpenSSL cryptographic functi
 - HMAC (all OpenSSL digests supported)
 - Base64 and hex encoding/decoding
 - PKCS#12 parsing and creation (import/export certificates and keys)
+- **Advanced SSL/TLS support:**
+  - SSL/TLS context creation and management
+  - SSL/TLS socket wrapping and session resumption (export/import)
+  - Custom certificate verification and context options
+  - Detailed session/cipher/peer info retrieval
+  - Robust error handling for all SSL/TLS commands
 - (Planned) PKCS#7, S/MIME, and more
 
 ---
@@ -36,6 +42,77 @@ OpenTSSL is fully compatible with OpenSSL 3.x. All deprecated API usage has been
 ---
 
 ## Usage
+
+### Advanced SSL/TLS: Context, Socket, and Session Resumption
+
+#### Create an SSL/TLS Context
+```tcl
+set ctx [opentssl::ssl::context create -protocols {TLSv1.2 TLSv1.3} -ciphers "ECDHE+AESGCM" -cert $cert -key $key -cafile $ca -verify 1]
+```
+- `-protocols`: List of allowed protocol versions (e.g., {TLSv1.2 TLSv1.3})
+- `-ciphers`: Cipher string (OpenSSL syntax)
+- `-cert`, `-key`: PEM certificate/private key (optional)
+- `-cafile`: PEM CA file (optional)
+- `-verify`: 1 to require peer cert, 0 to skip (default 0)
+- **Returns:** SSL context handle (e.g., sslctx1)
+
+#### Wrap a Tcl Socket in SSL/TLS (with optional session resumption)
+```tcl
+set sslsock [opentssl::ssl::socket $ctx $sock]
+# To resume a session:
+set sslsock2 [opentssl::ssl::socket $ctx $sock2 -session $sesshandle]
+```
+- `-session <sessionhandle>`: Resume a previously exported session
+- **Returns:** SSL socket handle (e.g., sslsock1)
+
+#### Perform SSL/TLS Handshake
+```tcl
+opentssl::ssl::connect $sslsock  ;# Client mode
+opentssl::ssl::accept $sslsock   ;# Server mode
+```
+
+#### Export/Import SSL Session (for resumption)
+```tcl
+# Export session after handshake
+set sess [opentssl::ssl::session export $sslsock]
+# Import session blob for resumption
+set sesshandle [opentssl::ssl::session import $ctx $sess]
+```
+- **Export:** Returns base64 string representing the SSL session
+- **Import:** Returns a session handle (for use with -session)
+
+#### Retrieve Session and Peer Info
+```tcl
+set info [opentssl::ssl::session info $sslsock]
+# info is a dict with keys: protocol, cipher, session_id, peer_subject, etc.
+```
+
+#### Read/Write and Close SSL Socket
+```tcl
+set data [opentssl::ssl::read $sslsock 4096]
+opentssl::ssl::write $sslsock $data
+oopentssl::ssl::close $sslsock
+```
+
+#### Example: Full Session Resumption Workflow
+```tcl
+# Initial connection
+set ctx [opentssl::ssl::context create -protocols {TLSv1.2 TLSv1.3}]
+set sslsock [opentssl::ssl::socket $ctx $sock]
+opentssl::ssl::connect $sslsock
+set sess [opentssl::ssl::session export $sslsock]
+# Later, resume session
+set sesshandle [opentssl::ssl::session import $ctx $sess]
+set sslsock2 [opentssl::ssl::socket $ctx $sock2 -session $sesshandle]
+opentssl::ssl::connect $sslsock2
+```
+
+#### Custom Certificate Verification
+- Use `-verify 1` with `opentssl::ssl::context create` to require peer certificate verification.
+- The context can be configured with custom CA files or options.
+- Error messages are descriptive if verification fails.
+
+---
 
 ### X.509 Certificate Verification
 Verify that a certificate is signed by a CA:
@@ -625,6 +702,118 @@ puts "Decrypted: $plain"
   - `<env>`: PKCS#7 envelope (PEM string or DER byte array)
   - `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
 - **Returns:** Decrypted data (byte array)
+
+---
+
+## SSL/TLS API Reference
+
+### `opentssl::ssl::context create ?options?`
+Creates a new SSL/TLS context with customizable options.
+- Options: `-protocols`, `-ciphers`, `-cert`, `-key`, `-cafile`, `-verify`
+- Returns: context handle (e.g., sslctx1)
+
+### `opentssl::ssl::socket <ctx> <sock> ?-session <sessionhandle>?`
+Wraps a Tcl socket in SSL/TLS, optionally resuming a session.
+- Returns: SSL socket handle (e.g., sslsock1)
+
+### `opentssl::ssl::session export <sslsock>`
+Exports the current SSL session as a base64 string for future resumption.
+
+### `opentssl::ssl::session import <ctx> <base64blob>`
+Imports a session from a base64 string, returning a session handle for use with `-session`.
+
+### `opentssl::ssl::session info <sslsock>`
+Returns a dict with protocol, cipher, session id, peer subject, etc.
+
+### `opentssl::ssl::connect <sslsock>`
+Performs SSL/TLS handshake as a client.
+
+### `opentssl::ssl::accept <sslsock>`
+Performs SSL/TLS handshake as a server.
+
+### `opentssl::ssl::read <sslsock> ?nbytes?`
+Reads up to nbytes (default 4096) from the SSL connection.
+
+### `opentssl::ssl::write <sslsock> <data>`
+Writes data to the SSL connection.
+
+### `opentssl::ssl::close <sslsock>`
+Closes the SSL connection and frees resources.
+
+---
+
+## SSL/TLS Usage Examples
+
+### Example: Creating an SSL Server
+```tcl
+# Generate or load server certificate and key (PEM format)
+set cert [read [open "server-cert.pem"]]
+set key  [read [open "server-key.pem"]]
+
+# Create SSL context for the server
+set ctx [opentssl::ssl::context create -protocols {TLSv1.2 TLSv1.3} -cert $cert -key $key -verify 0]
+
+# Listen on a TCP socket
+set srv [socket -server accept_cb 4433]
+
+# Accept callback: wrap accepted socket in SSL and perform handshake
+proc accept_cb {sock addr port} {
+    global ctx
+    set sslsock [opentssl::ssl::socket $ctx $sock]
+    if {[catch {opentssl::ssl::accept $sslsock} err]} {
+        puts "Handshake failed: $err"
+        close $sock
+        return
+    }
+    # Now you can read/write encrypted data:
+    set data [opentssl::ssl::read $sslsock 4096]
+    puts "Received: $data"
+    opentssl::ssl::write $sslsock "Hello from SSL server!"
+    opentssl::ssl::close $sslsock
+    close $sock
+}
+
+vwait forever  ;# Keep the server running
+```
+
+### Example: Creating an SSL Client
+```tcl
+# Optionally load CA certificate for verification
+set ca [read [open "ca-cert.pem"]]
+
+# Create SSL context for the client
+set ctx [opentssl::ssl::context create -protocols {TLSv1.2 TLSv1.3} -cafile $ca -verify 1]
+
+# Open a TCP connection to the server
+set sock [socket localhost 4433]
+
+# Wrap socket in SSL
+set sslsock [opentssl::ssl::socket $ctx $sock]
+
+# Perform SSL handshake as client
+if {[catch {opentssl::ssl::connect $sslsock} err]} {
+    puts "Handshake failed: $err"
+    close $sock
+    return
+}
+
+# Send and receive encrypted data
+opentssl::ssl::write $sslsock "Hello from SSL client!"
+set response [opentssl::ssl::read $sslsock 4096]
+puts "Received: $response"
+opentssl::ssl::close $sslsock
+close $sock
+```
+
+**Notes:**
+- You can use Tcl's event loop and fileevent for asynchronous I/O with SSL sockets.
+- Always close both the SSL socket and the underlying Tcl socket when done.
+- For mutual authentication, supply `-cert` and `-key` for both client and server contexts and set `-verify 1`.
+
+## Error Handling
+- All SSL/TLS commands provide detailed error messages on failure (e.g., handshake errors, verification failures).
+- Resources are automatically freed on error or close.
+- Invalid handles or arguments result in descriptive Tcl errors.
 
 ---
 

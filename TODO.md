@@ -228,23 +228,36 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
 
 ## 11. SSL/TLS Context/Session (Advanced)
 - **Functions:**
-  - SSL_new, SSL_CTX_new, SSL_connect, SSL_accept, etc.
+  - SSL_new, SSL_CTX_new, SSL_connect, SSL_accept, SSL_SESSION, i2d_SSL_SESSION, d2i_SSL_SESSION, BIO, etc.
 - **Tcl Commands:**
-  - (Usually handled by the `tls` package, but can be exposed for advanced use.)
-- **Steps:**
-  1. Consider only if needed beyond existing Tcl `tls` package.
-
----
-
-# General Implementation Steps
-1. For each command, define the Tcl command signature and expected arguments.
-2. Implement the command in C using the relevant OpenSSL APIs.
-3. Add proper error handling and memory management.
-4. Write tests and example Tcl scripts for each command.
-5. Update documentation and pkgIndex.tcl as new commands are added.
-
----
-
-# Notes
-- Some OpenSSL features are very advanced or rarely used; prioritize based on user needs.
-- For full coverage, consult the OpenSSL documentation: https://www.openssl.org/docs/manmaster/man3/
+  - `opentssl::ssl::context create ...` — Create an SSL/TLS context with options for protocols, ciphers, certificates, etc.
+  - `opentssl::ssl::socket <ctx> <sock> ?-session <sessionhandle>?` — Wrap a Tcl socket with SSL, optionally resuming a session.
+  - `opentssl::ssl::session export <sslsock>` — Export the current session as a base64 string (for resumption).
+  - `opentssl::ssl::session import <ctx> <base64blob>` — Import a session from a base64 string, returning a session handle.
+  - `opentssl::ssl::session info <sslsock>` — Get session/cipher/peer info as a Tcl dict.
+  - `opentssl::ssl::connect <sslsock>` — Perform SSL/TLS handshake as client.
+  - `opentssl::ssl::accept <sslsock>` — Perform SSL/TLS handshake as server.
+  - `opentssl::ssl::read <sslsock> ?nbytes?` — Read from SSL connection.
+  - `opentssl::ssl::write <sslsock> <data>` — Write to SSL connection.
+  - `opentssl::ssl::close <sslsock>` — Close SSL connection and free resources.
+- **Status:** ✅ **Completed (Session resumption, export/import, custom verification, robust error handling, and documentation)**
+- **Notes:**
+  - Session resumption is supported via export/import commands and the `-session` option to `opentssl::ssl::socket`.
+  - Custom certificate verification and context options are available.
+  - All commands include robust error handling and clear error messages.
+  - Comprehensive documentation and usage examples are provided in the README.
+  - Usage example (session export/import):
+    ```tcl
+    # Create context and wrap socket
+    set ctx [opentssl::ssl::context create -protocols {TLSv1.2 TLSv1.3}]
+    set sslsock [opentssl::ssl::socket $ctx $sock]
+    # Perform handshake
+    opentssl::ssl::connect $sslsock
+    # Export session
+    set sess [opentssl::ssl::session export $sslsock]
+    # Later, import session for resumption
+    set sesshandle [opentssl::ssl::session import $ctx $sess]
+    set sslsock2 [opentssl::ssl::socket $ctx $sock2 -session $sesshandle]
+    opentssl::ssl::connect $sslsock2
+    ```
+  - See README for further details and advanced usage.

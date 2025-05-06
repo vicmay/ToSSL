@@ -2227,60 +2227,6 @@ static char *GenerateSslSocketHandleName(void) {
     return strdup(buf);
 }
 
-// opentssl::ssl::socket <ctx> <sock>
-// Looks up SSL_CTX handle, creates SSL*, associates with Tcl channel, returns handle
-static int SslSocketCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 4) {
-        Tcl_WrongNumArgs(interp, 1, objv, "<ctx> <sock>");
-        return TCL_ERROR;
-    }
-    const char *ctxHandleName = Tcl_GetString(objv[2]);
-    const char *chanName = Tcl_GetString(objv[3]);
-    // Look up context handle
-    if (!sslContextTableInitialized) {
-        Tcl_SetResult(interp, "No SSL contexts allocated", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    Tcl_HashEntry *ctxEntry = Tcl_FindHashEntry(&sslContextTable, ctxHandleName);
-    if (!ctxEntry) {
-        Tcl_SetResult(interp, "Unknown SSL context handle", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    SslContextHandle *ctxHandle = (SslContextHandle *)Tcl_GetHashValue(ctxEntry);
-    if (!ctxHandle->ctx) {
-        Tcl_SetResult(interp, "Invalid SSL_CTX in handle", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    // Check Tcl channel exists
-    Tcl_Channel chan = Tcl_GetChannel(interp, chanName, NULL);
-    if (!chan) {
-        Tcl_SetResult(interp, "Unknown Tcl channel", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    // Create SSL object
-    SSL *ssl = SSL_new(ctxHandle->ctx);
-    if (!ssl) {
-        Tcl_SetResult(interp, "Failed to create SSL object", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    // For now, do not yet associate BIOs; just store the handle for later handshake
-    if (!sslSocketTableInitialized) {
-        Tcl_InitHashTable(&sslSocketTable, TCL_STRING_KEYS);
-        sslSocketTableInitialized = 1;
-    }
-    SslSocketHandle *sockHandle = (SslSocketHandle *)ckalloc(sizeof(SslSocketHandle));
-    sockHandle->ssl = ssl;
-    sockHandle->handleName = GenerateSslSocketHandleName();
-    sockHandle->chanName = strdup(chanName);
-    sockHandle->ctxHandle = ctxHandle;
-    Tcl_HashEntry *entryPtr;
-    int newFlag;
-    entryPtr = Tcl_CreateHashEntry(&sslSocketTable, sockHandle->handleName, &newFlag);
-    Tcl_SetHashValue(entryPtr, sockHandle);
-    Tcl_SetResult(interp, sockHandle->handleName, TCL_VOLATILE);
-    return TCL_OK;
-}
-
 // Helper: Get file descriptor from Tcl channel (POSIX only)
 #include <unistd.h>
 static int GetFdFromChannel(Tcl_Interp *interp, const char *chanName) {
@@ -2481,6 +2427,219 @@ static int SslCloseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     return TCL_OK;
 }
 
+// --- SSL/TLS Session Resumption Management ---
+#include <openssl/buffer.h>
+#include <openssl/ssl.h>
+#include <openssl/evp.h>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+#include <assert.h>
+
+// Session handle struct
+typedef struct SslSessionHandle {
+    SSL_SESSION *session;
+    char *handleName; // e.g., sslsession1
+} SslSessionHandle;
+
+static Tcl_HashTable sslSessionTable;
+static int sslSessionTableInitialized = 0;
+static int sslSessionNextId = 1;
+
+static char *GenerateSslSessionHandleName(void) {
+    static char buf[32];
+    snprintf(buf, sizeof(buf), "sslsession%d", sslSessionNextId++);
+    return strdup(buf);
+}
+
+// opentssl::ssl::session export <sslsock>
+// Serializes the session and returns a base64 string
+static int SslSessionExportCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "session export <sslsock>");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[3]);
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    SSL_SESSION *sess = SSL_get_session(sockHandle->ssl);
+    if (!sess) {
+        Tcl_SetResult(interp, "No session available", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    int len = i2d_SSL_SESSION(sess, NULL);
+    if (len <= 0) {
+        Tcl_SetResult(interp, "Failed to serialize session", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    unsigned char *buf = (unsigned char *)ckalloc(len);
+    unsigned char *p = buf;
+    if (i2d_SSL_SESSION(sess, &p) != len) {
+        ckfree(buf);
+        Tcl_SetResult(interp, "Failed to serialize session (i2d)", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Encode as base64
+    BIO *b64 = BIO_new(BIO_f_base64());
+    BIO *mem = BIO_new(BIO_s_mem());
+    BIO_push(b64, mem);
+    BIO_write(b64, buf, len);
+    BIO_flush(b64);
+    char *base64 = NULL;
+    long blen = BIO_get_mem_data(mem, &base64);
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(base64, blen));
+    BIO_free_all(b64);
+    ckfree(buf);
+    return TCL_OK;
+}
+
+// opentssl::ssl::session import <ctx> <base64blob>
+// Imports a session and returns a session handle
+static int SslSessionImportCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "session import <ctx> <base64blob>");
+        return TCL_ERROR;
+    }
+    const char *ctxHandleName = Tcl_GetString(objv[3]);
+    const char *base64 = Tcl_GetString(objv[4]);
+    if (!sslContextTableInitialized) {
+        Tcl_SetResult(interp, "No SSL contexts allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *ctxEntry = Tcl_FindHashEntry(&sslContextTable, ctxHandleName);
+    if (!ctxEntry) {
+        Tcl_SetResult(interp, "Unknown SSL context handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Decode base64
+    BIO *b64 = BIO_new(BIO_f_base64());
+    BIO *mem = BIO_new_mem_buf(base64, -1);
+    BIO_push(b64, mem);
+    unsigned char buf[16384];
+    int len = BIO_read(b64, buf, sizeof(buf));
+    BIO_free_all(b64);
+    if (len <= 0) {
+        Tcl_SetResult(interp, "Failed to decode base64 session", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    const unsigned char *p = buf;
+    SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &p, len);
+    if (!sess) {
+        Tcl_SetResult(interp, "Failed to parse session", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Store session handle
+    if (!sslSessionTableInitialized) {
+        Tcl_InitHashTable(&sslSessionTable, TCL_STRING_KEYS);
+        sslSessionTableInitialized = 1;
+    }
+    SslSessionHandle *handle = (SslSessionHandle *)ckalloc(sizeof(SslSessionHandle));
+    handle->session = sess;
+    handle->handleName = GenerateSslSessionHandleName();
+    Tcl_HashEntry *entryPtr;
+    int newFlag;
+    entryPtr = Tcl_CreateHashEntry(&sslSessionTable, handle->handleName, &newFlag);
+    Tcl_SetHashValue(entryPtr, handle);
+    Tcl_SetResult(interp, handle->handleName, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+// Helper: Look up a session handle by name
+static SslSessionHandle *FindSslSessionHandle(const char *name) {
+    if (!sslSessionTableInitialized) return NULL;
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSessionTable, name);
+    if (!entryPtr) return NULL;
+    return (SslSessionHandle *)Tcl_GetHashValue(entryPtr);
+}
+
+// --- Update SslSocketCmd to allow -session <sessionhandle> ---
+// opentssl::ssl::socket <ctx> <sock> ?-session <sessionhandle>?
+// Looks up SSL_CTX handle, creates SSL*, associates with Tcl channel, optionally resumes session
+static int SslSocketCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 4 && objc != 6) {
+        Tcl_WrongNumArgs(interp, 1, objv, "<ctx> <sock> ?-session <sessionhandle>?");
+        return TCL_ERROR;
+    }
+    const char *ctxHandleName = Tcl_GetString(objv[2]);
+    const char *chanName = Tcl_GetString(objv[3]);
+    const char *sessionHandleName = NULL;
+    if (objc == 6) {
+        if (strcmp(Tcl_GetString(objv[4]), "-session") != 0) {
+            Tcl_SetResult(interp, "Expected -session option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        sessionHandleName = Tcl_GetString(objv[5]);
+    }
+    // Look up context handle
+    if (!sslContextTableInitialized) {
+        Tcl_SetResult(interp, "No SSL contexts allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *ctxEntry = Tcl_FindHashEntry(&sslContextTable, ctxHandleName);
+    if (!ctxEntry) {
+        Tcl_SetResult(interp, "Unknown SSL context handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslContextHandle *ctxHandle = (SslContextHandle *)Tcl_GetHashValue(ctxEntry);
+    if (!ctxHandle->ctx) {
+        Tcl_SetResult(interp, "Invalid SSL_CTX in handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Check Tcl channel exists
+    Tcl_Channel chan = Tcl_GetChannel(interp, chanName, NULL);
+    if (!chan) {
+        Tcl_SetResult(interp, "Unknown Tcl channel", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Create SSL object
+    SSL *ssl = SSL_new(ctxHandle->ctx);
+    if (!ssl) {
+        Tcl_SetResult(interp, "Failed to create SSL object", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // If session handle provided, set session
+    if (sessionHandleName) {
+        SslSessionHandle *sessHandle = FindSslSessionHandle(sessionHandleName);
+        if (!sessHandle) {
+            SSL_free(ssl);
+            Tcl_SetResult(interp, "Unknown SSL session handle", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        if (SSL_set_session(ssl, sessHandle->session) != 1) {
+            SSL_free(ssl);
+            Tcl_SetResult(interp, "Failed to set SSL session", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    // For now, do not yet associate BIOs; just store the handle for later handshake
+    if (!sslSocketTableInitialized) {
+        Tcl_InitHashTable(&sslSocketTable, TCL_STRING_KEYS);
+        sslSocketTableInitialized = 1;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)ckalloc(sizeof(SslSocketHandle));
+    sockHandle->ssl = ssl;
+    sockHandle->handleName = GenerateSslSocketHandleName();
+    sockHandle->chanName = strdup(chanName);
+    sockHandle->ctxHandle = ctxHandle;
+    Tcl_HashEntry *entryPtr;
+    int newFlag;
+    entryPtr = Tcl_CreateHashEntry(&sslSocketTable, sockHandle->handleName, &newFlag);
+    Tcl_SetHashValue(entryPtr, sockHandle);
+    Tcl_SetResult(interp, sockHandle->handleName, TCL_VOLATILE);
+    return TCL_OK;
+}
+
 // opentssl::ssl::session info <sslsock>
 // Returns a Tcl dict with protocol, cipher, session id, peer cert subject, etc.
 static int SslSessionInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -2599,6 +2758,11 @@ int Opentssl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "opentssl::ssl::close", SslCloseCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::ssl::session_info", SslSessionInfoCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::ssl::peer_cert", SslPeerCertCmd, NULL, NULL);
+    // Advanced session resumption commands
+    //   opentssl::ssl::session export <sslsock>
+    //   opentssl::ssl::session import <ctx> <base64blob>
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::session_export", SslSessionExportCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::session_import", SslSessionImportCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::generate", KeyGenerateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::parse", KeyParseCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::write", KeyWriteCmd, NULL, NULL);
