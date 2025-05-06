@@ -19,6 +19,7 @@
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/pkcs12.h>
+#include <openssl/pkcs7.h>
 
 // KeyUsage bitmask values (OpenSSL defines these in x509v3.h, but for clarity):
 #ifndef KU_DIGITAL_SIGNATURE
@@ -1115,6 +1116,171 @@ static int Pkcs12ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
     return TCL_OK;
 }
 
+// opentssl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?
+static int Pkcs7SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// opentssl::pkcs7::verify -ca <ca> <pkcs7> <data> ?-pem 0|1?
+static int Pkcs7VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    const char *ca_pem = NULL;
+    int ca_len = 0, sig_len = 0, data_len = 0;
+    int pemin = 1; // Default: PEM input
+    Tcl_Obj *sigObj = NULL, *dataObj = NULL;
+    // Parse options: -ca <ca> <pkcs7> <data> ?-pem 0|1?
+    int i = 1;
+    for (; i + 1 < objc - 2; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-ca") == 0) {
+            ca_pem = Tcl_GetStringFromObj(objv[i+1], &ca_len);
+        } else if (strcmp(opt, "-pem") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &pemin) != TCL_OK) return TCL_ERROR;
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    if (i + 2 != objc) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-ca ca pkcs7 data ?-pem 0|1?");
+        return TCL_ERROR;
+    }
+    sigObj = objv[objc-2];
+    dataObj = objv[objc-1];
+    unsigned char *sig = (unsigned char *)Tcl_GetByteArrayFromObj(sigObj, &sig_len);
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(dataObj, &data_len);
+    // Load CA cert
+    BIO *cabio = BIO_new_mem_buf((void*)ca_pem, ca_len);
+    X509 *ca = PEM_read_bio_X509(cabio, NULL, NULL, NULL);
+    if (!ca) {
+        BIO_free(cabio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CA cert", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Load PKCS7 signature
+    BIO *sigbio = BIO_new_mem_buf((void*)sig, sig_len);
+    PKCS7 *p7 = NULL;
+    if (pemin) {
+        p7 = PEM_read_bio_PKCS7(sigbio, NULL, NULL, NULL);
+    } else {
+        p7 = d2i_PKCS7_bio(sigbio, NULL);
+    }
+    if (!p7) {
+        X509_free(ca);
+        BIO_free(cabio);
+        BIO_free(sigbio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse PKCS7 signature", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Prepare data
+    BIO *databio = BIO_new_mem_buf((void*)data, data_len);
+    // Build cert store
+    X509_STORE *store = X509_STORE_new();
+    X509_STORE_add_cert(store, ca);
+    // Create cert stack
+    STACK_OF(X509) *certs = sk_X509_new_null();
+    sk_X509_push(certs, ca);
+    // Verify
+    int ok = PKCS7_verify(p7, certs, store, databio, NULL, 0);
+    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(ok == 1));
+    // Cleanup
+    sk_X509_free(certs);
+    X509_STORE_free(store);
+    PKCS7_free(p7);
+    X509_free(ca);
+    BIO_free(cabio);
+    BIO_free(sigbio);
+    BIO_free(databio);
+    return TCL_OK;
+}
+
+// opentssl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?
+static int Pkcs7SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    const char *cert_pem = NULL, *key_pem = NULL;
+    int cert_len = 0, key_len = 0, data_len = 0;
+    int detached = 1; // Default: detached signature
+    int pemout = 1;   // Default: PEM output
+    Tcl_Obj *dataObj = NULL;
+    // Parse options: -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?
+    int i = 1;
+    for (; i + 1 < objc - 1; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-cert") == 0) {
+            cert_pem = Tcl_GetStringFromObj(objv[i+1], &cert_len);
+        } else if (strcmp(opt, "-key") == 0) {
+            key_pem = Tcl_GetStringFromObj(objv[i+1], &key_len);
+        } else if (strcmp(opt, "-detached") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &detached) != TCL_OK) return TCL_ERROR;
+        } else if (strcmp(opt, "-pem") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &pemout) != TCL_OK) return TCL_ERROR;
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    if (i >= objc) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-cert cert -key key data ?-detached 0|1? ?-pem 0|1?");
+        return TCL_ERROR;
+    }
+    dataObj = objv[objc-1];
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(dataObj, &data_len);
+    // Load cert and key
+    BIO *certbio = BIO_new_mem_buf((void*)cert_pem, cert_len);
+    X509 *cert = PEM_read_bio_X509(certbio, NULL, NULL, NULL);
+    BIO *keybio = BIO_new_mem_buf((void*)key_pem, key_len);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(keybio, NULL, NULL, NULL);
+    if (!cert || !pkey) {
+        if (cert) X509_free(cert);
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(certbio);
+        BIO_free(keybio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse cert or key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Prepare data
+    BIO *databio = BIO_new_mem_buf((void*)data, data_len);
+    // Create PKCS7 signature
+    PKCS7 *p7 = PKCS7_sign(cert, pkey, NULL, databio, detached ? PKCS7_DETACHED : 0);
+    if (!p7) {
+        X509_free(cert);
+        EVP_PKEY_free(pkey);
+        BIO_free(certbio);
+        BIO_free(keybio);
+        BIO_free(databio);
+        Tcl_SetResult(interp, "OpenSSL: PKCS7_sign failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Output
+    BIO *outbio = BIO_new(BIO_s_mem());
+    int ok = 0;
+    if (pemout) {
+        ok = PEM_write_bio_PKCS7(outbio, p7);
+    } else {
+        ok = i2d_PKCS7_bio(outbio, p7);
+    }
+    if (!ok) {
+        PKCS7_free(p7);
+        X509_free(cert);
+        EVP_PKEY_free(pkey);
+        BIO_free(certbio);
+        BIO_free(keybio);
+        BIO_free(databio);
+        BIO_free(outbio);
+        Tcl_SetResult(interp, "OpenSSL: failed to serialize PKCS7", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    char *outbuf = NULL;
+    long outlen = BIO_get_mem_data(outbio, &outbuf);
+    Tcl_SetObjResult(interp, pemout ? Tcl_NewStringObj(outbuf, outlen) : Tcl_NewByteArrayObj((unsigned char*)outbuf, outlen));
+    PKCS7_free(p7);
+    X509_free(cert);
+    EVP_PKEY_free(pkey);
+    BIO_free(certbio);
+    BIO_free(keybio);
+    BIO_free(databio);
+    BIO_free(outbio);
+    return TCL_OK;
+}
+
 // opentssl::pkcs12::create -cert <cert> -key <key> -ca <ca> -password <pw>
 static int Pkcs12CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
@@ -1634,5 +1800,7 @@ int Opentssl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "opentssl::hex::decode", HexDecodeCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::pkcs12::parse", Pkcs12ParseCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::pkcs12::create", Pkcs12CreateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::pkcs7::sign", Pkcs7SignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::pkcs7::verify", Pkcs7VerifyCmd, NULL, NULL);
     return TCL_OK;
 }

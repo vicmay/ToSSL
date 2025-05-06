@@ -269,6 +269,23 @@ puts "Random bytes (hex): [binary encode hex $bytes]"
 
 ## API Reference
 
+### `opentssl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?`
+Signs data using PKCS#7 format (S/MIME/CMS) with the provided certificate and private key.
+- `-cert <cert>`: PEM certificate (string)
+- `-key <key>`: PEM private key (string)
+- `<data>`: Data to sign (byte array or string)
+- `-detached 0|1`: 1 for detached signature (default), 0 for attached
+- `-pem 0|1`: 1 for PEM output (default), 0 for DER (binary)
+- Returns: PKCS#7 signature (PEM string or DER byte array)
+
+### `opentssl::pkcs7::verify -ca <ca> <pkcs7> <data> ?-pem 0|1?`
+Verifies a PKCS#7 signature (detached or attached) using the provided CA certificate.
+- `-ca <ca>`: PEM CA certificate (string)
+- `<pkcs7>`: PKCS#7 signature (PEM string or DER byte array)
+- `<data>`: Data to verify (byte array or string)
+- `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
+- Returns: 1 if signature is valid, 0 otherwise
+
 ### `opentssl::digest -alg <name> <data>`
 Computes the hash of `<data>` using the specified digest algorithm (e.g., sha256, sha512, md5).
 - Returns: Hex-encoded string of the digest.
@@ -474,6 +491,55 @@ close $f
   - `-ca <ca>`: PEM CA chain (string, concatenated PEMs; optional)
   - `-password <pw>`: password for the PKCS#12 bundle (string)
 - **Returns:** PKCS#12 binary data as a Tcl byte array
+
+---
+
+## PKCS#7: Signing and Verification (Detached/Attached)
+
+### Sign Data (PKCS#7 Signature)
+Create a PKCS#7 signature (detached or attached) in PEM or DER format:
+
+#### Detached signature (PEM output, default):
+```tcl
+set sig [opentssl::pkcs7::sign -cert $cert -key $key $data]
+set f [open "sig.p7s" w]
+puts -nonewline $f $sig
+close $f
+```
+#### Attached signature (DER output):
+```tcl
+set sig [opentssl::pkcs7::sign -cert $cert -key $key -detached 0 -pem 0 $data]
+set f [open "sig.p7m" wb]
+puts -nonewline $f $sig
+close $f
+```
+- **Arguments:**
+  - `-cert <cert>`: PEM certificate (string)
+  - `-key <key>`: PEM private key (string)
+  - `<data>`: Data to sign (byte array or string)
+  - `-detached 0|1`: 1 for detached signature (default), 0 for attached
+  - `-pem 0|1`: 1 for PEM output (default), 0 for DER (binary)
+- **Returns:** PKCS#7 signature (PEM string or DER byte array)
+
+### Verify PKCS#7 Signature
+Verify a PKCS#7 signature (detached or attached, PEM or DER input):
+
+#### Detached signature (PEM input, default):
+```tcl
+set ok [opentssl::pkcs7::verify -ca $ca $sig $data]
+puts "Valid? $ok"
+```
+#### Attached signature (DER input):
+```tcl
+set ok [opentssl::pkcs7::verify -ca $ca -pem 0 $sig $data]
+puts "Valid? $ok"
+```
+- **Arguments:**
+  - `-ca <ca>`: PEM CA certificate (string)
+  - `<sig>`: PKCS#7 signature (PEM string or DER byte array)
+  - `<data>`: Data to verify (byte array or string)
+  - `-pem 0|1`: 1 for PEM input (default), 0 for DER (binary)
+- **Returns:** 1 if signature is valid, 0 otherwise
 
 ---
 
