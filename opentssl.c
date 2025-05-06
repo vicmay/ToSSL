@@ -16,6 +16,9 @@
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+
 // KeyUsage bitmask values (OpenSSL defines these in x509v3.h, but for clarity):
 #ifndef KU_DIGITAL_SIGNATURE
 #define KU_DIGITAL_SIGNATURE    0x80
@@ -381,6 +384,92 @@ static void bin2hex(const unsigned char *in, int len, char *out) {
     }
     out[2*len] = '\0';
 }
+
+// opentssl::base64::encode <data>
+static int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "data");
+        return TCL_ERROR;
+    }
+    int datalen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &datalen);
+    int enclen = 4 * ((datalen + 2) / 3);
+    unsigned char *enc = (unsigned char *)ckalloc(enclen + 1);
+    int outlen = EVP_EncodeBlock(enc, data, datalen);
+    enc[outlen] = '\0';
+    Tcl_SetObjResult(interp, Tcl_NewStringObj((const char *)enc, outlen));
+    ckfree((char *)enc);
+    return TCL_OK;
+}
+
+// opentssl::base64::decode <base64>
+static int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "base64");
+        return TCL_ERROR;
+    }
+    int inlen;
+    const char *in = Tcl_GetStringFromObj(objv[1], &inlen);
+    int declen = (inlen / 4) * 3;
+    unsigned char *dec = (unsigned char *)ckalloc(declen + 1);
+    int outlen = EVP_DecodeBlock(dec, (const unsigned char *)in, inlen);
+    // Remove any trailing padding bytes (\0 from EVP_DecodeBlock is not counted)
+    if (outlen > 0) {
+        // Remove trailing zero bytes if base64 was padded
+        while (outlen > 0 && dec[outlen - 1] == '\0') outlen--;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(dec, outlen));
+    ckfree((char *)dec);
+    return TCL_OK;
+}
+
+// opentssl::hex::encode <data>
+static int HexEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "data");
+        return TCL_ERROR;
+    }
+    int datalen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &datalen);
+    char *hex = (char *)ckalloc(2 * datalen + 1);
+    bin2hex(data, datalen, hex);
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(hex, 2 * datalen));
+    ckfree(hex);
+    return TCL_OK;
+}
+
+// opentssl::hex::decode <hex>
+static int HexDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "hex");
+        return TCL_ERROR;
+    }
+    int hexlen;
+    const char *hex = Tcl_GetStringFromObj(objv[1], &hexlen);
+    if (hexlen % 2 != 0) {
+        Tcl_SetResult(interp, "Hex string must have even length", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    int outlen = hexlen / 2;
+    unsigned char *out = (unsigned char *)ckalloc(outlen);
+    for (int i = 0; i < outlen; ++i) {
+        unsigned int b;
+        if (sscanf(hex + 2 * i, "%2x", &b) != 1) {
+            ckfree((char *)out);
+            Tcl_SetResult(interp, "Invalid hex digit", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        out[i] = (unsigned char)b;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, outlen));
+    ckfree((char *)out);
+    return TCL_OK;
+}
+
 
 // opentssl::digest -alg <name> <data>
 static int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -1401,5 +1490,9 @@ int Opentssl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "opentssl::key::parse", KeyParseCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::write", KeyWriteCmd, NULL, NULL);
     Tcl_PkgProvide(interp, "opentssl", "0.1");
+    Tcl_CreateObjCommand(interp, "opentssl::base64::encode", Base64EncodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::base64::decode", Base64DecodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::hex::encode", HexEncodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::hex::decode", HexDecodeCmd, NULL, NULL);
     return TCL_OK;
 }

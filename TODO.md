@@ -156,8 +156,29 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
   - EVP_EncodeBlock, EVP_DecodeBlock
 - **Tcl Commands:**
   - `opentssl::base64::encode`, `opentssl::base64::decode`, `opentssl::hex::encode`, `opentssl::hex::decode`
-- **Steps:**
-  1. Implement encoding/decoding commands.
+- **Status:** ✅ **Completed**
+- **Notes:**
+  - Implemented as four Tcl commands using OpenSSL APIs.
+  - Usage example (Base64 encode):
+    ```tcl
+    set b64 [opentssl::base64::encode $data]
+    puts "Base64: $b64"
+    ```
+  - Usage example (Base64 decode):
+    ```tcl
+    set bin [opentssl::base64::decode $b64]
+    puts "Decoded: $bin"
+    ```
+  - Usage example (Hex encode):
+    ```tcl
+    set hex [opentssl::hex::encode $data]
+    puts "Hex: $hex"
+    ```
+  - Usage example (Hex decode):
+    ```tcl
+    set bin [opentssl::hex::decode $hex]
+    puts "Decoded: $bin"
+    ```
 
 ## 9. PKCS#12, PKCS#7, S/MIME
 - **Functions:**

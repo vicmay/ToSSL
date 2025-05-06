@@ -352,6 +352,38 @@ Generates `<n>` random bytes (as a Tcl byte array).
 
 ---
 
+## Encoding and Decoding
+
+### Base64 Encoding
+Encode binary or string data to Base64:
+```tcl
+set b64 [opentssl::base64::encode $data]
+puts "Base64: $b64"
+```
+
+### Base64 Decoding
+Decode Base64 string to binary data:
+```tcl
+set bin [opentssl::base64::decode $b64]
+puts "Decoded: $bin"
+```
+
+### Hex Encoding
+Encode binary data to hex string:
+```tcl
+set hex [opentssl::hex::encode $data]
+puts "Hex: $hex"
+```
+
+### Hex Decoding
+Decode hex string to binary data:
+```tcl
+set bin [opentssl::hex::decode $hex]
+puts "Decoded: $bin"
+```
+
+---
+
 ## Development Roadmap
 See [TODO.md](TODO.md) for a list of planned features and implementation steps.
 
