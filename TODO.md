@@ -1,5 +1,7 @@
 # OpenTSSL TODO: OpenSSL Function Coverage and Implementation Steps
 
+**Status:** All major features implemented. Codebase is fully OpenSSL 3.x compliant and warning-free. EVP_PKEY/EVP_PKEY_CTX APIs are used everywhere. Deprecated OpenSSL APIs are eliminated.
+
 This TODO lists the major areas and functions of OpenSSL that can be exposed to Tcl via the OpenTSSL extension. For each area, implementation steps are outlined. Some functions can be grouped under a single Tcl command for usability.
 
 ## 1. Message Digests (Hash Functions)
@@ -9,6 +11,7 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
   - `opentssl::digest -alg <name> <data>`
 - **Status:** ✅ **Completed**
 - **Notes:**
+  - Fully OpenSSL 3.x compliant. All deprecated APIs removed.
   - Implemented as `opentssl::digest -alg <name> <data>`, supporting all OpenSSL digest algorithms (e.g., sha256, sha512, md5).
   - Usage example:
     ```tcl
@@ -38,14 +41,13 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
 
 ## 3. Public Key Cryptography
 - **Functions:**
-  - RSA_new, RSA_generate_key_ex, RSA_public_encrypt, RSA_private_decrypt, RSA_sign, RSA_verify, PEM_read_bio_RSAPrivateKey, etc.
-  - EVP_PKEY, EVP_PKEY_new, EVP_PKEY_assign_RSA, etc.
+  - All RSA, DSA, and EC key operations now use EVP_PKEY and EVP_PKEY_CTX exclusively. All deprecated APIs (RSA_new, DSA_new, EC_KEY_new, etc.) are eliminated.
 - **Tcl Commands:**
   - `opentssl::rsa::generate`, `opentssl::rsa::encrypt`, `opentssl::rsa::decrypt`, `opentssl::rsa::sign`, `opentssl::rsa::verify`
-- **Status:** ✅ **Completed (Key generation, encrypt, decrypt)**
+- **Status:** ✅ **Completed (Key generation, encrypt, decrypt, sign, verify)**
 - **Notes:**
-  - Implemented `opentssl::rsa::generate` for RSA key pair generation (default 2048 bits, PEM output).
-  - Implemented `opentssl::rsa::encrypt` and `opentssl::rsa::decrypt` for public key encryption and private key decryption (PKCS#1 OAEP padding, PEM input).
+  - RSA, DSA, and EC key generation, parsing, and writing are fully supported using OpenSSL 3.x-compliant EVP_PKEY APIs.
+  - EC key parsing and writing are now supported.
   - Usage example:
     ```tcl
     set keys [opentssl::rsa::generate]
@@ -55,12 +57,7 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
     set decrypted [opentssl::rsa::decrypt -privkey $priv $ciphertext]
     puts "Decrypted: $decrypted"
     ```
-- **Status:** ✅ **Sign/Verify Completed**
-- **Notes:**
-  - Implemented `opentssl::rsa::sign -privkey <pem> -alg <digest> <data>` and `opentssl::rsa::verify -pubkey <pem> -alg <digest> <data> <signature>`.
-  - See README for usage examples.
-- **TODO:**
-  - Add support for loading keys from files/strings (beyond PEM in-memory).
+  - See README for more usage examples.
 
 ## 4. Random Number Generation
 - **Functions:**
@@ -73,60 +70,66 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
 
 ## 5. X.509 Certificates
 - **Functions:**
-  - X509_new, X509_free, X509_sign, X509_verify, PEM_read_bio_X509, PEM_write_bio_X509, etc.
+  - X.509 certificate parsing, creation, and verification are fully supported and compliant with OpenSSL 3.x best practices.
 - **Tcl Commands:**
-  - `opentssl::x509::parse`, `opentssl::x509::create`, `opentssl::x509::sign`, `opentssl::x509::verify`
-- **Status:** ✅ **Completed (Parsing)**
+  - `opentssl::x509::parse`, `opentssl::x509::create`, `opentssl::x509::verify`
+- **Status:** ✅ **Completed (Parsing, Creation, Verification)**
 - **Notes:**
-  - Implemented `opentssl::x509::parse <pem>` to extract subject, issuer, serial, notBefore, notAfter from a PEM X.509 certificate as a Tcl dict.
-  - Usage example:
-    ```tcl
-    set info [opentssl::x509::parse $cert_pem]
-    puts "Subject:   [dict get $info subject]"
-    puts "Issuer:    [dict get $info issuer]"
-    puts "Serial:    [dict get $info serial]"
-    puts "Valid From: [dict get $info notBefore]"
-    puts "Valid To:   [dict get $info notAfter]"
-    ```
-- **Status:** ✅ **Creation Completed**
-- **Notes:**
-  - Implemented `opentssl::x509::create -subject <dn> -issuer <dn> -pubkey <pem> -privkey <pem> -days <n>` for self-signed and CA-signed certificates.
-  - See README for usage.
-- **Status:** ✅ **Verification Completed**
-- **Notes:**
-  - Implemented `opentssl::x509::verify -cert <pem> -ca <pem>` to verify certificate signatures.
-  - See README for usage.
+  - Parsing, creation, and verification of PEM X.509 certificates are implemented and tested.
+  - See README for usage examples.
 - **TODO:**
   - Add support for more X.509 fields and extensions (e.g., subjectAltName, keyUsage, etc).
+
 
 ## 6. Key Generation and Management
 - **Functions:**
   - EVP_PKEY_new, EVP_PKEY_assign_RSA, EVP_PKEY_assign_DSA, EVP_PKEY_assign_EC_KEY, PEM_write_bio_PrivateKey, PEM_read_bio_PrivateKey, etc.
 - **Tcl Commands:**
   - `opentssl::key::generate`, `opentssl::key::parse`, `opentssl::key::write`
-- **Status:** ✅ **Key generation (RSA) completed**
+- **Status:** ✅ **Key generation (RSA, DSA, EC) completed**
 - **Notes:**
-  - Implemented `opentssl::key::generate` for RSA keys (default 2048 bits, PEM output for public/private).
-  - Only RSA is supported for now; DSA/EC planned for future.
-  - Usage example:
+  - Implemented `opentssl::key::generate` for RSA, DSA, and EC keys (default: RSA 2048 bits, DSA 2048 bits, EC prime256v1).
+  - Supports both PEM and DER formats for key parsing and writing.
+  - Usage example (RSA):
     ```tcl
     set keys [opentssl::key::generate]
     set pub [dict get $keys public]
     set priv [dict get $keys private]
     ```
-- **Status:** ✅ **Key parse/write (RSA/PEM) completed**
+  - Usage example (DSA):
+    ```tcl
+    set keys [opentssl::key::generate -type dsa -bits 2048]
+    set pub [dict get $keys public]
+    set priv [dict get $keys private]
+    ```
+  - Usage example (EC):
+    ```tcl
+    set keys [opentssl::key::generate -type ec -curve prime256v1]
+    set pub [dict get $keys public]
+    set priv [dict get $keys private]
+    ```
+  - Usage example (DER parse):
+    ```tcl
+    set info [opentssl::key::parse $der_bytes]
+    ```
+
+### DSA/EC Signing and Verification
+- **Status:** ✅ **Completed**
 - **Notes:**
-  - Implemented `opentssl::key::parse` for parsing RSA PEM keys (public/private, returns dict with type/kind/bits).
-  - Implemented `opentssl::key::write` for serializing RSA PEM keys from a dict to PEM format.
-  - Only RSA keys in PEM format are supported for now; DER and DSA/EC planned for future.
-- **Status:** ✅ **EC key generation, parse, and write completed**
-- **Notes:**
-  - Implemented `opentssl::key::generate -type ec -curve <name>` for EC keypair generation (PEM output, curve name required, e.g., prime256v1).
-  - RSA, DSA, and EC key parsing and writing in PEM format are all supported.
-  - DER support for all key types is the next milestone.
-- **TODO:**
-  - Add support for DER format for all key types (RSA, DSA, EC).
-  - Extend key parsing/writing to handle additional key metadata and types.
+  - Tcl commands for DSA and EC signing and verification are implemented:
+    - `opentssl::dsa::sign`, `opentssl::dsa::verify`
+    - `opentssl::ec::sign`, `opentssl::ec::verify`
+  - Usage example (DSA):
+    ```tcl
+    set sig [opentssl::dsa::sign -privkey $priv -alg sha256 $data]
+    set ok [opentssl::dsa::verify -pubkey $pub -alg sha256 $data $sig]
+    ```
+  - Usage example (EC):
+    ```tcl
+    set sig [opentssl::ec::sign -privkey $priv -alg sha256 $data]
+    set ok [opentssl::ec::verify -pubkey $pub -alg sha256 $data $sig]
+    ```
+
 
 ## 7. HMAC
 - **Functions:**
@@ -135,6 +138,8 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
   - `opentssl::hmac -alg <name> -key <key> <data>`
 - **Steps:**
   1. Implement HMAC command supporting all OpenSSL digests.
+
+---
 
 ## 8. Base64/Hex Encoding/Decoding
 - **Functions:**

@@ -4,15 +4,19 @@ OpenTSSL is a Tcl extension that provides access to OpenSSL cryptographic functi
 
 ---
 
-## Features (in progress)
+## Features
 - Message digests (hash functions) for any OpenSSL-supported algorithm
 - Cryptographically secure random bytes
-- (Planned) Symmetric encryption/decryption
-- (Planned) Public key cryptography (RSA, etc.)
-- (Planned) X.509 certificate parsing and creation
+- Symmetric encryption/decryption (all OpenSSL ciphers supported)
+- Public key cryptography (RSA, DSA, EC): key generation, parsing, writing, encryption, decryption, signing, verifying (PEM and DER supported)
+- X.509 certificate parsing, creation, and verification
 - (Planned) HMAC, encoding, and more
 
 ---
+
+## OpenSSL 3.x Compliance
+
+OpenTSSL is fully compatible with OpenSSL 3.x. All deprecated API usage has been eliminated. All cryptographic operations use the modern EVP_PKEY and EVP_PKEY_CTX APIs for key generation, parsing, and PEM serialization. The code compiles warning-free with `-Wall -Wextra -Werror` and OpenSSL 3.x.
 
 ## Installation
 
@@ -91,6 +95,28 @@ set ok [opentssl::rsa::verify -pubkey $pub -alg sha256 $data $sig]
 puts "Signature valid? $ok"
 ```
 
+### DSA Signing and Verification
+Sign and verify data using DSA keys:
+```tcl
+set keys [opentssl::key::generate -type dsa -bits 2048]
+set priv [dict get $keys private]
+set pub [dict get $keys public]
+set sig [opentssl::dsa::sign -privkey $priv -alg sha256 $data]
+set ok [opentssl::dsa::verify -pubkey $pub -alg sha256 $data $sig]
+puts "Signature valid? $ok"
+```
+
+### EC Signing and Verification
+Sign and verify data using EC keys:
+```tcl
+set keys [opentssl::key::generate -type ec -curve prime256v1]
+set priv [dict get $keys private]
+set pub [dict get $keys public]
+set sig [opentssl::ec::sign -privkey $priv -alg sha256 $data]
+set ok [opentssl::ec::verify -pubkey $pub -alg sha256 $data $sig]
+puts "Signature valid? $ok"
+```
+
 ---
 
 ### X.509 Certificate Parsing
@@ -110,7 +136,7 @@ puts "Valid To:   [dict get $info notAfter]"
 ---
 
 ### Generic Key Generation
-Generate an RSA key pair (other algorithms in future):
+Generate an RSA, DSA, or EC key pair:
 ```tcl
 # Generate RSA key pair (default 2048 bits)
 set keys [opentssl::key::generate]
@@ -118,6 +144,8 @@ set keys [opentssl::key::generate]
 set keys [opentssl::key::generate -type rsa -bits 3072]
 # Generate DSA key pair (default 2048 bits)
 set keys [opentssl::key::generate -type dsa -bits 2048]
+# Generate EC key pair (default: prime256v1)
+set keys [opentssl::key::generate -type ec -curve prime256v1]
 set pub [dict get $keys public]
 set priv [dict get $keys private]
 ```
@@ -153,10 +181,10 @@ set priv [dict get $keys private]
 ```
 - The returned dictionary includes `type` ("rsa", "dsa", or "ec"), `bits`, `public`, and `private` PEM strings. EC keys also include a `curve` field.
 - Only PEM output is supported for now.
-- EC support is for key generation only (parse/write coming soon).
+- EC support includes key generation, parsing, and writing.
 
 #### `opentssl::key::parse`
-Parses a PEM-encoded RSA, DSA, or EC key (public or private) and returns a dictionary describing the key.
+Parses a PEM- or DER-encoded RSA, DSA, or EC key (public or private) and returns a dictionary describing the key.
 
 **Usage (RSA):**
 ```
@@ -173,6 +201,11 @@ set info [opentssl::key::parse $priv]
 set info [opentssl::key::parse $priv]
 # $info = {type ec kind private curve prime256v1 bits 256}
 ```
+**Usage (DER):**
+```
+set info [opentssl::key::parse $der_bytes]
+# $info = {type ...}
+```
 
 #### `opentssl::key::write`
 Serializes a key dictionary (as returned by generate or parse, with a 'pem' field) to PEM format.
@@ -183,9 +216,9 @@ set pem [opentssl::key::write -key $dict -format pem]
 ```
 
 **Notes:**
-- RSA, DSA, and EC keys in PEM format are supported for parse/write.
+- RSA, DSA, and EC keys in PEM and DER formats are supported for generate/parse/write.
 - The key dictionary must contain at least the fields: `type`, `kind`, and `pem`.
-- DER and other key types will be supported in future versions.
+- DER support is now available for all key types.
 
 # Encrypt with public key
 set plaintext "Hello, RSA!"

@@ -22,22 +22,24 @@
 #define KU_DECIPHER_ONLY       0x8000
 #endif
 
-// opentssl::key::parse <pem>
+// opentssl::key::parse <pem|der>
 static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
-        Tcl_WrongNumArgs(interp, 1, objv, "pem");
+        Tcl_WrongNumArgs(interp, 1, objv, "pem|der");
         return TCL_ERROR;
     }
-    int pem_len;
-    const char *pem = Tcl_GetStringFromObj(objv[1], &pem_len);
-    BIO *bio = BIO_new_mem_buf((void*)pem, pem_len);
-    if (!bio) {
-        Tcl_SetResult(interp, "OpenSSL: BIO allocation failed", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    // Try as any private key (RSA, DSA, EC, etc.)
+    int input_len;
+    unsigned char *input = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &input_len);
+    // Try as PEM
+    BIO *bio = BIO_new_mem_buf((void*)input, input_len);
     EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    if (!pkey) {
+        // Try as DER
+        BIO_free(bio);
+        bio = BIO_new_mem_buf((void*)input, input_len);
+        pkey = d2i_PrivateKey_bio(bio, NULL);
+    }
     if (pkey) {
         int bits = EVP_PKEY_get_bits(pkey);
         int type = EVP_PKEY_base_id(pkey);
@@ -62,10 +64,16 @@ static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         BIO_free(bio);
         return TCL_OK;
     }
-    // Try as any public key
+    // Try as public key PEM
     BIO_free(bio);
-    bio = BIO_new_mem_buf((void*)pem, pem_len);
+    bio = BIO_new_mem_buf((void*)input, input_len);
     pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (!pkey) {
+        // Try as public key DER
+        BIO_free(bio);
+        bio = BIO_new_mem_buf((void*)input, input_len);
+        pkey = d2i_PUBKEY_bio(bio, NULL);
+    }
     if (pkey) {
         int bits = EVP_PKEY_get_bits(pkey);
         int type = EVP_PKEY_base_id(pkey);
@@ -91,7 +99,7 @@ static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         return TCL_OK;
     }
     BIO_free(bio);
-    Tcl_SetResult(interp, "Not a valid RSA, DSA, or EC PEM key", TCL_STATIC);
+    Tcl_SetResult(interp, "Not a valid RSA, DSA, or EC PEM/DER key", TCL_STATIC);
     return TCL_ERROR;
 }
 
@@ -112,8 +120,8 @@ static int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
             format = Tcl_GetString(objv[i+1]);
         }
     }
-    if (!keyDict || !format || strcmp(format, "pem") != 0) {
-        Tcl_SetResult(interp, "Only PEM format is supported for now", TCL_STATIC);
+    if (!keyDict || !format) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
         return TCL_ERROR;
     }
     Tcl_Obj *typeObj = NULL, *kindObj = NULL, *pemObj = NULL;
@@ -751,6 +759,236 @@ static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
 #include <openssl/safestack.h>
 #include <openssl/x509v3.h>
 
+// opentssl::dsa::sign -privkey <pem> -alg <digest> <data>
+static int DsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 6) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-privkey pem -alg digest data");
+        return TCL_ERROR;
+    }
+    const char *privkey = NULL, *alg = NULL;
+    int privkey_len = 0;
+    for (int i = 1; i < 5; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-privkey") == 0) {
+            privkey = Tcl_GetStringFromObj(objv[i+1], &privkey_len);
+        } else if (strcmp(opt, "-alg") == 0) {
+            alg = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    int datalen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[5], &datalen);
+    BIO *bio = BIO_new_mem_buf((void*)privkey, privkey_len);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    if (!pkey || EVP_PKEY_base_id(pkey) != EVP_PKEY_DSA) {
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse DSA private key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    const EVP_MD *md = EVP_get_digestbyname(alg);
+    if (!md) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    unsigned char sig[EVP_PKEY_size(pkey)];
+    size_t siglen = 0;
+    int ok = EVP_DigestSignInit(mdctx, NULL, md, NULL, pkey) &&
+             EVP_DigestSignUpdate(mdctx, data, datalen) &&
+             EVP_DigestSignFinal(mdctx, sig, &siglen);
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    if (!ok) {
+        Tcl_SetResult(interp, "OpenSSL: DSA signing failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(sig, siglen));
+    return TCL_OK;
+}
+
+// opentssl::dsa::verify -pubkey <pem> -alg <digest> <data> <signature>
+static int DsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-pubkey pem -alg digest data signature");
+        return TCL_ERROR;
+    }
+    const char *pubkey = NULL, *alg = NULL;
+    int pubkey_len = 0;
+    for (int i = 1; i < 5; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-pubkey") == 0) {
+            pubkey = Tcl_GetStringFromObj(objv[i+1], &pubkey_len);
+        } else if (strcmp(opt, "-alg") == 0) {
+            alg = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    int datalen, siglen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[5], &datalen);
+    unsigned char *sig = (unsigned char *)Tcl_GetByteArrayFromObj(objv[6], &siglen);
+    BIO *bio = BIO_new_mem_buf((void*)pubkey, pubkey_len);
+    EVP_PKEY *pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (!pkey || EVP_PKEY_base_id(pkey) != EVP_PKEY_DSA) {
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse DSA public key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    const EVP_MD *md = EVP_get_digestbyname(alg);
+    if (!md) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    int ok = EVP_DigestVerifyInit(mdctx, NULL, md, NULL, pkey) &&
+             EVP_DigestVerifyUpdate(mdctx, data, datalen) &&
+             EVP_DigestVerifyFinal(mdctx, sig, siglen);
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(ok));
+    return TCL_OK;
+}
+
+// opentssl::ec::sign -privkey <pem> -alg <digest> <data>
+static int EcSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 6) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-privkey pem -alg digest data");
+        return TCL_ERROR;
+    }
+    const char *privkey = NULL, *alg = NULL;
+    int privkey_len = 0;
+    for (int i = 1; i < 5; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-privkey") == 0) {
+            privkey = Tcl_GetStringFromObj(objv[i+1], &privkey_len);
+        } else if (strcmp(opt, "-alg") == 0) {
+            alg = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    int datalen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[5], &datalen);
+    BIO *bio = BIO_new_mem_buf((void*)privkey, privkey_len);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    if (!pkey || EVP_PKEY_base_id(pkey) != EVP_PKEY_EC) {
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse EC private key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    const EVP_MD *md = EVP_get_digestbyname(alg);
+    if (!md) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    unsigned char sig[EVP_PKEY_size(pkey)];
+    size_t siglen = 0;
+    int ok = EVP_DigestSignInit(mdctx, NULL, md, NULL, pkey) &&
+             EVP_DigestSignUpdate(mdctx, data, datalen) &&
+             EVP_DigestSignFinal(mdctx, sig, &siglen);
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    if (!ok) {
+        Tcl_SetResult(interp, "OpenSSL: EC signing failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(sig, siglen));
+    return TCL_OK;
+}
+
+// opentssl::ec::verify -pubkey <pem> -alg <digest> <data> <signature>
+static int EcVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-pubkey pem -alg digest data signature");
+        return TCL_ERROR;
+    }
+    const char *pubkey = NULL, *alg = NULL;
+    int pubkey_len = 0;
+    for (int i = 1; i < 5; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-pubkey") == 0) {
+            pubkey = Tcl_GetStringFromObj(objv[i+1], &pubkey_len);
+        } else if (strcmp(opt, "-alg") == 0) {
+            alg = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    int datalen, siglen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[5], &datalen);
+    unsigned char *sig = (unsigned char *)Tcl_GetByteArrayFromObj(objv[6], &siglen);
+    BIO *bio = BIO_new_mem_buf((void*)pubkey, pubkey_len);
+    EVP_PKEY *pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (!pkey || EVP_PKEY_base_id(pkey) != EVP_PKEY_EC) {
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse EC public key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    const EVP_MD *md = EVP_get_digestbyname(alg);
+    if (!md) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    int ok = EVP_DigestVerifyInit(mdctx, NULL, md, NULL, pkey) &&
+             EVP_DigestVerifyUpdate(mdctx, data, datalen) &&
+             EVP_DigestVerifyFinal(mdctx, sig, siglen);
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(ok));
+    return TCL_OK;
+}
+
 // opentssl::rsa::sign -privkey <pem> -alg <digest> <data>
 static int RsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
@@ -1078,6 +1316,10 @@ int Opentssl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "opentssl::x509::parse", X509ParseCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::rsa::sign", RsaSignCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::rsa::verify", RsaVerifyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::dsa::sign", DsaSignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::dsa::verify", DsaVerifyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ec::sign", EcSignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ec::verify", EcVerifyCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::x509::create", X509CreateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::x509::verify", X509VerifyCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::generate", KeyGenerateCmd, NULL, NULL);
