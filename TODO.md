@@ -133,11 +133,21 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
 
 ## 7. HMAC
 - **Functions:**
-  - HMAC, HMAC_Init_ex, HMAC_Update, HMAC_Final
+  - HMAC, HMAC_Init_ex, HMAC_Update, HMAC_Final, EVP_MAC, EVP_MAC_CTX, EVP_MAC_init, etc.
 - **Tcl Commands:**
   - `opentssl::hmac -alg <name> -key <key> <data>`
-- **Steps:**
-  1. Implement HMAC command supporting all OpenSSL digests.
+- **Status:** ✅ **Completed**
+- **Notes:**
+  - Implemented as `opentssl::hmac -alg <name> -key <key> <data>` using OpenSSL 3.x EVP_MAC APIs.
+  - Supports all OpenSSL digest algorithms (e.g., sha256, sha512, md5).
+  - Returns HMAC as a hex string (for consistency with digest).
+  - Usage example:
+    ```tcl
+    set key [binary format H* 00112233445566778899aabbccddeeff]
+    set data "hello world"
+    set mac [opentssl::hmac -alg sha256 -key $key $data]
+    puts "HMAC: $mac"
+    ```
 
 ---
 

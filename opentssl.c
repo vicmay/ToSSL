@@ -9,6 +9,13 @@
 #include <openssl/x509v3.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <openssl/evp.h>
+#include <openssl/macros.h>
+#include <openssl/params.h>
+#include <openssl/evp.h>
+#include <openssl/evp.h>
+#include <openssl/core_names.h>
+#include <openssl/err.h>
 // KeyUsage bitmask values (OpenSSL defines these in x509v3.h, but for clarity):
 #ifndef KU_DIGITAL_SIGNATURE
 #define KU_DIGITAL_SIGNATURE    0x80
@@ -21,6 +28,73 @@
 #define KU_ENCIPHER_ONLY       0x01
 #define KU_DECIPHER_ONLY       0x8000
 #endif
+
+// Prototype for bin2hex
+static void bin2hex(const unsigned char *in, int len, char *out);
+
+// opentssl::hmac -alg <name> -key <key> <data>
+static int HmacCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 6) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name -key key data");
+        return TCL_ERROR;
+    }
+    const char *alg = NULL;
+    unsigned char *key = NULL, *data = NULL;
+    int keylen = 0, datalen = 0;
+    for (int i = 1; i < 5; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-alg") == 0) {
+            alg = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-key") == 0) {
+            key = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &keylen);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[5], &datalen);
+
+    int rc = TCL_ERROR;
+    unsigned char mac[EVP_MAX_MD_SIZE];
+    char hex[2*EVP_MAX_MD_SIZE+1];
+    EVP_MAC *mac_algo = NULL;
+    EVP_MAC_CTX *ctx = NULL;
+    OSSL_PARAM params[2];
+    size_t outlen = sizeof(mac);
+
+    mac_algo = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    if (!mac_algo) {
+        Tcl_SetResult(interp, "OpenSSL: HMAC fetch failed", TCL_STATIC);
+        goto cleanup;
+    }
+    ctx = EVP_MAC_CTX_new(mac_algo);
+    if (!ctx) {
+        Tcl_SetResult(interp, "OpenSSL: HMAC ctx alloc failed", TCL_STATIC);
+        goto cleanup;
+    }
+    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, (char *)alg, 0);
+    params[1] = OSSL_PARAM_construct_end();
+    if (!EVP_MAC_init(ctx, key, keylen, params)) {
+        Tcl_SetResult(interp, "OpenSSL: HMAC init failed", TCL_STATIC);
+        goto cleanup;
+    }
+    if (!EVP_MAC_update(ctx, data, datalen)) {
+        Tcl_SetResult(interp, "OpenSSL: HMAC update failed", TCL_STATIC);
+        goto cleanup;
+    }
+    if (!EVP_MAC_final(ctx, mac, &outlen, sizeof(mac))) {
+        Tcl_SetResult(interp, "OpenSSL: HMAC final failed", TCL_STATIC);
+        goto cleanup;
+    }
+    bin2hex(mac, (int)outlen, hex);
+    Tcl_SetResult(interp, hex, TCL_VOLATILE);
+    rc = TCL_OK;
+cleanup:
+    if (ctx) EVP_MAC_CTX_free(ctx);
+    if (mac_algo) EVP_MAC_free(mac_algo);
+    return rc;
+}
 
 // opentssl::key::parse <pem|der>
 static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -1307,6 +1381,7 @@ int Opentssl_Init(Tcl_Interp *interp) {
         return TCL_ERROR;
     }
     Tcl_CreateObjCommand(interp, "opentssl::digest", DigestCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::hmac", HmacCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::randbytes", RandBytesCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::encrypt", EncryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::decrypt", DecryptCmd, NULL, NULL);

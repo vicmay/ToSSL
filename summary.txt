@@ -25,3 +25,32 @@ Implement DER format support for RSA, DSA, and EC keys.
 Address OpenSSL deprecation warnings in the C code.
 Extend key parsing/writing to handle more metadata and key types.
 Implement HMAC and encoding/decoding commands as outlined in the TODO.
+
+
+NEW UPDATE:
+
+
+Here’s a summary of what was done in the recent work and the current status of the OpenTSSL project, based on the TODO.md and recent changes:
+
+Summary of Recent Work
+DSA and EC Signing/Verification
+Tcl commands for DSA and EC signing and verification have been fully implemented:
+opentssl::dsa::sign, opentssl::dsa::verify
+opentssl::ec::sign, opentssl::ec::verify
+Usage examples for both DSA and EC sign/verify commands are provided in the TODO.md.
+HMAC Functionality (Planned/Next Step)
+The next planned feature is HMAC support.
+The target Tcl command will be:
+opentssl::hmac -alg <name> -key <key> <data>
+Implementation will use OpenSSL’s HMAC APIs and support all OpenSSL digests.
+Encoding/Decoding (Planned)
+Base64 and hex encoding/decoding commands are outlined for future implementation:
+opentssl::base64::encode, opentssl::base64::decode
+opentssl::hex::encode, opentssl::hex::decode
+These will use OpenSSL’s EVP_EncodeBlock and EVP_DecodeBlock functions.
+PKCS and SSL/TLS (Planned)
+Future plans include support for PKCS#12, PKCS#7, and advanced SSL/TLS session/context management, as needed.
+In summary:
+
+DSA and EC signing/verification is complete and documented.
+HMAC and encoding/decoding features are the next milestones.

@@ -10,7 +10,8 @@ OpenTSSL is a Tcl extension that provides access to OpenSSL cryptographic functi
 - Symmetric encryption/decryption (all OpenSSL ciphers supported)
 - Public key cryptography (RSA, DSA, EC): key generation, parsing, writing, encryption, decryption, signing, verifying (PEM and DER supported)
 - X.509 certificate parsing, creation, and verification
-- (Planned) HMAC, encoding, and more
+- HMAC (all OpenSSL digests supported)
+- (Planned) encoding and more
 
 ---
 
@@ -308,6 +309,21 @@ Encrypts `<data>` using the provided PEM public key (PKCS#1 OAEP padding).
 ### `opentssl::rsa::decrypt -privkey <pem> <ciphertext>`
 Decrypts `<ciphertext>` using the provided PEM private key (PKCS#1 OAEP padding).
 - Returns: Decrypted plaintext as a Tcl byte array.
+
+### `opentssl::hmac -alg <name> -key <key> <data>`
+Computes the HMAC of `<data>` using the specified digest algorithm and key.
+- `-alg <name>`: Digest algorithm (e.g., sha256, sha512, md5)
+- `-key <key>`: Key as a Tcl byte array
+- `<data>`: Data to HMAC (byte array or string)
+- Returns: HMAC as a hex string
+
+**Example:**
+```tcl
+set key [binary format H* 00112233445566778899aabbccddeeff]
+set data "hello world"
+set mac [opentssl::hmac -alg sha256 -key $key $data]
+puts "HMAC: $mac"
+```
 
 ### `opentssl::digest -alg <name> <data>`
 Computes the hash of `<data>` using the specified algorithm (e.g., sha256, sha512, md5).
