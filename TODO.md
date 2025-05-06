@@ -180,15 +180,51 @@ This TODO lists the major areas and functions of OpenSSL that can be exposed to 
     puts "Decoded: $bin"
     ```
 
-## 9. PKCS#12, PKCS#7, S/MIME
+## 9. PKCS#12
 - **Functions:**
-  - PKCS12_create, PKCS12_parse, PKCS7_sign, PKCS7_verify, etc.
+  - PKCS12_create, PKCS12_parse
 - **Tcl Commands:**
-  - `opentssl::pkcs12::parse`, `opentssl::pkcs12::create`, etc.
-- **Steps:**
-  1. Implement as needed for certificate/key management.
+  - `opentssl::pkcs12::parse <data>`
+  - `opentssl::pkcs12::create -cert <cert> -key <key> -ca <ca> -password <pw>`
+- **Status:** ✅ **Completed**
+- **Notes:**
+  - PKCS#12 parsing and creation are fully supported.
+  - `opentssl::pkcs12::parse <data>` parses a PKCS#12 bundle and returns a dict with PEM-encoded cert, key, and ca.
+  - `opentssl::pkcs12::create -cert <cert> -key <key> -ca <ca> -password <pw>` creates a PKCS#12 bundle from PEM cert, key, ca, and password.
+  - Usage examples:
+    ```tcl
+    # Parse PKCS#12
+    set f [open "bundle.p12" rb]
+    set p12 [read $f]
+    close $f
+    set info [opentssl::pkcs12::parse $p12]
+    puts "Certificate: [dict get $info cert]"
+    puts "Private key: [dict get $info key]"
+    puts "CA chain: [dict get $info ca]"
+    # Create PKCS#12
+    set cert ... ;# PEM certificate
+    set key ...  ;# PEM private key
+    set ca ...   ;# PEM CA chain (optional, may be "")
+    set p12 [opentssl::pkcs12::create -cert $cert -key $key -ca $ca -password "secret"]
+    set f [open "bundle.p12" wb]
+    puts -nonewline $f $p12
+    close $f
+    ```
 
-## 10. SSL/TLS Context/Session (Advanced)
+## 10. PKCS#7, S/MIME
+- **Functions:**
+  - PKCS7_sign, PKCS7_verify, PKCS7_encrypt, PKCS7_decrypt, S/MIME APIs
+- **Tcl Commands:**
+  - `opentssl::pkcs7::sign -cert <cert> -key <key> <data>`
+  - `opentssl::pkcs7::verify -ca <ca> <pkcs7>`
+  - `opentssl::pkcs7::encrypt -cert <cert> <data>`
+  - `opentssl::pkcs7::decrypt -key <key> -cert <cert> <pkcs7>`
+- **Status:** ⏳ **Planned**
+- **Notes:**
+  - PKCS#7/S-MIME support is planned. Will use OpenSSL APIs for PKCS#7 and S/MIME operations.
+  - Usage examples and documentation will be added once implemented.
+
+## 11. SSL/TLS Context/Session (Advanced)
 - **Functions:**
   - SSL_new, SSL_CTX_new, SSL_connect, SSL_accept, etc.
 - **Tcl Commands:**

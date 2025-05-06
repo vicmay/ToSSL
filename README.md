@@ -11,7 +11,9 @@ OpenTSSL is a Tcl extension that provides access to OpenSSL cryptographic functi
 - Public key cryptography (RSA, DSA, EC): key generation, parsing, writing, encryption, decryption, signing, verifying (PEM and DER supported)
 - X.509 certificate parsing, creation, and verification
 - HMAC (all OpenSSL digests supported)
-- (Planned) encoding and more
+- Base64 and hex encoding/decoding
+- PKCS#12 parsing and creation (import/export certificates and keys)
+- (Planned) PKCS#7, S/MIME, and more
 
 ---
 
@@ -267,6 +269,64 @@ puts "Random bytes (hex): [binary encode hex $bytes]"
 
 ## API Reference
 
+### `opentssl::digest -alg <name> <data>`
+Computes the hash of `<data>` using the specified digest algorithm (e.g., sha256, sha512, md5).
+- Returns: Hex-encoded string of the digest.
+
+### `opentssl::encrypt -alg <name> -key <key> -iv <iv> <data>`
+Encrypts `<data>` using the specified cipher, key, and IV.
+- `-alg <name>`: Cipher name (e.g., aes-128-cbc, aes-256-cbc)
+- `-key <key>`: Byte array key (must match cipher requirements)
+- `-iv <iv>`: Byte array IV (must match cipher requirements)
+- `<data>`: Data to encrypt (byte array or string)
+- Returns: Ciphertext as a Tcl byte array.
+
+### `opentssl::decrypt -alg <name> -key <key> -iv <iv> <data>`
+Decrypts `<data>` using the specified cipher, key, and IV.
+- Parameters as above.
+- Returns: Decrypted plaintext as a Tcl byte array.
+
+### `opentssl::randbytes <n>`
+Generates `<n>` random bytes (as a Tcl byte array).
+- Returns: Byte array of length `<n>`.
+
+### `opentssl::base64::encode <data>`
+Encodes binary or string data to Base64.
+- Returns: Base64-encoded string.
+
+### `opentssl::base64::decode <b64>`
+Decodes a Base64 string to binary data.
+- Returns: Tcl byte array.
+
+### `opentssl::hex::encode <data>`
+Encodes binary data to a hex string.
+- Returns: Hex-encoded string.
+
+### `opentssl::hex::decode <hex>`
+Decodes a hex string to binary data.
+- Returns: Tcl byte array.
+
+### `opentssl::hmac -alg <name> -key <key> <data>`
+Computes the HMAC of `<data>` using the specified digest algorithm and key.
+- `-alg <name>`: Digest algorithm (e.g., sha256, sha512, md5)
+- `-key <key>`: Key as a Tcl byte array
+- `<data>`: Data to HMAC (byte array or string)
+- Returns: HMAC as a hex string.
+
+### `opentssl::pkcs12::parse <data>`
+Parses a PKCS#12 (PFX) bundle and returns a Tcl dict with PEM-encoded certificate, private key, and CA chain.
+- `<data>`: PKCS#12 binary data (Tcl byte array)
+- Returns: Tcl dict with keys `cert`, `key`, and `ca` (list of PEM CA certs, if present).
+
+### `opentssl::pkcs12::create -cert <cert> -key <key> -ca <ca> -password <pw>`
+Creates a PKCS#12 (PFX) bundle from PEM certificate, private key, optional CA chain, and password.
+- `-cert <cert>`: PEM certificate (string)
+- `-key <key>`: PEM private key (string)
+- `-ca <ca>`: PEM CA chain (string, concatenated PEMs; optional)
+- `-password <pw>`: password for the PKCS#12 bundle (string)
+- Returns: PKCS#12 binary data as a Tcl byte array.
+
+
 ### `opentssl::x509::verify -cert <pem> -ca <pem>`
 Verifies that the certificate is signed by the provided CA certificate or public key. Returns 1 if valid, 0 otherwise.
 
@@ -316,8 +376,7 @@ Computes the HMAC of `<data>` using the specified digest algorithm and key.
 - `-key <key>`: Key as a Tcl byte array
 - `<data>`: Data to HMAC (byte array or string)
 - Returns: HMAC as a hex string
-
-**Example:**
+- Usage example:
 ```tcl
 set key [binary format H* 00112233445566778899aabbccddeeff]
 set data "hello world"
@@ -325,12 +384,6 @@ set mac [opentssl::hmac -alg sha256 -key $key $data]
 puts "HMAC: $mac"
 ```
 
-### `opentssl::digest -alg <name> <data>`
-Computes the hash of `<data>` using the specified algorithm (e.g., sha256, sha512, md5).
-- Returns: Hex-encoded string of the digest.
-
-### `opentssl::encrypt -alg <name> -key <key> -iv <iv> <data>`
-Encrypts `<data>` using the specified cipher, key, and IV.
 - `<name>`: Cipher name (e.g., aes-128-cbc, aes-256-cbc)
 - `<key>`: Byte array key (must match cipher requirements)
 - `<iv>`: Byte array IV (must match cipher requirements)
@@ -381,6 +434,46 @@ Decode hex string to binary data:
 set bin [opentssl::hex::decode $hex]
 puts "Decoded: $bin"
 ```
+
+---
+
+## PKCS#12: Import/Export Certificates and Keys
+
+### Parse PKCS#12 Bundle
+Parse a PKCS#12 (PFX) bundle and extract certificate, private key, and CA chain:
+```tcl
+set f [open "bundle.p12" rb]
+set p12 [read $f]
+close $f
+set info [opentssl::pkcs12::parse $p12]
+puts "Certificate: [dict get $info cert]"
+puts "Private key: [dict get $info key]"
+puts "CA chain: [dict get $info ca]"
+```
+- **Arguments:**
+  - `<data>`: PKCS#12 binary data (Tcl byte array)
+- **Returns:** Tcl dict with keys:
+  - `cert`: PEM certificate (string)
+  - `key`: PEM private key (string)
+  - `ca`: List of PEM CA certificates (if present)
+
+### Create PKCS#12 Bundle
+Create a PKCS#12 (PFX) bundle from PEM certificate, private key, optional CA chain, and password:
+```tcl
+set cert ... ;# PEM certificate
+set key ...  ;# PEM private key
+set ca ...   ;# PEM CA chain (optional, may be "")
+set p12 [opentssl::pkcs12::create -cert $cert -key $key -ca $ca -password "secret"]
+set f [open "bundle.p12" wb]
+puts -nonewline $f $p12
+close $f
+```
+- **Arguments:**
+  - `-cert <cert>`: PEM certificate (string)
+  - `-key <key>`: PEM private key (string)
+  - `-ca <ca>`: PEM CA chain (string, concatenated PEMs; optional)
+  - `-password <pw>`: password for the PKCS#12 bundle (string)
+- **Returns:** PKCS#12 binary data as a Tcl byte array
 
 ---
 

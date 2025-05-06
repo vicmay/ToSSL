@@ -18,6 +18,7 @@
 #include <openssl/err.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
+#include <openssl/pkcs12.h>
 
 // KeyUsage bitmask values (OpenSSL defines these in x509v3.h, but for clarity):
 #ifndef KU_DIGITAL_SIGNATURE
@@ -1029,11 +1030,148 @@ static int DsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     }
     int ok = EVP_DigestVerifyInit(mdctx, NULL, md, NULL, pkey) &&
              EVP_DigestVerifyUpdate(mdctx, data, datalen) &&
-             EVP_DigestVerifyFinal(mdctx, sig, siglen);
+             EVP_DigestVerifyFinal(mdctx, sig, siglen) == 1;
     EVP_MD_CTX_free(mdctx);
     EVP_PKEY_free(pkey);
     BIO_free(bio);
     Tcl_SetObjResult(interp, Tcl_NewBooleanObj(ok));
+    return TCL_OK;
+}
+
+// opentssl::pkcs12::parse <data>
+static int Pkcs12ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "pkcs12_data");
+        return TCL_ERROR;
+    }
+    int datalen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &datalen);
+    BIO *bio = BIO_new_mem_buf(data, datalen);
+    if (!bio) {
+        Tcl_SetResult(interp, "OpenSSL: BIO_new_mem_buf failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    PKCS12 *p12 = d2i_PKCS12_bio(bio, NULL);
+    if (!p12) {
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse PKCS#12", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Try with empty password
+    EVP_PKEY *pkey = NULL;
+    X509 *cert = NULL;
+    STACK_OF(X509) *ca = NULL;
+    int ok = PKCS12_parse(p12, "", &pkey, &cert, &ca);
+    if (!ok) {
+        // Try with 'password' if empty fails (common default)
+        ok = PKCS12_parse(p12, "password", &pkey, &cert, &ca);
+    }
+    if (!ok) {
+        PKCS12_free(p12);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: PKCS12_parse failed (try with/without password)", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    // Private key
+    if (pkey) {
+        BIO *mem = BIO_new(BIO_s_mem());
+        PEM_write_bio_PrivateKey(mem, pkey, NULL, NULL, 0, NULL, NULL);
+        char *pem = NULL;
+        long pemlen = BIO_get_mem_data(mem, &pem);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("key", -1), Tcl_NewStringObj(pem, pemlen));
+        BIO_free(mem);
+    }
+    // Certificate
+    if (cert) {
+        BIO *mem = BIO_new(BIO_s_mem());
+        PEM_write_bio_X509(mem, cert);
+        char *pem = NULL;
+        long pemlen = BIO_get_mem_data(mem, &pem);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("cert", -1), Tcl_NewStringObj(pem, pemlen));
+        BIO_free(mem);
+    }
+    // CA chain
+    if (ca && sk_X509_num(ca) > 0) {
+        Tcl_Obj *caList = Tcl_NewListObj(0, NULL);
+        for (int i = 0; i < sk_X509_num(ca); ++i) {
+            X509 *cacert = sk_X509_value(ca, i);
+            BIO *mem = BIO_new(BIO_s_mem());
+            PEM_write_bio_X509(mem, cacert);
+            char *pem = NULL;
+            long pemlen = BIO_get_mem_data(mem, &pem);
+            Tcl_ListObjAppendElement(interp, caList, Tcl_NewStringObj(pem, pemlen));
+            BIO_free(mem);
+        }
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("ca", -1), caList);
+    }
+    if (pkey) EVP_PKEY_free(pkey);
+    if (cert) X509_free(cert);
+    if (ca) sk_X509_pop_free(ca, X509_free);
+    PKCS12_free(p12);
+    BIO_free(bio);
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// opentssl::pkcs12::create -cert <cert> -key <key> -ca <ca> -password <pw>
+static int Pkcs12CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 9) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-cert cert -key key -ca ca -password pw");
+        return TCL_ERROR;
+    }
+    const char *cert_pem = NULL, *key_pem = NULL, *ca_pem = NULL, *password = NULL;
+    int cert_len = 0, key_len = 0, ca_len = 0;
+    for (int i = 1; i < 9; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-cert") == 0) {
+            cert_pem = Tcl_GetStringFromObj(objv[i+1], &cert_len);
+        } else if (strcmp(opt, "-key") == 0) {
+            key_pem = Tcl_GetStringFromObj(objv[i+1], &key_len);
+        } else if (strcmp(opt, "-ca") == 0) {
+            ca_pem = Tcl_GetStringFromObj(objv[i+1], &ca_len);
+        } else if (strcmp(opt, "-password") == 0) {
+            password = Tcl_GetString(objv[i+1]);
+        }
+    }
+    if (!cert_pem || !key_pem || !password) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    BIO *keybio = BIO_new_mem_buf((void*)key_pem, key_len);
+    BIO *certbio = BIO_new_mem_buf((void*)cert_pem, cert_len);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(keybio, NULL, NULL, NULL);
+    X509 *cert = PEM_read_bio_X509(certbio, NULL, NULL, NULL);
+    STACK_OF(X509) *ca_stack = NULL;
+    if (ca_pem && ca_len > 0) {
+        ca_stack = sk_X509_new_null();
+        BIO *cabio = BIO_new_mem_buf((void*)ca_pem, ca_len);
+        while (1) {
+            X509 *cacert = PEM_read_bio_X509(cabio, NULL, NULL, NULL);
+            if (!cacert) break;
+            sk_X509_push(ca_stack, cacert);
+        }
+        BIO_free(cabio);
+    }
+    PKCS12 *p12 = PKCS12_create(password, "OpenTSSL", pkey, cert, ca_stack, 0,0,0,0,0);
+    if (pkey) EVP_PKEY_free(pkey);
+    if (cert) X509_free(cert);
+    if (ca_stack) sk_X509_pop_free(ca_stack, X509_free);
+    BIO_free(keybio);
+    BIO_free(certbio);
+    if (!p12) {
+        Tcl_SetResult(interp, "OpenSSL: PKCS12_create failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    BIO *outbio = BIO_new(BIO_s_mem());
+    i2d_PKCS12_bio(outbio, p12);
+    char *outbuf = NULL;
+    long outlen = BIO_get_mem_data(outbio, &outbuf);
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)outbuf, outlen));
+    PKCS12_free(p12);
+    BIO_free(outbio);
     return TCL_OK;
 }
 
@@ -1494,5 +1632,7 @@ int Opentssl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "opentssl::base64::decode", Base64DecodeCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::hex::encode", HexEncodeCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::hex::decode", HexDecodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::pkcs12::parse", Pkcs12ParseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::pkcs12::create", Pkcs12CreateCmd, NULL, NULL);
     return TCL_OK;
 }
