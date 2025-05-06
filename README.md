@@ -1,6 +1,6 @@
 # TOSSL: Tcl OpenSSL Extension
 
-TOSSL is a Tcl extension that provides access to OpenSSL cryptographic functions from Tcl scripts. The goal is to mirror the capabilities of the OpenSSL library and command-line tool, making them available as Tcl commands.
+TOSSL is a Tcl extension for Linux that provides access to OpenSSL cryptographic functions from Tcl scripts. The goal is to mirror the capabilities of the OpenSSL library and command-line tool, making them available as Tcl commands.
 
 ---
 
@@ -19,7 +19,6 @@ TOSSL is a Tcl extension that provides access to OpenSSL cryptographic functions
   - Custom certificate verification and context options
   - Detailed session/cipher/peer info retrieval
   - Robust error handling for all SSL/TLS commands
-- (Planned) PKCS#7, S/MIME, and more
 
 ---
 
