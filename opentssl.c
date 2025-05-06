@@ -2036,6 +2036,536 @@ static int X509VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     return TCL_OK;
 }
 
+// --- SSL/TLS API Stubs ---
+// --- SSL/TLS Context Handle Management ---
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <assert.h>
+
+// Structure to represent an SSL_CTX handle for Tcl
+typedef struct SslContextHandle {
+    SSL_CTX *ctx;
+    char *handleName; // e.g., sslctx1
+} SslContextHandle;
+
+// Global hash table for SSL_CTX handles
+static Tcl_HashTable sslContextTable;
+static int sslContextTableInitialized = 0;
+static int sslContextNextId = 1;
+
+// Helper: Generate a unique handle name
+static char *GenerateSslContextHandleName(void) {
+    static char buf[32];
+    snprintf(buf, sizeof(buf), "sslctx%d", sslContextNextId++);
+    return strdup(buf);
+}
+
+// opentssl::ssl::context create ?options?
+// Options:
+//   -protocols {TLSv1.2 TLSv1.3 ...}
+//   -ciphers "ECDHE+AESGCM"
+//   -cert <pem>   -key <pem>
+//   -cafile <pem> -verify 0|1
+// Returns: handle name (e.g., sslctx1)
+static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (!sslContextTableInitialized) {
+        Tcl_InitHashTable(&sslContextTable, TCL_STRING_KEYS);
+        sslContextTableInitialized = 1;
+    }
+    // Parse options (for now, just accept and ignore)
+    int verify = 0;
+    const char *cert = NULL, *key = NULL, *cafile = NULL, *ciphers = NULL;
+    Tcl_Obj *protocolsObj = NULL;
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-protocols") == 0) {
+            protocolsObj = objv[i+1];
+        } else if (strcmp(opt, "-ciphers") == 0) {
+            ciphers = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-cert") == 0) {
+            cert = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-key") == 0) {
+            key = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-cafile") == 0) {
+            cafile = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-verify") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &verify) != TCL_OK) return TCL_ERROR;
+        } else {
+            Tcl_SetResult(interp, "Unknown option to opentssl::ssl::context create", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    // --- Create and configure SSL_CTX ---
+    SSL_CTX *ctx = NULL;
+    const SSL_METHOD *method = NULL;
+    // Protocol selection: default to TLS_method()
+    method = TLS_method();
+    ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        Tcl_SetResult(interp, "Failed to create SSL_CTX", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Protocol restrictions (if -protocols specified)
+    if (protocolsObj) {
+        int protLen;
+        Tcl_Obj **protElems;
+        if (Tcl_ListObjGetElements(interp, protocolsObj, &protLen, &protElems) == TCL_OK) {
+            long opts = 0;
+            int want_v12 = 0, want_v13 = 0;
+            for (int j = 0; j < protLen; ++j) {
+                const char *p = Tcl_GetString(protElems[j]);
+                if (strcmp(p, "TLSv1.2") == 0) want_v12 = 1;
+                else if (strcmp(p, "TLSv1.3") == 0) want_v13 = 1;
+            }
+            // Only allow what is requested
+#ifdef SSL_OP_NO_TLSv1_2
+            if (!want_v12) opts |= SSL_OP_NO_TLSv1_2;
+#endif
+#ifdef SSL_OP_NO_TLSv1_3
+            if (!want_v13) opts |= SSL_OP_NO_TLSv1_3;
+#endif
+            SSL_CTX_set_options(ctx, opts);
+        }
+    }
+    // Cipher selection
+    if (ciphers) {
+        if (!SSL_CTX_set_cipher_list(ctx, ciphers)) {
+            SSL_CTX_free(ctx);
+            Tcl_SetResult(interp, "Invalid cipher list", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    // Certificate and key
+    if (cert) {
+        if (SSL_CTX_use_certificate_chain_file(ctx, cert) != 1) {
+            SSL_CTX_free(ctx);
+            Tcl_SetResult(interp, "Failed to load certificate", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    if (key) {
+        if (SSL_CTX_use_PrivateKey_file(ctx, key, SSL_FILETYPE_PEM) != 1) {
+            SSL_CTX_free(ctx);
+            Tcl_SetResult(interp, "Failed to load private key", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    if (cert && key) {
+        if (SSL_CTX_check_private_key(ctx) != 1) {
+            SSL_CTX_free(ctx);
+            Tcl_SetResult(interp, "Certificate and key do not match", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    // CA file
+    if (cafile) {
+        if (SSL_CTX_load_verify_locations(ctx, cafile, NULL) != 1) {
+            SSL_CTX_free(ctx);
+            Tcl_SetResult(interp, "Failed to load CA file", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    // Peer verification
+    SSL_CTX_set_verify(ctx, verify ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
+    // Allocate handle and store SSL_CTX
+    SslContextHandle *handle = (SslContextHandle *)ckalloc(sizeof(SslContextHandle));
+    handle->ctx = ctx;
+    handle->handleName = GenerateSslContextHandleName();
+    Tcl_HashEntry *entryPtr;
+    int newFlag;
+    entryPtr = Tcl_CreateHashEntry(&sslContextTable, handle->handleName, &newFlag);
+    Tcl_SetHashValue(entryPtr, handle);
+    Tcl_SetResult(interp, handle->handleName, TCL_VOLATILE);
+    return TCL_OK;
+
+}
+
+// opentssl::ssl::context free <ctx>
+// Frees the context handle and underlying SSL_CTX
+static int SslContextFreeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "free <ctx>");
+        return TCL_ERROR;
+    }
+    const char *handleName = Tcl_GetString(objv[2]);
+    if (!sslContextTableInitialized) {
+        Tcl_SetResult(interp, "No SSL contexts allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslContextTable, handleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL context handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslContextHandle *handle = (SslContextHandle *)Tcl_GetHashValue(entryPtr);
+    if (handle->ctx) {
+        SSL_CTX_free(handle->ctx);
+    }
+    ckfree(handle->handleName);
+    ckfree((char *)handle);
+    Tcl_DeleteHashEntry(entryPtr);
+    Tcl_SetResult(interp, "", TCL_STATIC);
+    return TCL_OK;
+}
+
+// --- SSL/TLS Socket Handle Management ---
+typedef struct SslSocketHandle {
+    SSL *ssl;
+    char *handleName; // e.g., sslsock1
+    char *chanName;   // Tcl channel name
+    SslContextHandle *ctxHandle;
+} SslSocketHandle;
+
+static Tcl_HashTable sslSocketTable;
+static int sslSocketTableInitialized = 0;
+static int sslSocketNextId = 1;
+
+static char *GenerateSslSocketHandleName(void) {
+    static char buf[32];
+    snprintf(buf, sizeof(buf), "sslsock%d", sslSocketNextId++);
+    return strdup(buf);
+}
+
+// opentssl::ssl::socket <ctx> <sock>
+// Looks up SSL_CTX handle, creates SSL*, associates with Tcl channel, returns handle
+static int SslSocketCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "<ctx> <sock>");
+        return TCL_ERROR;
+    }
+    const char *ctxHandleName = Tcl_GetString(objv[2]);
+    const char *chanName = Tcl_GetString(objv[3]);
+    // Look up context handle
+    if (!sslContextTableInitialized) {
+        Tcl_SetResult(interp, "No SSL contexts allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *ctxEntry = Tcl_FindHashEntry(&sslContextTable, ctxHandleName);
+    if (!ctxEntry) {
+        Tcl_SetResult(interp, "Unknown SSL context handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslContextHandle *ctxHandle = (SslContextHandle *)Tcl_GetHashValue(ctxEntry);
+    if (!ctxHandle->ctx) {
+        Tcl_SetResult(interp, "Invalid SSL_CTX in handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Check Tcl channel exists
+    Tcl_Channel chan = Tcl_GetChannel(interp, chanName, NULL);
+    if (!chan) {
+        Tcl_SetResult(interp, "Unknown Tcl channel", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Create SSL object
+    SSL *ssl = SSL_new(ctxHandle->ctx);
+    if (!ssl) {
+        Tcl_SetResult(interp, "Failed to create SSL object", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // For now, do not yet associate BIOs; just store the handle for later handshake
+    if (!sslSocketTableInitialized) {
+        Tcl_InitHashTable(&sslSocketTable, TCL_STRING_KEYS);
+        sslSocketTableInitialized = 1;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)ckalloc(sizeof(SslSocketHandle));
+    sockHandle->ssl = ssl;
+    sockHandle->handleName = GenerateSslSocketHandleName();
+    sockHandle->chanName = strdup(chanName);
+    sockHandle->ctxHandle = ctxHandle;
+    Tcl_HashEntry *entryPtr;
+    int newFlag;
+    entryPtr = Tcl_CreateHashEntry(&sslSocketTable, sockHandle->handleName, &newFlag);
+    Tcl_SetHashValue(entryPtr, sockHandle);
+    Tcl_SetResult(interp, sockHandle->handleName, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+// Helper: Get file descriptor from Tcl channel (POSIX only)
+#include <unistd.h>
+static int GetFdFromChannel(Tcl_Interp *interp, const char *chanName) {
+    Tcl_Channel chan = Tcl_GetChannel(interp, chanName, NULL);
+    if (!chan) return -1;
+    ClientData cd;
+    if (Tcl_GetChannelHandle(chan, TCL_READABLE | TCL_WRITABLE, &cd) != TCL_OK) return -1;
+    return (int)(intptr_t)cd;
+}
+
+// opentssl::ssl::connect <sslsock>
+// Performs SSL/TLS handshake as a client on the associated Tcl channel
+static int SslConnectCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "connect <sslsock>");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[2]);
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    // Get file descriptor from Tcl channel
+    int fd = GetFdFromChannel(interp, sockHandle->chanName);
+    if (fd < 0) {
+        Tcl_SetResult(interp, "Failed to get file descriptor from Tcl channel", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Attach BIO to SSL
+    BIO *bio = BIO_new_socket(fd, BIO_NOCLOSE);
+    if (!bio) {
+        Tcl_SetResult(interp, "Failed to create BIO for socket", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SSL_set_bio(sockHandle->ssl, bio, bio);
+    // Perform SSL handshake (client mode)
+    int ret = SSL_connect(sockHandle->ssl);
+    if (ret != 1) {
+        int err = SSL_get_error(sockHandle->ssl, ret);
+        char errbuf[256];
+        ERR_error_string_n(ERR_get_error(), errbuf, sizeof(errbuf));
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("SSL_connect failed: %s (error %d)", errbuf, err));
+        return TCL_ERROR;
+    }
+    Tcl_SetResult(interp, "", TCL_STATIC);
+    return TCL_OK;
+}
+
+// opentssl::ssl::accept <sslsock>
+// Performs SSL/TLS handshake as a server on the associated Tcl channel
+static int SslAcceptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "accept <sslsock>");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[2]);
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    // Get file descriptor from Tcl channel
+    int fd = GetFdFromChannel(interp, sockHandle->chanName);
+    if (fd < 0) {
+        Tcl_SetResult(interp, "Failed to get file descriptor from Tcl channel", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Attach BIO to SSL
+    BIO *bio = BIO_new_socket(fd, BIO_NOCLOSE);
+    if (!bio) {
+        Tcl_SetResult(interp, "Failed to create BIO for socket", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SSL_set_bio(sockHandle->ssl, bio, bio);
+    // Perform SSL handshake (server mode)
+    int ret = SSL_accept(sockHandle->ssl);
+    if (ret != 1) {
+        int err = SSL_get_error(sockHandle->ssl, ret);
+        char errbuf[256];
+        ERR_error_string_n(ERR_get_error(), errbuf, sizeof(errbuf));
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("SSL_accept failed: %s (error %d)", errbuf, err));
+        return TCL_ERROR;
+    }
+    Tcl_SetResult(interp, "", TCL_STATIC);
+    return TCL_OK;
+}
+
+// opentssl::ssl::read <sslsock> ?nbytes?
+// Reads up to nbytes (default 4096) from the SSL connection
+static int SslReadCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3 && objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "read <sslsock> ?nbytes?");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[2]);
+    int nbytes = 4096;
+    if (objc == 4) {
+        if (Tcl_GetIntFromObj(interp, objv[3], &nbytes) != TCL_OK || nbytes <= 0) {
+            Tcl_SetResult(interp, "Invalid nbytes", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    unsigned char *buf = (unsigned char *)ckalloc(nbytes);
+    int n = SSL_read(sockHandle->ssl, buf, nbytes);
+    if (n <= 0) {
+        int err = SSL_get_error(sockHandle->ssl, n);
+        char errbuf[256];
+        ERR_error_string_n(ERR_get_error(), errbuf, sizeof(errbuf));
+        ckfree(buf);
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("SSL_read failed: %s (error %d)", errbuf, err));
+        return TCL_ERROR;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(buf, n));
+    ckfree(buf);
+    return TCL_OK;
+}
+
+// opentssl::ssl::write <sslsock> <data>
+// Writes data to the SSL connection, returns number of bytes written
+static int SslWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "write <sslsock> <data>");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[2]);
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    int len = 0;
+    unsigned char *data = Tcl_GetByteArrayFromObj(objv[3], &len);
+    int n = SSL_write(sockHandle->ssl, data, len);
+    if (n <= 0) {
+        int err = SSL_get_error(sockHandle->ssl, n);
+        char errbuf[256];
+        ERR_error_string_n(ERR_get_error(), errbuf, sizeof(errbuf));
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("SSL_write failed: %s (error %d)", errbuf, err));
+        return TCL_ERROR;
+    }
+    Tcl_SetObjResult(interp, Tcl_NewIntObj(n));
+    return TCL_OK;
+}
+
+// opentssl::ssl::close <sslsock>
+// Shuts down SSL connection and frees resources
+static int SslCloseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "close <sslsock>");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[2]);
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    if (sockHandle->ssl) {
+        SSL_shutdown(sockHandle->ssl);
+        SSL_free(sockHandle->ssl);
+    }
+    if (sockHandle->chanName) ckfree(sockHandle->chanName);
+    ckfree(sockHandle->handleName);
+    ckfree((char *)sockHandle);
+    Tcl_DeleteHashEntry(entryPtr);
+    Tcl_SetResult(interp, "", TCL_STATIC);
+    return TCL_OK;
+}
+
+// opentssl::ssl::session info <sslsock>
+// Returns a Tcl dict with protocol, cipher, session id, peer cert subject, etc.
+static int SslSessionInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "session info <sslsock>");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[3]);
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    SSL *ssl = sockHandle->ssl;
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    // Protocol
+    Tcl_DictObjPut(NULL, dict, Tcl_NewStringObj("protocol", -1), Tcl_NewStringObj(SSL_get_version(ssl), -1));
+    // Cipher
+    const SSL_CIPHER *cipher = SSL_get_current_cipher(ssl);
+    if (cipher) {
+        Tcl_DictObjPut(NULL, dict, Tcl_NewStringObj("cipher", -1), Tcl_NewStringObj(SSL_CIPHER_get_name(cipher), -1));
+    }
+    // Session ID
+    SSL_SESSION *sess = SSL_get_session(ssl);
+    if (sess) {
+        unsigned int sidlen = 0;
+        const unsigned char *sid = SSL_SESSION_get_id(sess, &sidlen);
+        char hex[128] = {0};
+        for (unsigned int i = 0; i < sidlen && i < sizeof(hex)/2-1; ++i) {
+            sprintf(hex + i*2, "%02x", sid[i]);
+        }
+        Tcl_DictObjPut(NULL, dict, Tcl_NewStringObj("session_id", -1), Tcl_NewStringObj(hex, -1));
+    }
+    // Peer certificate subject
+    X509 *peer = SSL_get_peer_certificate(ssl);
+    if (peer) {
+        char subj[512];
+        X509_NAME_oneline(X509_get_subject_name(peer), subj, sizeof(subj));
+        Tcl_DictObjPut(NULL, dict, Tcl_NewStringObj("peer_subject", -1), Tcl_NewStringObj(subj, -1));
+        X509_free(peer);
+    }
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// opentssl::ssl::peer cert <sslsock>
+// Returns the PEM-encoded peer certificate (if available)
+static int SslPeerCertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "peer cert <sslsock>");
+        return TCL_ERROR;
+    }
+    const char *sockHandleName = Tcl_GetString(objv[3]);
+    if (!sslSocketTableInitialized) {
+        Tcl_SetResult(interp, "No SSL sockets allocated", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslSocketTable, sockHandleName);
+    if (!entryPtr) {
+        Tcl_SetResult(interp, "Unknown SSL socket handle", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    SslSocketHandle *sockHandle = (SslSocketHandle *)Tcl_GetHashValue(entryPtr);
+    SSL *ssl = sockHandle->ssl;
+    X509 *peer = SSL_get_peer_certificate(ssl);
+    if (!peer) {
+        Tcl_SetResult(interp, "No peer certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    BIO *mem = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509(mem, peer);
+    char *pem = NULL;
+    long len = BIO_get_mem_data(mem, &pem);
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(pem, len));
+    BIO_free(mem);
+    X509_free(peer);
+    return TCL_OK;
+}
+
+
 // Package initialization
 int Opentssl_Init(Tcl_Interp *interp) {
     if (Tcl_InitStubs(interp, TCL_VERSION, 0) == NULL) {
@@ -2058,6 +2588,17 @@ int Opentssl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "opentssl::ec::verify", EcVerifyCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::x509::create", X509CreateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::x509::verify", X509VerifyCmd, NULL, NULL);
+    // --- SSL/TLS API Commands ---
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::context", SslContextCreateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::context_free", SslContextFreeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::socket", SslSocketCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::connect", SslConnectCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::accept", SslAcceptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::read", SslReadCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::write", SslWriteCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::close", SslCloseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::session_info", SslSessionInfoCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "opentssl::ssl::peer_cert", SslPeerCertCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::generate", KeyGenerateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::parse", KeyParseCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "opentssl::key::write", KeyWriteCmd, NULL, NULL);
