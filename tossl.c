@@ -37,7 +37,7 @@
 // Prototype for bin2hex
 static void bin2hex(const unsigned char *in, int len, char *out);
 
-// opentssl::hmac -alg <name> -key <key> <data>
+// tossl::hmac -alg <name> -key <key> <data>
 static int HmacCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 6) {
@@ -101,7 +101,7 @@ cleanup:
     return rc;
 }
 
-// opentssl::key::parse <pem|der>
+// tossl::key::parse <pem|der>
 static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -182,7 +182,7 @@ static int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     return TCL_ERROR;
 }
 
-// opentssl::key::write -key <key> -format <pem|der>
+// tossl::key::write -key <key> -format <pem|der>
 static int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 5) {
@@ -220,7 +220,7 @@ static int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     }
 }
 
-// opentssl::key::generate ?-type <rsa> ?-bits <n>?
+// tossl::key::generate ?-type <rsa> ?-bits <n>?
 static int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
 
@@ -387,7 +387,7 @@ static void bin2hex(const unsigned char *in, int len, char *out) {
     out[2*len] = '\0';
 }
 
-// opentssl::base64::encode <data>
+// tossl::base64::encode <data>
 static int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -405,7 +405,7 @@ static int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
     return TCL_OK;
 }
 
-// opentssl::base64::decode <base64>
+// tossl::base64::decode <base64>
 static int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -427,7 +427,7 @@ static int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
     return TCL_OK;
 }
 
-// opentssl::hex::encode <data>
+// tossl::hex::encode <data>
 static int HexEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -443,7 +443,7 @@ static int HexEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::hex::decode <hex>
+// tossl::hex::decode <hex>
 static int HexDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -473,7 +473,7 @@ static int HexDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
 }
 
 
-// opentssl::digest -alg <name> <data>
+// tossl::digest -alg <name> <data>
 static int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 4) {
@@ -517,7 +517,7 @@ static int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 }
 
 
-// opentssl::randbytes nbytes
+// tossl::randbytes nbytes
 static int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -538,7 +538,7 @@ static int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::encrypt -alg <name> -key <key> -iv <iv> <data>
+// tossl::encrypt -alg <name> -key <key> -iv <iv> <data>
 static int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 8) {
@@ -595,7 +595,7 @@ static int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     return TCL_OK;
 }
 
-// opentssl::decrypt -alg <name> -key <key> -iv <iv> <data>
+// tossl::decrypt -alg <name> -key <key> -iv <iv> <data>
 static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 8) {
@@ -655,7 +655,7 @@ static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 
-// opentssl::rsa::generate ?-bits n?
+// tossl::rsa::generate ?-bits n?
 static int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     int bits = 2048;
@@ -706,7 +706,7 @@ static int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
     return TCL_OK;
 }
 
-// opentssl::rsa::encrypt -pubkey <pem> <data>
+// tossl::rsa::encrypt -pubkey <pem> <data>
 static int RsaEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 4) {
@@ -768,7 +768,7 @@ static int RsaEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     return TCL_OK;
 }
 
-// opentssl::rsa::decrypt -privkey <pem> <ciphertext>
+// tossl::rsa::decrypt -privkey <pem> <ciphertext>
 static int RsaDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 4) {
@@ -833,7 +833,7 @@ static int RsaDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
 #include <openssl/x509.h>
 #include <openssl/asn1.h>
 
-// opentssl::x509::parse <pem>
+// tossl::x509::parse <pem>
 static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -924,7 +924,7 @@ static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
 #include <openssl/safestack.h>
 #include <openssl/x509v3.h>
 
-// opentssl::dsa::sign -privkey <pem> -alg <digest> <data>
+// tossl::dsa::sign -privkey <pem> -alg <digest> <data>
 static int DsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 6) {
@@ -984,7 +984,7 @@ static int DsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     return TCL_OK;
 }
 
-// opentssl::dsa::verify -pubkey <pem> -alg <digest> <data> <signature>
+// tossl::dsa::verify -pubkey <pem> -alg <digest> <data> <signature>
 static int DsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 7) {
@@ -1039,7 +1039,7 @@ static int DsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::pkcs12::parse <data>
+// tossl::pkcs12::parse <data>
 static int Pkcs12ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 2) {
@@ -1116,13 +1116,13 @@ static int Pkcs12ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
     return TCL_OK;
 }
 
-// opentssl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?
+// tossl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?
 static int Pkcs7SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 
-// opentssl::pkcs7::verify -ca <ca> <pkcs7> <data> ?-pem 0|1?
+// tossl::pkcs7::verify -ca <ca> <pkcs7> <data> ?-pem 0|1?
 static int Pkcs7VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 
-// opentssl::pkcs7::encrypt -cert <cert1> ?-cert <cert2> ...? -cipher <cipher> <data> ?-pem 0|1?
+// tossl::pkcs7::encrypt -cert <cert1> ?-cert <cert2> ...? -cipher <cipher> <data> ?-pem 0|1?
 static int Pkcs7EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     int data_len = 0, pemout = 1;
@@ -1209,7 +1209,7 @@ static int Pkcs7EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
     return TCL_OK;
 }
 
-// opentssl::pkcs7::decrypt -key <key> -cert <cert> <pkcs7> ?-pem 0|1?
+// tossl::pkcs7::decrypt -key <key> -cert <cert> <pkcs7> ?-pem 0|1?
 static int Pkcs7DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     const char *key_pem = NULL, *cert_pem = NULL;
@@ -1292,7 +1292,7 @@ static int Pkcs7DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
     return TCL_OK;
 }
 
-// opentssl::pkcs7::info <pkcs7> ?-pem 0|1?
+// tossl::pkcs7::info <pkcs7> ?-pem 0|1?
 static int Pkcs7InfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     int sig_len = 0, pemin = 1;
@@ -1387,7 +1387,7 @@ static int Pkcs7InfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::pkcs7::verify -ca <ca> <pkcs7> <data> ?-pem 0|1?
+// tossl::pkcs7::verify -ca <ca> <pkcs7> <data> ?-pem 0|1?
 static int Pkcs7VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     const char *ca_pem = NULL;
@@ -1460,7 +1460,7 @@ static int Pkcs7VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
     return TCL_OK;
 }
 
-// opentssl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?
+// tossl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?
 static int Pkcs7SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     const char *cert_pem = NULL, *key_pem = NULL;
@@ -1549,7 +1549,7 @@ static int Pkcs7SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::pkcs12::create -cert <cert> -key <key> -ca <ca> -password <pw>
+// tossl::pkcs12::create -cert <cert> -key <key> -ca <ca> -password <pw>
 static int Pkcs12CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 9) {
@@ -1589,7 +1589,7 @@ static int Pkcs12CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
         }
         BIO_free(cabio);
     }
-    PKCS12 *p12 = PKCS12_create(password, "OpenTSSL", pkey, cert, ca_stack, 0,0,0,0,0);
+    PKCS12 *p12 = PKCS12_create(password, "ToSSL", pkey, cert, ca_stack, 0,0,0,0,0);
     if (pkey) EVP_PKEY_free(pkey);
     if (cert) X509_free(cert);
     if (ca_stack) sk_X509_pop_free(ca_stack, X509_free);
@@ -1609,7 +1609,7 @@ static int Pkcs12CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
     return TCL_OK;
 }
 
-// opentssl::ec::sign -privkey <pem> -alg <digest> <data>
+// tossl::ec::sign -privkey <pem> -alg <digest> <data>
 static int EcSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 6) {
@@ -1669,7 +1669,7 @@ static int EcSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     return TCL_OK;
 }
 
-// opentssl::ec::verify -pubkey <pem> -alg <digest> <data> <signature>
+// tossl::ec::verify -pubkey <pem> -alg <digest> <data> <signature>
 static int EcVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 7) {
@@ -1724,7 +1724,7 @@ static int EcVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     return TCL_OK;
 }
 
-// opentssl::rsa::sign -privkey <pem> -alg <digest> <data>
+// tossl::rsa::sign -privkey <pem> -alg <digest> <data>
 static int RsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 6) {
@@ -1783,7 +1783,7 @@ static int RsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     return TCL_OK;
 }
 
-// opentssl::rsa::verify -pubkey <pem> -alg <digest> <data> <signature>
+// tossl::rsa::verify -pubkey <pem> -alg <digest> <data> <signature>
 static int RsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 7) {
@@ -1837,7 +1837,7 @@ static int RsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::x509::create -subject dn -issuer dn -pubkey pem -privkey pem -days n [-san {dns1 dns2 ...}]
+// tossl::x509::create -subject dn -issuer dn -pubkey pem -privkey pem -days n [-san {dns1 dns2 ...}]
 static int X509CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc < 11 || objc > 13) {
@@ -1992,7 +1992,7 @@ static int X509CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     return TCL_OK;
 }
 
-// opentssl::x509::verify -cert <pem> -ca <pem>
+// tossl::x509::verify -cert <pem> -ca <pem>
 static int X509VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 5) {
@@ -2060,7 +2060,7 @@ static char *GenerateSslContextHandleName(void) {
     return strdup(buf);
 }
 
-// opentssl::ssl::context create ?options?
+// tossl::ssl::context create ?options?
 // Options:
 //   -protocols {TLSv1.2 TLSv1.3 ...}
 //   -ciphers "ECDHE+AESGCM"
@@ -2096,7 +2096,7 @@ static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
         } else if (strcmp(opt, "-alpn") == 0) {
             alpnObj = objv[i+1];
         } else {
-            Tcl_SetResult(interp, "Unknown option to opentssl::ssl::context create", TCL_STATIC);
+            Tcl_SetResult(interp, "Unknown option to tossl::ssl::context create", TCL_STATIC);
             return TCL_ERROR;
         }
     }
@@ -2215,7 +2215,7 @@ static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
 
 }
 
-// opentssl::ssl::context free <ctx>
+// tossl::ssl::context free <ctx>
 // Frees the context handle and underlying SSL_CTX
 static int SslContextFreeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 3) {
@@ -2271,7 +2271,7 @@ static int GetFdFromChannel(Tcl_Interp *interp, const char *chanName) {
     return (int)(intptr_t)cd;
 }
 
-// opentssl::ssl::connect <sslsock>
+// tossl::ssl::connect <sslsock>
 // Performs SSL/TLS handshake as a client on the associated Tcl channel
 static int SslConnectCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 3) {
@@ -2315,7 +2315,7 @@ static int SslConnectCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     return TCL_OK;
 }
 
-// opentssl::ssl::accept <sslsock>
+// tossl::ssl::accept <sslsock>
 // Performs SSL/TLS handshake as a server on the associated Tcl channel
 static int SslAcceptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 3) {
@@ -2359,7 +2359,7 @@ static int SslAcceptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::ssl::read <sslsock> ?nbytes?
+// tossl::ssl::read <sslsock> ?nbytes?
 // Reads up to nbytes (default 4096) from the SSL connection
 static int SslReadCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 3 && objc != 4) {
@@ -2399,7 +2399,7 @@ static int SslReadCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     return TCL_OK;
 }
 
-// opentssl::ssl::write <sslsock> <data>
+// tossl::ssl::write <sslsock> <data>
 // Writes data to the SSL connection, returns number of bytes written
 static int SslWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 4) {
@@ -2431,7 +2431,7 @@ static int SslWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     return TCL_OK;
 }
 
-// opentssl::ssl::close <sslsock>
+// tossl::ssl::close <sslsock>
 // Shuts down SSL connection and frees resources
 static int SslCloseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 3) {
@@ -2489,7 +2489,7 @@ static char *GenerateSslSessionHandleName(void) {
     return strdup(buf);
 }
 
-// opentssl::ssl::session export <sslsock>
+// tossl::ssl::session export <sslsock>
 // Serializes the session and returns a base64 string
 static int SslSessionExportCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 4) {
@@ -2538,7 +2538,7 @@ static int SslSessionExportCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
     return TCL_OK;
 }
 
-// opentssl::ssl::session import <ctx> <base64blob>
+// tossl::ssl::session import <ctx> <base64blob>
 // Imports a session and returns a session handle
 static int SslSessionImportCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 5) {
@@ -2598,7 +2598,7 @@ static SslSessionHandle *FindSslSessionHandle(const char *name) {
 }
 
 // --- Update SslSocketCmd to allow -session <sessionhandle> ---
-// opentssl::ssl::socket <ctx> <sock> ?-session <sessionhandle>?
+// tossl::ssl::socket <ctx> <sock> ?-session <sessionhandle>?
 // Looks up SSL_CTX handle, creates SSL*, associates with Tcl channel, optionally resumes session
 static int SslSocketCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 4 && objc != 6) {
@@ -2674,7 +2674,7 @@ static int SslSocketCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
-// opentssl::ssl::session info <sslsock>
+// tossl::ssl::session info <sslsock>
 // Returns a Tcl dict with protocol, cipher, session id, peer cert subject, etc.
 static int SslSessionInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 4) {
@@ -2724,7 +2724,7 @@ static int SslSessionInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Ob
     return TCL_OK;
 }
 
-// opentssl::ssl::peer cert <sslsock>
+// tossl::ssl::peer cert <sslsock>
 // Returns the PEM-encoded peer certificate (if available)
 static int SslPeerCertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 4) {
@@ -2760,57 +2760,57 @@ static int SslPeerCertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
 
 
 // Package initialization
-int Opentssl_Init(Tcl_Interp *interp) {
+int Tossl_Init(Tcl_Interp *interp) {
     if (Tcl_InitStubs(interp, TCL_VERSION, 0) == NULL) {
         return TCL_ERROR;
     }
-    Tcl_CreateObjCommand(interp, "opentssl::digest", DigestCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::hmac", HmacCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::randbytes", RandBytesCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::encrypt", EncryptCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::decrypt", DecryptCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::rsa::generate", RsaGenerateCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::rsa::encrypt", RsaEncryptCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::rsa::decrypt", RsaDecryptCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::x509::parse", X509ParseCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::rsa::sign", RsaSignCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::rsa::verify", RsaVerifyCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::dsa::sign", DsaSignCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::dsa::verify", DsaVerifyCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ec::sign", EcSignCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ec::verify", EcVerifyCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::x509::create", X509CreateCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::x509::verify", X509VerifyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::digest", DigestCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::hmac", HmacCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::randbytes", RandBytesCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::encrypt", EncryptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::decrypt", DecryptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::rsa::generate", RsaGenerateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::rsa::encrypt", RsaEncryptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::rsa::decrypt", RsaDecryptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::x509::parse", X509ParseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::rsa::sign", RsaSignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::rsa::verify", RsaVerifyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::dsa::sign", DsaSignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::dsa::verify", DsaVerifyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ec::sign", EcSignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ec::verify", EcVerifyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::x509::create", X509CreateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::x509::verify", X509VerifyCmd, NULL, NULL);
     // --- SSL/TLS API Commands ---
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::context", SslContextCreateCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::context_free", SslContextFreeCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::socket", SslSocketCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::connect", SslConnectCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::accept", SslAcceptCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::read", SslReadCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::write", SslWriteCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::close", SslCloseCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::session_info", SslSessionInfoCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::peer_cert", SslPeerCertCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::context", SslContextCreateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::context_free", SslContextFreeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::socket", SslSocketCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::connect", SslConnectCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::accept", SslAcceptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::read", SslReadCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::write", SslWriteCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::close", SslCloseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::session_info", SslSessionInfoCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::peer_cert", SslPeerCertCmd, NULL, NULL);
     // Advanced session resumption commands
-    //   opentssl::ssl::session export <sslsock>
-    //   opentssl::ssl::session import <ctx> <base64blob>
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::session_export", SslSessionExportCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::ssl::session_import", SslSessionImportCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::key::generate", KeyGenerateCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::key::parse", KeyParseCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::key::write", KeyWriteCmd, NULL, NULL);
-    Tcl_PkgProvide(interp, "opentssl", "0.1");
-    Tcl_CreateObjCommand(interp, "opentssl::base64::encode", Base64EncodeCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::base64::decode", Base64DecodeCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::hex::encode", HexEncodeCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::hex::decode", HexDecodeCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::pkcs12::parse", Pkcs12ParseCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::pkcs12::create", Pkcs12CreateCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::pkcs7::sign", Pkcs7SignCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::pkcs7::verify", Pkcs7VerifyCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::pkcs7::encrypt", Pkcs7EncryptCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::pkcs7::decrypt", Pkcs7DecryptCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "opentssl::pkcs7::info", Pkcs7InfoCmd, NULL, NULL);
+    //   tossl::ssl::session export <sslsock>
+    //   tossl::ssl::session import <ctx> <base64blob>
+    Tcl_CreateObjCommand(interp, "tossl::ssl::session_export", SslSessionExportCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::session_import", SslSessionImportCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::key::generate", KeyGenerateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::key::parse", KeyParseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::key::write", KeyWriteCmd, NULL, NULL);
+    Tcl_PkgProvide(interp, "tossl", "0.1");
+    Tcl_CreateObjCommand(interp, "tossl::base64::encode", Base64EncodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::base64::decode", Base64DecodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::hex::encode", HexEncodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::hex::decode", HexDecodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::pkcs12::parse", Pkcs12ParseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::pkcs12::create", Pkcs12CreateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::pkcs7::sign", Pkcs7SignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::pkcs7::verify", Pkcs7VerifyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::pkcs7::encrypt", Pkcs7EncryptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::pkcs7::decrypt", Pkcs7DecryptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::pkcs7::info", Pkcs7InfoCmd, NULL, NULL);
     return TCL_OK;
 }

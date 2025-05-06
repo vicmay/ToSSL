@@ -1,9 +1,9 @@
-Here’s a summary of what was accomplished in your OpenTSSL project during this session:
+Here’s a summary of what was accomplished in your ToSSL project during this session:
 
 Summary of Work Completed
 1. Key Generation and Management
 RSA, DSA, and EC Key Support
-The Tcl commands opentssl::key::generate, opentssl::key::parse, and opentssl::key::write now support RSA, DSA, and EC (Elliptic Curve) keys.
+The Tcl commands tossl::key::generate, tossl::key::parse, and tossl::key::write now support RSA, DSA, and EC (Elliptic Curve) keys.
 EC key generation allows specifying the curve (default: prime256v1).
 All key types can be parsed and written in PEM format.
 Codebase Fixes
@@ -13,8 +13,8 @@ Corrected unreachable code for DSA key generation.
 Build
 The project now builds successfully. There are warnings about deprecated OpenSSL functions, but these do not prevent compilation.
 2. Tcl Integration
-The shared library (libopentssl.so) loads in Tcl as expected.
-All key management commands (opentssl::key::generate, opentssl::key::parse, opentssl::key::write) are available and working.
+The shared library (libtossl.so) loads in Tcl as expected.
+All key management commands (tossl::key::generate, tossl::key::parse, tossl::key::write) are available and working.
 3. Documentation and TODOs
 The TODO.md and README.md were updated to reflect:
 RSA, DSA, and EC key management in PEM format is complete.
@@ -30,23 +30,23 @@ Implement HMAC and encoding/decoding commands as outlined in the TODO.
 NEW UPDATE:
 
 
-Here’s a summary of what was done in the recent work and the current status of the OpenTSSL project, based on the TODO.md and recent changes:
+Here’s a summary of what was done in the recent work and the current status of the ToSSL project, based on the TODO.md and recent changes:
 
 Summary of Recent Work
 DSA and EC Signing/Verification
 Tcl commands for DSA and EC signing and verification have been fully implemented:
-opentssl::dsa::sign, opentssl::dsa::verify
-opentssl::ec::sign, opentssl::ec::verify
+tossl::dsa::sign, tossl::dsa::verify
+tossl::ec::sign, tossl::ec::verify
 Usage examples for both DSA and EC sign/verify commands are provided in the TODO.md.
 HMAC Functionality (Planned/Next Step)
 The next planned feature is HMAC support.
 The target Tcl command will be:
-opentssl::hmac -alg <name> -key <key> <data>
+tossl::hmac -alg <name> -key <key> <data>
 Implementation will use OpenSSL’s HMAC APIs and support all OpenSSL digests.
 Encoding/Decoding (Planned)
 Base64 and hex encoding/decoding commands are outlined for future implementation:
-opentssl::base64::encode, opentssl::base64::decode
-opentssl::hex::encode, opentssl::hex::decode
+tossl::base64::encode, tossl::base64::decode
+tossl::hex::encode, tossl::hex::decode
 These will use OpenSSL’s EVP_EncodeBlock and EVP_DecodeBlock functions.
 PKCS and SSL/TLS (Planned)
 Future plans include support for PKCS#12, PKCS#7, and advanced SSL/TLS session/context management, as needed.
