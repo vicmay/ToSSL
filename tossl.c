@@ -617,6 +617,7 @@ static int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
 
 // tossl::decrypt -alg <name> -key <key> -iv <iv> <data> ?-tag tag?
 static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+
     (void)cd;
     // Accepts 8 (no tag) or 10 (with -tag) arguments
     if (objc != 8 && objc != 10) {
@@ -643,13 +644,13 @@ static int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     }
     // If -tag is present, parse it
     if (objc == 10) {
-        const char *opt = Tcl_GetString(objv[8]);
+        const char *opt = Tcl_GetString(objv[7]);
         if (strcmp(opt, "-tag") != 0) {
             Tcl_SetResult(interp, "Unknown option (expected -tag)", TCL_STATIC);
             return TCL_ERROR;
         }
-        tag = (unsigned char *)Tcl_GetByteArrayFromObj(objv[9], &taglen);
-        data_idx = 7;
+        tag = (unsigned char *)Tcl_GetByteArrayFromObj(objv[8], &taglen);
+        data_idx = 9;
     }
     data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[data_idx], &datalen);
     const EVP_CIPHER *cipher = EVP_get_cipherbyname(alg);
