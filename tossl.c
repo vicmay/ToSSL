@@ -224,7 +224,7 @@ static int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     if (Tcl_DictObjGet(interp, keyDict, Tcl_NewStringObj("type", -1), &typeObj) != TCL_OK || !typeObj ||
         Tcl_DictObjGet(interp, keyDict, Tcl_NewStringObj("kind", -1), &kindObj) != TCL_OK || !kindObj ||
         Tcl_DictObjGet(interp, keyDict, Tcl_NewStringObj("pem", -1), &pemObj) != TCL_OK || !pemObj) {
-        Tcl_SetResult(interp, "Key dict must have 'type', 'kind', and 'pem' fields", TCL_STATIC);
+        Tcl_SetResult(interp, "Key dict must have \'type\', \'kind\', and \'pem\' fields", TCL_STATIC);
         return TCL_ERROR;
     }
     const char *type = Tcl_GetString(typeObj);
@@ -392,6 +392,76 @@ static int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
         return TCL_OK;
     }
     return TCL_ERROR;
+}
+
+// tossl::key::getpub <private_key_data>
+// Takes a private key (PEM or DER) and returns the corresponding public key in PEM format.
+static int KeyGetPubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "<private_key_data>");
+        return TCL_ERROR;
+    }
+
+    int input_len;
+    unsigned char *input_data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &input_len);
+
+    EVP_PKEY *pkey = NULL;
+    BIO *bio_in = NULL;
+
+    // Try to read as PEM private key
+    bio_in = BIO_new_mem_buf((void*)input_data, input_len);
+    if (!bio_in) {
+        Tcl_SetResult(interp, "OpenSSL: BIO_new_mem_buf failed for PEM input", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    pkey = PEM_read_bio_PrivateKey(bio_in, NULL, NULL, NULL);
+    BIO_free(bio_in);
+    bio_in = NULL; 
+
+    if (!pkey) {
+        // PEM failed, try to read as DER private key
+        bio_in = BIO_new_mem_buf((void*)input_data, input_len);
+        if (!bio_in) {
+            Tcl_SetResult(interp, "OpenSSL: BIO_new_mem_buf failed for DER input", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        pkey = d2i_PrivateKey_bio(bio_in, NULL);
+        BIO_free(bio_in);
+        bio_in = NULL;
+    }
+
+    if (!pkey) {
+        Tcl_SetResult(interp, "Failed to parse private key. Not a valid PEM or DER private key.", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    // Now we have pkey, extract public key in PEM format
+    BIO *pub_bio_out = BIO_new(BIO_s_mem());
+    if (!pub_bio_out) {
+        EVP_PKEY_free(pkey);
+        Tcl_SetResult(interp, "OpenSSL: BIO_new for public key output failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    if (!PEM_write_bio_PUBKEY(pub_bio_out, pkey)) {
+        char errbuf[256];
+        ERR_error_string_n(ERR_get_error(), errbuf, sizeof(errbuf));
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("OpenSSL: Failed to write public key to PEM: %s", errbuf));
+        EVP_PKEY_free(pkey);
+        BIO_free(pub_bio_out);
+        return TCL_ERROR;
+    }
+
+    char *pub_pem_str = NULL;
+    long pub_pem_len = BIO_get_mem_data(pub_bio_out, &pub_pem_str);
+
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(pub_pem_str, pub_pem_len));
+
+    EVP_PKEY_free(pkey);
+    BIO_free(pub_bio_out);
+
+    return TCL_OK;
 }
 
 // Helper: Convert binary to hex string
@@ -2921,6 +2991,7 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::key::generate", KeyGenerateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::key::parse", KeyParseCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::key::write", KeyWriteCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::key::getpub", KeyGetPubCmd, NULL, NULL);
     Tcl_PkgProvide(interp, "tossl", "0.1");
     Tcl_CreateObjCommand(interp, "tossl::base64::encode", Base64EncodeCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::base64::decode", Base64DecodeCmd, NULL, NULL);

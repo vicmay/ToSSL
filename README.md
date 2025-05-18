@@ -311,6 +311,18 @@ Serializes a key dictionary (as returned by generate or parse, with a 'pem' fiel
 set pem [tossl::key::write -key $dict -format pem]
 ```
 
+#### `tossl::key::getpub <private_key_data>`
+Extracts the public key from a given private key (PEM or DER format).
+- `<private_key_data>`: The private key content as a string or byte array.
+- Returns: The corresponding public key in PEM format.
+
+**Usage:**
+```tcl
+set private_key_pem {-----BEGIN RSA PRIVATE KEY----- ... -----END RSA PRIVATE KEY-----}
+set public_key_pem [tossl::key::getpub $private_key_pem]
+puts "Public Key: $public_key_pem"
+```
+
 **Notes:**
 - RSA, DSA, and EC keys in PEM and DER formats are supported for generate/parse/write.
 - The key dictionary must contain at least the fields: `type`, `kind`, and `pem`.
@@ -728,6 +740,11 @@ Creates a new SSL/TLS context with customizable options.
 - Options: `-protocols`, `-ciphers`, `-cert`, `-key`, `-cafile`, `-verify`
 - Returns: context handle (e.g., sslctx1)
 
+### `tossl::ssl::context_free <ctx_handle>`
+Frees the specified SSL context and its associated resources.
+- `<ctx_handle>`: The handle of the SSL context to free (e.g., sslctx1).
+- Call this when a context is no longer needed to prevent resource leaks.
+
 ### `tossl::ssl::socket <ctx> <sock> ?-session <sessionhandle>?`
 Wraps a Tcl socket in SSL/TLS, optionally resuming a session.
 - Returns: SSL socket handle (e.g., sslsock1)
@@ -740,6 +757,27 @@ Imports a session from a base64 string, returning a session handle for use with 
 
 ### `tossl::ssl::session info <sslsock>`
 Returns a dict with protocol, cipher, session id, peer subject, etc.
+
+### `tossl::ssl::peer_cert <sslsock_handle>`
+Retrieves the PEM-encoded certificate of the peer from an established SSL/TLS connection.
+- `<sslsock_handle>`: The handle of the SSL socket (e.g., sslsock1).
+- Returns: The peer's certificate as a PEM-formatted string if available, otherwise an error or empty string.
+- Useful for inspecting the certificate presented by the other side after a successful handshake.
+
+**Usage:**
+```tcl
+# After a successful tossl::ssl::connect or tossl::ssl::accept
+set peer_cert_pem [tossl::ssl::peer_cert $sslsock]
+if {[string length $peer_cert_pem] > 0} {
+    puts "Peer certificate:"
+    puts $peer_cert_pem
+    # You can then parse it using tossl::x509::parse
+    set cert_info [tossl::x509::parse $peer_cert_pem]
+    puts "Peer subject: [dict get $cert_info subject]"
+} else {
+    puts "No peer certificate presented or error retrieving it."
+}
+```
 
 ### `tossl::ssl::connect <sslsock>`
 Performs SSL/TLS handshake as a client.
