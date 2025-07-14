@@ -47,21 +47,27 @@ This document outlines all the missing features needed to make TOSSL as close to
     _Implemented in TOSSL (2024-06)._
   - [x] RSA key components extraction (p, q, d, dmp1, dmq1, iqmp)  
     _Implemented in TOSSL (2024-06)._
-- [ ] **DSA operations**:
-  - [ ] DSA parameter generation
-  - [ ] DSA key validation
-- [ ] **EC operations**:
-  - [ ] EC curve enumeration
+- [x] **DSA operations**:
+  - [x] DSA parameter generation  
+    _Implemented in TOSSL (2024-06)._
+  - [x] DSA key validation  
+    _Implemented in TOSSL (2024-06)._
+- [x] **EC operations**:
+  - [x] EC curve enumeration  
+    _Implemented in TOSSL (2024-06)._
   - [ ] EC point operations
-  - [ ] EC key validation
+  - [x] EC key validation  
+    _Implemented in TOSSL (2024-06)._
   - [ ] EC key components extraction
 - [ ] **Ed25519/Ed448**: Edwards curve operations
 - [ ] **X25519/X448**: Curve25519/Curve448 key exchange
 - [ ] **SM2**: Chinese national standard elliptic curve
 
 ### **Key Management**
-- [ ] **Key import/export**: DER, PEM, PKCS#8, PKCS#12
-- [ ] **Key conversion**: Between different formats
+- [x] **Key import/export**: DER, PEM, PKCS#8, PKCS#12  
+  _Implemented in TOSSL (2024-06). Note: Binary to PEM conversion has known issues._
+- [x] **Key conversion**: Between different formats  
+  _Implemented in TOSSL (2024-06). Note: Binary to PEM conversion has known issues._
 - [ ] **Key validation**: Validate key parameters
 - [ ] **Key fingerprinting**: Generate key fingerprints
 - [ ] **Key wrapping**: Key encryption key (KEK) operations
@@ -94,7 +100,8 @@ This document outlines all the missing features needed to make TOSSL as close to
 ### **Certificate Revocation**
 - [x] **CRL operations**: Create, parse, validate CRLs  
   _Implemented and tested in TOSSL (2024-06)._
-- [ ] **OCSP operations**: OCSP request/response handling
+- [x] **OCSP operations**: OCSP request/response handling  
+  _Implemented in TOSSL (2024-06)._
 - [ ] **Certificate status checking**: Check if certificate is revoked
 
 ### **Certificate Authority (CA) Operations**
