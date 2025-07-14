@@ -40,6 +40,9 @@
 #include <openssl/pkcs7.h>
 #include <openssl/provider.h>
 #include <openssl/ocsp.h>
+#include <openssl/ec.h>
+#include <openssl/bn.h>
+#include <openssl/asn1.h>
 
 // KeyUsage bitmask values (OpenSSL defines these in x509v3.h, but for clarity):
 #ifndef KU_DIGITAL_SIGNATURE
@@ -6004,6 +6007,776 @@ static int CrlParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     return TCL_OK;
 }
 
+// tossl::ec::point_add -point1 <pem> -point2 <pem> -curve <name>
+static int EcPointAddCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-point1 pem -point2 pem -curve name");
+        return TCL_ERROR;
+    }
+    const char *point1_pem = NULL, *point2_pem = NULL, *curve = NULL;
+    int point1_len = 0, point2_len = 0;
+    for (int i = 1; i < 6; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-point1") == 0) {
+            point1_pem = Tcl_GetStringFromObj(objv[i+1], &point1_len);
+        } else if (strcmp(opt, "-point2") == 0) {
+            point2_pem = Tcl_GetStringFromObj(objv[i+1], &point2_len);
+        } else if (strcmp(opt, "-curve") == 0) {
+            curve = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    int nid = OBJ_sn2nid(curve);
+    if (nid == NID_undef) {
+        Tcl_SetResult(interp, "Unknown curve", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EC_GROUP *group = EC_GROUP_new_by_curve_name(nid);
+    if (!group) {
+        Tcl_SetResult(interp, "OpenSSL: failed to create EC group", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EC_POINT *p1 = EC_POINT_new(group);
+    EC_POINT *p2 = EC_POINT_new(group);
+    EC_POINT *result = EC_POINT_new(group);
+    
+    if (!p1 || !p2 || !result) {
+        if (p1) EC_POINT_free(p1);
+        if (p2) EC_POINT_free(p2);
+        if (result) EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to create EC points", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse point1 (assuming it's in hex format)
+    if (!EC_POINT_hex2point(group, point1_pem, p1, NULL)) {
+        EC_POINT_free(p1);
+        EC_POINT_free(p2);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse point1", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse point2 (assuming it's in hex format)
+    if (!EC_POINT_hex2point(group, point2_pem, p2, NULL)) {
+        EC_POINT_free(p1);
+        EC_POINT_free(p2);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse point2", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Add points
+    if (!EC_POINT_add(group, result, p1, p2, NULL)) {
+        EC_POINT_free(p1);
+        EC_POINT_free(p2);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to add EC points", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Convert result to hex
+    char *hex_result = EC_POINT_point2hex(group, result, POINT_CONVERSION_UNCOMPRESSED, NULL);
+    if (!hex_result) {
+        EC_POINT_free(p1);
+        EC_POINT_free(p2);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to convert result to hex", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_SetResult(interp, hex_result, TCL_VOLATILE);
+    OPENSSL_free(hex_result);
+    EC_POINT_free(p1);
+    EC_POINT_free(p2);
+    EC_POINT_free(result);
+    EC_GROUP_free(group);
+    return TCL_OK;
+}
+
+// tossl::ec::point_multiply -point <pem> -scalar <hex> -curve <name>
+static int EcPointMultiplyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-point pem -scalar hex -curve name");
+        return TCL_ERROR;
+    }
+    const char *point_pem = NULL, *scalar_hex = NULL, *curve = NULL;
+    int point_len = 0;
+    for (int i = 1; i < 6; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-point") == 0) {
+            point_pem = Tcl_GetStringFromObj(objv[i+1], &point_len);
+        } else if (strcmp(opt, "-scalar") == 0) {
+            scalar_hex = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-curve") == 0) {
+            curve = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    int nid = OBJ_sn2nid(curve);
+    if (nid == NID_undef) {
+        Tcl_SetResult(interp, "Unknown curve", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EC_GROUP *group = EC_GROUP_new_by_curve_name(nid);
+    if (!group) {
+        Tcl_SetResult(interp, "OpenSSL: failed to create EC group", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EC_POINT *point = EC_POINT_new(group);
+    EC_POINT *result = EC_POINT_new(group);
+    BIGNUM *scalar = NULL;
+    
+    if (!point || !result) {
+        if (point) EC_POINT_free(point);
+        if (result) EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to create EC points", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse point (assuming it's in hex format)
+    if (!EC_POINT_hex2point(group, point_pem, point, NULL)) {
+        EC_POINT_free(point);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse point", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse scalar
+    scalar = BN_new();
+    if (!scalar || !BN_hex2bn(&scalar, scalar_hex)) {
+        if (scalar) BN_free(scalar);
+        EC_POINT_free(point);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse scalar", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Multiply point by scalar
+    if (!EC_POINT_mul(group, result, NULL, point, scalar, NULL)) {
+        BN_free(scalar);
+        EC_POINT_free(point);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to multiply EC point", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Convert result to hex
+    char *hex_result = EC_POINT_point2hex(group, result, POINT_CONVERSION_UNCOMPRESSED, NULL);
+    if (!hex_result) {
+        BN_free(scalar);
+        EC_POINT_free(point);
+        EC_POINT_free(result);
+        EC_GROUP_free(group);
+        Tcl_SetResult(interp, "OpenSSL: failed to convert result to hex", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_SetResult(interp, hex_result, TCL_VOLATILE);
+    OPENSSL_free(hex_result);
+    BN_free(scalar);
+    EC_POINT_free(point);
+    EC_POINT_free(result);
+    EC_GROUP_free(group);
+    return TCL_OK;
+}
+
+// tossl::ec::components -key <pem>
+static int EcComponentsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-key pem");
+        return TCL_ERROR;
+    }
+    const char *key_pem = NULL;
+    int key_len = 0;
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-key") == 0) {
+        key_pem = Tcl_GetStringFromObj(objv[2], &key_len);
+    } else {
+        Tcl_SetResult(interp, "Expected -key option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *bio = BIO_new_mem_buf((void*)key_pem, key_len);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    if (!pkey || EVP_PKEY_base_id(pkey) != EVP_PKEY_EC) {
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse EC private key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EC_KEY *ec = EVP_PKEY_get0_EC_KEY(pkey);
+    if (!ec) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to get EC key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    const EC_GROUP *group = EC_KEY_get0_group(ec);
+    const EC_POINT *pub = EC_KEY_get0_public_key(ec);
+    const BIGNUM *priv = EC_KEY_get0_private_key(ec);
+    
+    if (!group || !pub || !priv) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to get EC key components", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Get curve name
+    int nid = EC_GROUP_get_curve_name(group);
+    const char *curve_name = OBJ_nid2sn(nid);
+    
+    // Convert public point to hex
+    char *pub_hex = EC_POINT_point2hex(group, pub, POINT_CONVERSION_UNCOMPRESSED, NULL);
+    if (!pub_hex) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to convert public point to hex", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Convert private key to hex
+    char *priv_hex = BN_bn2hex(priv);
+    if (!priv_hex) {
+        OPENSSL_free(pub_hex);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to convert private key to hex", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve_name ? curve_name : "unknown", -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("public_point", -1), Tcl_NewStringObj(pub_hex, -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private_key", -1), Tcl_NewStringObj(priv_hex, -1));
+    
+    OPENSSL_free(pub_hex);
+    OPENSSL_free(priv_hex);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// tossl::ed25519::generate
+static int Ed25519GenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "");
+        return TCL_ERROR;
+    }
+    
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, NULL);
+    if (!ctx) {
+        Tcl_SetResult(interp, "OpenSSL: Ed25519 not supported", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EVP_PKEY *pkey = NULL;
+    if (EVP_PKEY_keygen_init(ctx) <= 0 || EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        Tcl_SetResult(interp, "OpenSSL: Ed25519 key generation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *priv = BIO_new(BIO_s_mem());
+    BIO *pub = BIO_new(BIO_s_mem());
+    
+    PEM_write_bio_PrivateKey(priv, pkey, NULL, NULL, 0, NULL, NULL);
+    PEM_write_bio_PUBKEY(pub, pkey);
+    
+    char *priv_pem = NULL, *pub_pem = NULL;
+    long priv_len = BIO_get_mem_data(priv, &priv_pem);
+    long pub_len = BIO_get_mem_data(pub, &pub_pem);
+    
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("public", -1), Tcl_NewStringObj(pub_pem, pub_len));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), Tcl_NewStringObj(priv_pem, priv_len));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ed25519", -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(256));
+    
+    EVP_PKEY_free(pkey);
+    EVP_PKEY_CTX_free(ctx);
+    BIO_free(priv);
+    BIO_free(pub);
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// tossl::ed25519::sign -privkey <pem> <data>
+static int Ed25519SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-privkey pem data");
+        return TCL_ERROR;
+    }
+    const char *privkey = NULL;
+    int privkey_len = 0;
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-privkey") == 0) {
+        privkey = Tcl_GetStringFromObj(objv[2], &privkey_len);
+    } else {
+        Tcl_SetResult(interp, "Expected -privkey option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int datalen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &datalen);
+    
+    BIO *bio = BIO_new_mem_buf((void*)privkey, privkey_len);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    if (!pkey || EVP_PKEY_base_id(pkey) != EVP_PKEY_ED25519) {
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse Ed25519 private key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    size_t siglen = 0;
+    int ok = EVP_DigestSignInit(mdctx, NULL, NULL, NULL, pkey) &&
+             EVP_DigestSign(mdctx, NULL, &siglen, data, datalen);
+    
+    if (!ok) {
+        EVP_MD_CTX_free(mdctx);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to calculate signature length", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char *sig = (unsigned char *)ckalloc(siglen);
+    ok = EVP_DigestSign(mdctx, sig, &siglen, data, datalen);
+    
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    
+    if (!ok) {
+        ckfree((char*)sig);
+        Tcl_SetResult(interp, "OpenSSL: failed to create signature", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(sig, siglen));
+    ckfree((char*)sig);
+    return TCL_OK;
+}
+
+// tossl::ed25519::verify -pubkey <pem> <data> <signature>
+static int Ed25519VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-pubkey pem data signature");
+        return TCL_ERROR;
+    }
+    const char *pubkey = NULL;
+    int pubkey_len = 0;
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-pubkey") == 0) {
+        pubkey = Tcl_GetStringFromObj(objv[2], &pubkey_len);
+    } else {
+        Tcl_SetResult(interp, "Expected -pubkey option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int datalen, siglen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &datalen);
+    unsigned char *sig = (unsigned char *)Tcl_GetByteArrayFromObj(objv[4], &siglen);
+    
+    BIO *bio = BIO_new_mem_buf((void*)pubkey, pubkey_len);
+    EVP_PKEY *pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (!pkey || EVP_PKEY_base_id(pkey) != EVP_PKEY_ED25519) {
+        if (pkey) EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse Ed25519 public key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int ok = EVP_DigestVerifyInit(mdctx, NULL, NULL, NULL, pkey) &&
+             EVP_DigestVerify(mdctx, sig, siglen, data, datalen);
+    
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    
+    Tcl_SetObjResult(interp, Tcl_NewIntObj(ok ? 1 : 0));
+    return TCL_OK;
+}
+
+// tossl::x25519::generate
+static int X25519GenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "");
+        return TCL_ERROR;
+    }
+    
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
+    if (!ctx) {
+        Tcl_SetResult(interp, "OpenSSL: X25519 not supported", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EVP_PKEY *pkey = NULL;
+    if (EVP_PKEY_keygen_init(ctx) <= 0 || EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        Tcl_SetResult(interp, "OpenSSL: X25519 key generation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *priv = BIO_new(BIO_s_mem());
+    BIO *pub = BIO_new(BIO_s_mem());
+    
+    PEM_write_bio_PrivateKey(priv, pkey, NULL, NULL, 0, NULL, NULL);
+    PEM_write_bio_PUBKEY(pub, pkey);
+    
+    char *priv_pem = NULL, *pub_pem = NULL;
+    long priv_len = BIO_get_mem_data(priv, &priv_pem);
+    long pub_len = BIO_get_mem_data(pub, &pub_pem);
+    
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("public", -1), Tcl_NewStringObj(pub_pem, pub_len));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), Tcl_NewStringObj(priv_pem, priv_len));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("x25519", -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(256));
+    
+    EVP_PKEY_free(pkey);
+    EVP_PKEY_CTX_free(ctx);
+    BIO_free(priv);
+    BIO_free(pub);
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// tossl::x25519::derive -privkey <pem> -pubkey <pem>
+static int X25519DeriveCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-privkey pem -pubkey pem");
+        return TCL_ERROR;
+    }
+    const char *privkey = NULL, *pubkey = NULL;
+    int privkey_len = 0, pubkey_len = 0;
+    for (int i = 1; i < 4; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-privkey") == 0) {
+            privkey = Tcl_GetStringFromObj(objv[i+1], &privkey_len);
+        } else if (strcmp(opt, "-pubkey") == 0) {
+            pubkey = Tcl_GetStringFromObj(objv[i+1], &pubkey_len);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    BIO *priv_bio = BIO_new_mem_buf((void*)privkey, privkey_len);
+    BIO *pub_bio = BIO_new_mem_buf((void*)pubkey, pubkey_len);
+    
+    EVP_PKEY *priv_pkey = PEM_read_bio_PrivateKey(priv_bio, NULL, NULL, NULL);
+    EVP_PKEY *pub_pkey = PEM_read_bio_PUBKEY(pub_bio, NULL, NULL, NULL);
+    
+    if (!priv_pkey || EVP_PKEY_base_id(priv_pkey) != EVP_PKEY_X25519 ||
+        !pub_pkey || EVP_PKEY_base_id(pub_pkey) != EVP_PKEY_X25519) {
+        if (priv_pkey) EVP_PKEY_free(priv_pkey);
+        if (pub_pkey) EVP_PKEY_free(pub_pkey);
+        BIO_free(priv_bio);
+        BIO_free(pub_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse X25519 keys", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(priv_pkey, NULL);
+    if (!ctx) {
+        EVP_PKEY_free(priv_pkey);
+        EVP_PKEY_free(pub_pkey);
+        BIO_free(priv_bio);
+        BIO_free(pub_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create key exchange context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (EVP_PKEY_derive_init(ctx) <= 0 || EVP_PKEY_derive_set_peer(ctx, pub_pkey) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(priv_pkey);
+        EVP_PKEY_free(pub_pkey);
+        BIO_free(priv_bio);
+        BIO_free(pub_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to initialize key derivation", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    size_t secret_len = 0;
+    if (EVP_PKEY_derive(ctx, NULL, &secret_len) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(priv_pkey);
+        EVP_PKEY_free(pub_pkey);
+        BIO_free(priv_bio);
+        BIO_free(pub_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to calculate secret length", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char *secret = (unsigned char *)ckalloc(secret_len);
+    if (EVP_PKEY_derive(ctx, secret, &secret_len) <= 0) {
+        ckfree((char*)secret);
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(priv_pkey);
+        EVP_PKEY_free(pub_pkey);
+        BIO_free(priv_bio);
+        BIO_free(pub_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to derive shared secret", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(secret, secret_len));
+    ckfree((char*)secret);
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(priv_pkey);
+    EVP_PKEY_free(pub_pkey);
+    BIO_free(priv_bio);
+    BIO_free(pub_bio);
+    return TCL_OK;
+}
+
+// tossl::key::fingerprint -key <pem> -alg <digest>
+static int KeyFingerprintCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-key pem -alg digest");
+        return TCL_ERROR;
+    }
+    const char *key_pem = NULL, *alg = NULL;
+    int key_len = 0;
+    for (int i = 1; i < 4; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-key") == 0) {
+            key_pem = Tcl_GetStringFromObj(objv[i+1], &key_len);
+        } else if (strcmp(opt, "-alg") == 0) {
+            alg = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    BIO *bio = BIO_new_mem_buf((void*)key_pem, key_len);
+    EVP_PKEY *pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (!pkey) {
+        // Try as private key
+        BIO_free(bio);
+        bio = BIO_new_mem_buf((void*)key_pem, key_len);
+        pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    }
+    
+    if (!pkey) {
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Get public key in DER format
+    BIO *der_bio = BIO_new(BIO_s_mem());
+    if (i2d_PUBKEY_bio(der_bio, pkey) <= 0) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        BIO_free(der_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to convert key to DER", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    char *der_data = NULL;
+    long der_len = BIO_get_mem_data(der_bio, &der_data);
+    
+    // Calculate hash
+    const EVP_MD *md = EVP_get_digestbyname(alg);
+    if (!md) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        BIO_free(der_bio);
+        Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len = 0;
+    if (!EVP_Digest(der_data, der_len, hash, &hash_len, md, NULL)) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        BIO_free(der_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to calculate hash", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    char hex[2*EVP_MAX_MD_SIZE+1];
+    bin2hex(hash, hash_len, hex);
+    
+    EVP_PKEY_free(pkey);
+    BIO_free(bio);
+    BIO_free(der_bio);
+    Tcl_SetResult(interp, hex, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+// tossl::x509::time_validate -cert <pem>
+static int X509TimeValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-cert pem");
+        return TCL_ERROR;
+    }
+    const char *cert_pem = NULL;
+    int cert_len = 0;
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-cert") == 0) {
+        cert_pem = Tcl_GetStringFromObj(objv[2], &cert_len);
+    } else {
+        Tcl_SetResult(interp, "Expected -cert option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *bio = BIO_new_mem_buf((void*)cert_pem, cert_len);
+    X509 *cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    if (!cert) {
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    time_t now = time(NULL);
+    ASN1_TIME *not_before = X509_get_notBefore(cert);
+    ASN1_TIME *not_after = X509_get_notAfter(cert);
+    
+    int before_cmp = X509_cmp_time(not_before, &now);
+    int after_cmp = X509_cmp_time(not_after, &now);
+    
+    int is_valid = (before_cmp <= 0 && after_cmp >= 0);
+    
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("valid", -1), Tcl_NewIntObj(is_valid ? 1 : 0));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("not_before", -1), Tcl_NewStringObj((char*)not_before->data, not_before->length));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("not_after", -1), Tcl_NewStringObj((char*)not_after->data, not_after->length));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("current_time", -1), Tcl_NewIntObj(now));
+    
+    X509_free(cert);
+    BIO_free(bio);
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// tossl::base64url::encode <data>
+static int Base64UrlEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "data");
+        return TCL_ERROR;
+    }
+    int datalen;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &datalen);
+    int b64_len = 4 * ((datalen + 2) / 3);
+    unsigned char *b64 = (unsigned char *)ckalloc(b64_len + 1);
+    EVP_EncodeBlock(b64, data, datalen);
+    
+    // Convert to Base64URL
+    for (int i = 0; i < b64_len; i++) {
+        if (b64[i] == '+') b64[i] = '-';
+        else if (b64[i] == '/') b64[i] = '_';
+        else if (b64[i] == '=') {
+            b64[i] = '\0';
+            break;
+        }
+    }
+    
+    Tcl_SetResult(interp, (char*)b64, TCL_VOLATILE);
+    ckfree((char*)b64);
+    return TCL_OK;
+}
+
+// tossl::base64url::decode <data>
+static int Base64UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "data");
+        return TCL_ERROR;
+    }
+    const char *b64url = Tcl_GetString(objv[1]);
+    int len = strlen(b64url);
+    
+    // Convert from Base64URL to Base64
+    char *b64 = (char *)ckalloc(len + 4);
+    strcpy(b64, b64url);
+    for (int i = 0; i < len; i++) {
+        if (b64[i] == '-') b64[i] = '+';
+        else if (b64[i] == '_') b64[i] = '/';
+    }
+    
+    // Add padding if needed
+    int padding = 4 - (len % 4);
+    if (padding != 4) {
+        for (int i = 0; i < padding; i++) {
+            b64[len + i] = '=';
+        }
+        b64[len + padding] = '\0';
+    }
+    
+    int b64_len = strlen(b64);
+    int bin_len = 3 * (b64_len / 4);
+    unsigned char *bin = (unsigned char *)ckalloc(bin_len);
+    
+    int result_len = EVP_DecodeBlock(bin, (unsigned char*)b64, b64_len);
+    if (result_len < 0) {
+        ckfree((char*)bin);
+        ckfree(b64);
+        Tcl_SetResult(interp, "Invalid Base64URL data", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(bin, result_len));
+    ckfree((char*)bin);
+    ckfree(b64);
+    return TCL_OK;
+}
+
 // Package initialization
 int Tossl_Init(Tcl_Interp *interp) {
     if (Tcl_InitStubs(interp, TCL_VERSION, 0) == NULL) {
@@ -6109,6 +6882,30 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::key::convert", KeyConvertCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::ocsp::create_request", OcspCreateRequestCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::ocsp::parse_response", OcspParseResponseCmd, NULL, NULL);
+    
+    // New EC point operations
+    Tcl_CreateObjCommand(interp, "tossl::ec::point_add", EcPointAddCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ec::point_multiply", EcPointMultiplyCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ec::components", EcComponentsCmd, NULL, NULL);
+    
+    // Ed25519 operations
+    Tcl_CreateObjCommand(interp, "tossl::ed25519::generate", Ed25519GenerateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ed25519::sign", Ed25519SignCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ed25519::verify", Ed25519VerifyCmd, NULL, NULL);
+    
+    // X25519 operations
+    Tcl_CreateObjCommand(interp, "tossl::x25519::generate", X25519GenerateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::x25519::derive", X25519DeriveCmd, NULL, NULL);
+    
+    // Key fingerprinting
+    Tcl_CreateObjCommand(interp, "tossl::key::fingerprint", KeyFingerprintCmd, NULL, NULL);
+    
+    // Certificate time validation
+    Tcl_CreateObjCommand(interp, "tossl::x509::time_validate", X509TimeValidateCmd, NULL, NULL);
+    
+    // Base64URL encoding/decoding
+    Tcl_CreateObjCommand(interp, "tossl::base64url::encode", Base64UrlEncodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::base64url::decode", Base64UrlDecodeCmd, NULL, NULL);
     
     return TCL_OK;
 }

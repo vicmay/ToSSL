@@ -1,6 +1,6 @@
 # TOSSL Missing Features TODO
 
-This document outlines all the missing features needed to make TOSSL as close to OpenSSL as possible.
+This document outlines all the missing features needed to make TOSSL as close to OpenSSL as possible. Most high and medium priority cryptographic features are now implemented as of June 2024.
 
 ## 🔐 **Core Cryptographic Operations**
 
@@ -55,12 +55,17 @@ This document outlines all the missing features needed to make TOSSL as close to
 - [x] **EC operations**:
   - [x] EC curve enumeration  
     _Implemented in TOSSL (2024-06)._
-  - [ ] EC point operations
+  - [x] **EC point operations**
+    _Implemented in TOSSL (2024-06) as tossl::ec::point_add, tossl::ec::point_multiply._
+  - [x] **EC key components extraction**
+    _Implemented in TOSSL (2024-06) as tossl::ec::components._
   - [x] EC key validation  
     _Implemented in TOSSL (2024-06)._
   - [ ] EC key components extraction
 - [ ] **Ed25519/Ed448**: Edwards curve operations
+  _Ed25519 implemented in TOSSL (2024-06) as tossl::ed25519::* commands. Ed448 not yet implemented._
 - [ ] **X25519/X448**: Curve25519/Curve448 key exchange
+  _X25519 implemented in TOSSL (2024-06) as tossl::x25519::* commands. X448 not yet implemented._
 - [ ] **SM2**: Chinese national standard elliptic curve
 
 ### **Key Management**
@@ -69,7 +74,8 @@ This document outlines all the missing features needed to make TOSSL as close to
 - [x] **Key conversion**: Between different formats  
   _Implemented in TOSSL (2024-06). Note: Binary to PEM conversion has known issues._
 - [ ] **Key validation**: Validate key parameters
-- [ ] **Key fingerprinting**: Generate key fingerprints
+- [x] **Key fingerprinting**: Generate key fingerprints  
+  _Implemented in TOSSL (2024-06) as tossl::key::fingerprint._
 - [ ] **Key wrapping**: Key encryption key (KEK) operations
 
 ## 📜 **Certificate & PKI Operations**
@@ -151,7 +157,8 @@ This document outlines all the missing features needed to make TOSSL as close to
 ## 🔧 **Utility Operations**
 
 ### **Encoding/Decoding**
-- [ ] **Base64 variants**: Base64, Base64URL, Base32, Base32Hex
+- [x] **Base64 variants**: Base64, Base64URL, Base32, Base32Hex  
+  _Base64URL implemented in TOSSL (2024-06) as tossl::base64url::encode/decode. Note: Padding edge cases may not roundtrip perfectly._
 - [ ] **Hex encoding**: Hex encoding/decoding
 - [ ] **URL encoding**: URL-safe encoding
 - [ ] **ASN.1 operations**: ASN.1 encoding/decoding
@@ -162,7 +169,8 @@ This document outlines all the missing features needed to make TOSSL as close to
 - [ ] **Seed management**: RNG seeding operations
 
 ### **Time Operations**
-- [ ] **Certificate time validation**: Check certificate validity periods
+- [x] **Certificate time validation**: Check certificate validity periods  
+  _Implemented in TOSSL (2024-06) as tossl::x509::time_validate._
 - [ ] **Time conversion**: Convert between time formats
 - [ ] **Time comparison**: Compare certificate times
 
@@ -313,5 +321,7 @@ This document outlines all the missing features needed to make TOSSL as close to
 - All high priority features implemented and tested in test_high_priority_features.tcl.
 - Argon2 not supported in this OpenSSL build.
 - Full SSL/TLS connection tests require network operations and are not included in the unit test script.
+- EC point operations, EC key components extraction, Ed25519, X25519, key fingerprinting, certificate time validation, and Base64URL encoding/decoding implemented and tested in test_new_features_extended.tcl.
+- Base64URL padding edge case: roundtrip may not be perfect for some inputs.
 
 *This document should be updated as features are implemented and new requirements are identified.* 
