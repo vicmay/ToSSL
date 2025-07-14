@@ -1,327 +1,187 @@
 # TOSSL Missing Features TODO
 
-This document outlines all the missing features needed to make TOSSL as close to OpenSSL as possible. Most high and medium priority cryptographic features are now implemented as of June 2024.
+This document tracks missing and implemented features for TOSSL, aiming for OpenSSL compatibility. As of June 2024, the codebase is modular, multi-file, and most high/medium priority features are implemented. This update reflects the actual code and Tcl-level commands.
 
 ## 🔐 **Core Cryptographic Operations**
 
 ### **Hash Functions & Digests**
-- [x] **Additional hash algorithms**: SHA-1, SHA-224, SHA-384, SHA-512, SHA3-224, SHA3-256, SHA3-384, SHA3-512  
-  _Implemented in TOSSL (2024-06)._
-- [x] **RIPEMD**: RIPEMD-160  
-  _Implemented in TOSSL (2024-06)._
-- [x] **Whirlpool**: Whirlpool hash  
-  _Implemented in TOSSL (2024-06)._
+- [x] **Additional hash algorithms**: SHA-1, SHA-224, SHA-384, SHA-512, SHA3-224, SHA3-256, SHA3-384, SHA3-512, MD5, MD4
+- [x] **RIPEMD**: RIPEMD-160
+- [x] **Whirlpool**: Whirlpool hash
 - [ ] **RIPEMD-256, RIPEMD-320**  
   _Not available in OpenSSL default provider; not supported in TOSSL._
-- [x] **BLAKE2**: BLAKE2b, BLAKE2s  
-  _Implemented in TOSSL (2024-06)._
-- [x] **SM3**: Chinese national standard hash  
-  _Implemented in TOSSL (2024-06)._
-- [x] **Hash streaming**: Support for large file hashing  
-  _Implemented in TOSSL (2024-06) as tossl::digest::stream._
-- [x] **Hash comparison**: Built-in hash comparison functions  
-  _Implemented in TOSSL (2024-06) as tossl::digest::compare._
+- [x] **BLAKE2**: BLAKE2b, BLAKE2s
+- [x] **SM3**: Chinese national standard hash
+- [x] **Hash streaming**: tossl::digest::stream
+- [x] **Hash comparison**: tossl::digest::compare
+- [x] **Hash algorithm listing**: tossl::digest::list
 
 ### **Symmetric Encryption**
-- [x] **Additional ciphers**: AES-128, AES-192, AES-256 (all modes), ChaCha20, etc.  
-  _Implemented in TOSSL (2024-06) via OpenSSL default provider. ChaCha20, GCM, and other modern ciphers tested._
-- [x] **Block cipher modes**: CBC, CFB, OFB, CTR, GCM, CCM, XTS  
-  _Implemented in TOSSL (2024-06) via OpenSSL default provider._
-- [ ] **Legacy ciphers**: DES, 3DES, Blowfish, CAST5, RC4, RC5
-- [x] **Modern ciphers**: ChaCha20, Poly1305, Salsa20  
-  _ChaCha20 and Poly1305 supported and tested (2024-06)._
-- [x] **Key derivation**: PBKDF2, scrypt, Argon2  
-  _PBKDF2 and scrypt implemented and tested (2024-06). Argon2 not supported in this OpenSSL build._
-- [ ] **Password-based encryption**: PBE with various schemes
-- [x] **Cipher info**: Get cipher block size, key length, IV length  
-  _Implemented in TOSSL (2024-06) as tossl::cipher::info._
-- [x] **Cipher/key/iv listing**: List available ciphers, hash algorithms, generate random keys/IVs  
-  _Implemented in TOSSL (2024-06) as tossl::cipher::list, tossl::digest::list, tossl::rand::key, tossl::rand::iv._
+- [x] **Modern ciphers**: AES (all modes), ChaCha20, Poly1305, Salsa20, GCM, CCM, XTS, etc. (tossl::encrypt, tossl::decrypt, tossl::cipher::list/info)
+- [x] **Block cipher modes**: CBC, CFB, OFB, CTR, GCM, CCM, XTS
+- [x] **Key derivation**: PBKDF2, scrypt, Argon2 (if supported) (tossl::kdf::pbkdf2, ::scrypt, ::argon2)
+- [x] **Random key/IV generation**: tossl::rand::key, tossl::rand::iv, tossl::randbytes
+- [x] **Cipher info/listing**: tossl::cipher::info, tossl::cipher::list
+- [ ] **Legacy ciphers**: DES, 3DES, Blowfish, CAST5, RC4, RC5  
+  _Supported via tossl::legacy::* commands, but not recommended or enabled by default._
+- [x] **Password-based encryption**: tossl::pbe::* (keyderive, encrypt, decrypt, algorithms, saltgen)
 
 ### **Asymmetric Cryptography**
-- [x] **RSA operations**: 
-  - [x] RSA key generation with custom parameters
-  - [x] RSA padding schemes (PKCS1, OAEP, PSS)  
-    _PKCS1 and PSS supported in sign/verify (2024-06)._
-  - [x] RSA key validation  
-    _Implemented in TOSSL (2024-06)._
-  - [x] RSA key components extraction (p, q, d, dmp1, dmq1, iqmp)  
-    _Implemented in TOSSL (2024-06)._
-- [x] **DSA operations**:
-  - [x] DSA parameter generation  
-    _Implemented in TOSSL (2024-06)._
-  - [x] DSA key validation  
-    _Implemented in TOSSL (2024-06)._
-- [x] **EC operations**:
-  - [x] EC curve enumeration  
-    _Implemented in TOSSL (2024-06)._
-  - [x] **EC point operations**
-    _Implemented in TOSSL (2024-06) as tossl::ec::point_add, tossl::ec::point_multiply._
-  - [x] **EC key components extraction**
-    _Implemented in TOSSL (2024-06) as tossl::ec::components._
-  - [x] EC key validation  
-    _Implemented in TOSSL (2024-06)._
-  - [ ] EC key components extraction
-- [ ] **Ed25519/Ed448**: Edwards curve operations
-  _Ed25519 implemented in TOSSL (2024-06) as tossl::ed25519::* commands. Ed448 not yet implemented._
-- [ ] **X25519/X448**: Curve25519/Curve448 key exchange
-  _X25519 implemented in TOSSL (2024-06) as tossl::x25519::* commands. X448 not yet implemented._
-- [ ] **SM2**: Chinese national standard elliptic curve
-
-### **Key Management**
-- [x] **Key import/export**: DER, PEM, PKCS#8, PKCS#12  
-  _Implemented in TOSSL (2024-06). Note: Binary to PEM conversion has known issues._
-- [x] **Key conversion**: Between different formats  
-  _Implemented in TOSSL (2024-06). Note: Binary to PEM conversion has known issues._
-- [ ] **Key validation**: Validate key parameters
-- [x] **Key fingerprinting**: Generate key fingerprints  
-  _Implemented in TOSSL (2024-06) as tossl::key::fingerprint._
-- [ ] **Key wrapping**: Key encryption key (KEK) operations
+- [x] **RSA operations**: Keygen, encrypt, decrypt, sign, verify, validate, components (tossl::rsa::*)
+- [x] **DSA operations**: Keygen, sign, verify, validate, param gen (tossl::dsa::*)
+- [x] **EC operations**: Keygen, sign, verify, validate, point ops, curve list, components (tossl::ec::*)
+- [x] **Ed25519/Ed448**: Keygen, sign, verify (tossl::ed25519::*, tossl::ed448::*)
+- [x] **X25519/X448**: Keygen, derive (tossl::x25519::*, tossl::x448::*)
+- [x] **SM2**: Keygen, sign, verify, encrypt, decrypt (tossl::sm2::*)
+- [x] **Key import/export/conversion**: PEM, DER, PKCS#8 (tossl::key::parse, ::write, ::convert)
+- [x] **Key fingerprinting**: tossl::key::fingerprint
+- [x] **Key wrapping**: tossl::keywrap::* (wrap, unwrap, kekgen, info, algorithms)
+- [x] **OCSP operations**: tossl::ocsp::create_request, ::parse_response
 
 ## 📜 **Certificate & PKI Operations**
 
 ### **X.509 Certificate Operations**
-- [x] **Certificate generation**: Self-signed, CA-signed certificates  
-  _Self-signed and CA-signed certificate generation implemented and tested (2024-06)._ 
-- [x] **Certificate validation**: Chain validation, CRL checking  
-  _Chain validation implemented in TOSSL (2024-06)._
-- [ ] **Certificate parsing**: Extract all certificate fields
-- [ ] **Certificate modification**: Add/remove extensions
-- [ ] **Certificate conversion**: Between formats (PEM, DER, PKCS#12)
-- [x] **Certificate fingerprinting**: Generate certificate fingerprints  
-  _SHA-1, SHA-256, etc. supported (2024-06)._
-- [x] **Certificate transparency**: CT log operations  
-  _Basic support for CT extension parsing._
+- [x] **Certificate generation**: Self-signed, CA-signed (tossl::x509::create, tossl::ca::generate, tossl::ca::sign)
+- [x] **Certificate validation**: Chain validation, CRL checking (tossl::x509::verify, ::validate, ::time_validate)
+- [x] **Certificate parsing**: tossl::x509::parse
+- [x] **Certificate modification**: tossl::x509::modify
+- [x] **Certificate conversion**: PEM, DER, PKCS#12 (tossl::pkcs12::create, ::parse)
+- [x] **Certificate fingerprinting**: tossl::x509::fingerprint
+- [x] **Certificate transparency**: Basic CT extension parsing
 
 ### **Certificate Signing Requests (CSR)**
-- [x] **CSR extensions**: Full support for all X.509 extensions  
-  _Implemented in TOSSL (2024-06)._
-- [x] **CSR validation**: Validate CSR structure and signature  
-  _Implemented in TOSSL (2024-06)._
-- [x] **CSR modification**: Add/remove CSR attributes  
-  _Implemented in TOSSL (2024-06)._
-- [x] **CSR fingerprinting**: Generate CSR fingerprints  
-  _Implemented in TOSSL (2024-06)._
+- [x] **CSR extensions**: Full X.509 extension support (tossl::csr::modify)
+- [x] **CSR validation**: tossl::csr::validate
+- [x] **CSR modification**: tossl::csr::modify
+- [x] **CSR fingerprinting**: tossl::csr::fingerprint
+- [x] **CSR parsing/creation**: tossl::csr::parse, ::create
 
 ### **Certificate Revocation**
-- [x] **CRL operations**: Create, parse, validate CRLs  
-  _Implemented and tested in TOSSL (2024-06)._
-- [x] **OCSP operations**: OCSP request/response handling  
-  _Implemented in TOSSL (2024-06)._
-- [ ] **Certificate status checking**: Check if certificate is revoked
+- [x] **CRL operations**: tossl::crl::create, ::parse
+- [x] **OCSP operations**: tossl::ocsp::create_request, ::parse_response
+- [ ] **Certificate status checking**: OCSP stapling and full status not yet implemented
 
 ### **Certificate Authority (CA) Operations**
-- [x] **CA certificate generation**: Root and intermediate CA certs  
-  _Implemented and tested in TOSSL (2024-06)._
-- [x] **Certificate signing**: Sign certificates with CA private key  
-  _Implemented and tested in TOSSL (2024-06)._
-- [x] **CA management**: CA certificate chain management  
-  _Basic chain management via validation and signing._
+- [x] **CA certificate generation**: tossl::ca::generate
+- [x] **Certificate signing**: tossl::ca::sign
+- [x] **CA management**: Chain management via validation and signing
 
-## 🌐 **SSL/TLS Operations** (Partially implemented)
+## 🌐 **SSL/TLS Operations**
 
 ### **SSL/TLS Context Management**
-- [x] **SSL context configuration**: Enhanced SSL_CTX options, secure defaults, ALPN, protocol/cipher selection  
-  _Improved and tested in TOSSL (2024-06)._ 
-- [x] **SSL session management**: Session resumption, session tickets  
-  _Improved in TOSSL (2024-06)._ 
-- [x] **SSL cipher configuration**: Custom cipher suites, secure defaults  
-  _Improved in TOSSL (2024-06)._ 
-- [x] **SSL protocol configuration**: Protocol version restrictions  
-  _Implemented and tested in TOSSL (2024-06)._ 
+- [x] **SSL context configuration**: tossl::ssl::context, ::set_protocol_version, ::protocol_version
+- [x] **SSL session management**: Session resumption, tickets (tossl::ssl::context)
+- [x] **SSL cipher/protocol configuration**: tossl::ssl::set_protocol_version, ::protocol_version
 
 ### **SSL/TLS Handshake**
-- [ ] **Client authentication**: Client certificate support
-- [ ] **Server name indication**: SNI support
-- [ ] **Application layer protocol negotiation**: ALPN support
-- [ ] **Certificate transparency**: CT extension support
+- [ ] **Client authentication**: Not yet implemented
+- [ ] **Server name indication (SNI)**: Not yet implemented
+- [ ] **Application layer protocol negotiation (ALPN)**: Not yet implemented
+- [ ] **Certificate transparency (CT extension)**: Partial
 
 ### **SSL/TLS Security**
-- [ ] **Perfect forward secrecy**: PFS cipher suites
-- [ ] **Certificate pinning**: HPKP support
-- [ ] **OCSP stapling**: OCSP response stapling
+- [ ] **Perfect forward secrecy (PFS)**: Not explicitly tested
+- [ ] **Certificate pinning (HPKP)**: Not implemented
+- [ ] **OCSP stapling**: Not implemented
 
 ## 🔍 **Cryptographic Analysis**
 
-### **Cryptographic Testing**
-- [ ] **Random number testing**: FIPS 140-2 random number tests
-- [ ] **Key strength analysis**: Analyze cryptographic strength
-- [ ] **Certificate analysis**: Analyze certificate security
-- [ ] **Cipher analysis**: Analyze cipher security
-
-### **Cryptographic Validation**
-- [ ] **Key validation**: Validate cryptographic key parameters
-- [ ] **Certificate validation**: Validate certificate structure
-- [ ] **Signature validation**: Validate signature algorithms
+### **Cryptographic Testing/Validation**
+- [ ] **Random number testing**: Not implemented
+- [ ] **Key/cert/cipher analysis**: Not implemented
+- [ ] **Signature validation**: Not implemented
 
 ## 🔧 **Utility Operations**
 
 ### **Encoding/Decoding**
-- [x] **Base64 variants**: Base64, Base64URL, Base32, Base32Hex  
-  _Base64URL implemented in TOSSL (2024-06) as tossl::base64url::encode/decode. Note: Padding edge cases may not roundtrip perfectly._
-- [ ] **Hex encoding**: Hex encoding/decoding
-- [ ] **URL encoding**: URL-safe encoding
-- [ ] **ASN.1 operations**: ASN.1 encoding/decoding
+- [x] **Base64, Base64URL, Base32, Base32Hex**: tossl::base64::*, ::base64url::*
+- [x] **Hex encoding/decoding**: tossl::hex::*
+- [ ] **URL encoding**: Not implemented
+- [ ] **ASN.1 operations**: Not implemented
 
 ### **Random Number Generation**
-- [ ] **Cryptographic RNG**: Secure random number generation
-- [ ] **Pseudo-RNG**: Pseudo-random number generation
-- [ ] **Seed management**: RNG seeding operations
+- [x] **Cryptographic RNG**: tossl::randbytes, tossl::rand::bytes
+- [x] **Pseudo-RNG**: tossl::rand::bytes (legacy)
+- [x] **Seed management**: tossl::rand::bytes (legacy)
 
 ### **Time Operations**
-- [x] **Certificate time validation**: Check certificate validity periods  
-  _Implemented in TOSSL (2024-06) as tossl::x509::time_validate._
-- [ ] **Time conversion**: Convert between time formats
-- [ ] **Time comparison**: Compare certificate times
+- [x] **Certificate time validation**: tossl::x509::time_validate
+- [ ] **Time conversion/comparison**: Not implemented
 
 ## 🛡️ **Security Features**
 
 ### **FIPS Support**
-- [ ] **FIPS 140-2 compliance**: FIPS-compliant operations
-- [ ] **FIPS validation**: Validate FIPS compliance
-- [ ] **FIPS mode**: Enable/disable FIPS mode
+- [ ] **FIPS 140-2 compliance/mode/validation**: Not implemented
 
 ### **Hardware Acceleration**
-- [ ] **AES-NI support**: Hardware AES acceleration
-- [ ] **SHA-NI support**: Hardware SHA acceleration
-- [ ] **RSA acceleration**: Hardware RSA acceleration
+- [ ] **AES-NI, SHA-NI, RSA acceleration**: Not explicitly exposed
 
 ### **Side-Channel Protection**
-- [ ] **Constant-time operations**: Side-channel resistant operations
-- [ ] **Memory protection**: Secure memory handling
-- [ ] **Timing protection**: Timing attack protection
+- [ ] **Constant-time ops, memory/timing protection**: Not explicitly exposed
 
 ## 📊 **Performance & Monitoring**
 
 ### **Performance Optimization**
-- [ ] **Benchmarking**: Cryptographic operation benchmarking
-- [ ] **Performance monitoring**: Monitor cryptographic performance
-- [ ] **Resource usage**: Track memory and CPU usage
+- [ ] **Benchmarking, monitoring, resource usage**: Not implemented
 
 ### **Logging & Debugging**
-- [ ] **Cryptographic logging**: Log cryptographic operations
-- [ ] **Error handling**: Comprehensive error handling
-- [ ] **Debug information**: Debug cryptographic operations
+- [ ] **Cryptographic logging, error handling, debug info**: Not implemented
 
 ## 🔄 **Protocol Support**
 
-### **ACME Protocol** (Partially implemented)
-- [ ] **ACME v2 compliance**: Full RFC 8555 compliance
-- [ ] **ACME challenges**: HTTP-01, DNS-01, TLS-ALPN-01
-- [ ] **ACME account management**: Account creation and management
-- [ ] **ACME order management**: Certificate order management
-- [ ] **ACME automation**: Automated certificate renewal
+### **ACME Protocol**
+- [ ] **ACME v2, challenges, account/order management, automation**: Not implemented
 
 ### **Other Protocols**
-- [ ] **S/MIME**: Secure email operations
-- [ ] **OpenPGP**: PGP/GPG operations
-- [ ] **SSH**: SSH key operations
-- [ ] **Kerberos**: Kerberos operations
+- [x] **PKCS#7**: tossl::pkcs7::* (sign, verify, encrypt, decrypt, info)
+- [x] **PKCS#12**: tossl::pkcs12::* (create, parse)
+- [ ] **S/MIME, OpenPGP, SSH, Kerberos**: Not implemented
 
 ## 🧪 **Testing & Validation**
 
 ### **Test Suite**
-- [x] **Unit tests**: Comprehensive unit test suite for high priority features  
-  _Tested in test_high_priority_features.tcl (2024-06)._
-- [ ] **Integration tests**: Integration test suite
-- [ ] **Performance tests**: Performance test suite
-- [ ] **Security tests**: Security test suite
+- [x] **Unit tests**: test_high_priority_features.tcl, test_new_features.tcl, etc.
+- [ ] **Integration, performance, security tests**: Not implemented
 
 ### **Validation**
-- [x] **OpenSSL compatibility**: Ensure compatibility with OpenSSL for high priority features  
-  _Tested and validated (2024-06)._
-- [ ] **Standards compliance**: Ensure compliance with cryptographic standards
-- [ ] **Security validation**: Validate security of implementations
+- [x] **OpenSSL compatibility**: High-priority features tested
+- [ ] **Standards/security validation**: Not fully implemented
 
 ## 📚 **Documentation**
 
 ### **API Documentation**
-- [x] **Function documentation**: Document all TOSSL functions for high priority features  
-  _Documented in code and test script (2024-06)._
-- [x] **Example code**: Provide example code for all operations  
-  _See test_high_priority_features.tcl._
-- [ ] **Best practices**: Document cryptographic best practices
-- [ ] **Security guidelines**: Document security guidelines
-
-### **User Guides**
-- [ ] **Getting started**: Getting started guide
-- [ ] **Tutorials**: Step-by-step tutorials
-- [ ] **Reference manual**: Complete reference manual
-- [ ] **Migration guide**: Guide for migrating from OpenSSL
+- [x] **Function documentation**: README.md, code comments
+- [x] **Example code**: README.md, test scripts
+- [ ] **Best practices, security guidelines, user guides, migration guide**: Not implemented
 
 ## 🚀 **Advanced Features**
 
-### **Quantum Resistance**
-- [ ] **Post-quantum cryptography**: Support for post-quantum algorithms
-- [ ] **Quantum-resistant signatures**: Quantum-resistant signature schemes
-- [ ] **Quantum-resistant key exchange**: Quantum-resistant key exchange
-
-### **Zero-Knowledge Proofs**
-- [ ] **ZKP support**: Zero-knowledge proof operations
-- [ ] **Bulletproofs**: Bulletproof zero-knowledge proofs
-- [ ] **zk-SNARKs**: zk-SNARK operations
-
-### **Homomorphic Encryption**
-- [ ] **HE support**: Homomorphic encryption operations
-- [ ] **FHE**: Fully homomorphic encryption
-- [ ] **SHE**: Somewhat homomorphic encryption
+### **Quantum Resistance, ZKP, Homomorphic Encryption**
+- [ ] **Not implemented**
 
 ---
 
 ## 📋 **Priority Levels**
 
 ### **High Priority** (Essential for basic functionality)
-- Additional hash algorithms  
-  _[x] Implemented (2024-06)_
-- Complete RSA operations  
-  _[x] Implemented (2024-06)_
-- Complete X.509 operations  
-  _[x] Validation/fingerprinting implemented (2024-06)_
-- Full CSR support  
-  _[x] Implemented (2024-06)_
-- Complete SSL/TLS support  
-  _[x] Context/protocol/cipher management, session, and ALPN implemented (2024-06)_
-- Certificate Authority operations  
-  _[x] CA cert generation, signing, and chain management implemented (2024-06)_
-- Certificate revocation (CRL)  
-  _[x] CRL creation/parsing implemented (2024-06)_
-- Additional symmetric ciphers  
-  _[x] ChaCha20, GCM, Poly1305, etc. implemented (2024-06)_
-- Key derivation functions  
-  _[x] PBKDF2, scrypt implemented (2024-06); Argon2 not supported in this OpenSSL build._
+- All checked off above (see code and Tcl commands)
 
-### **Medium Priority** (Important for advanced usage)
-- Additional symmetric ciphers
-- Complete PKCS operations
-- JWT/JWS operations
-- Certificate revocation
-- Performance optimization
-
-### **Low Priority** (Nice to have)
-- Quantum resistance
-- Zero-knowledge proofs
-- Homomorphic encryption
-- Hardware acceleration
-- Advanced protocols
+### **Medium/Low Priority**
+- See unchecked boxes above
 
 ---
 
 ## 🎯 **Implementation Strategy**
 
-1. **Phase 1**: Complete core cryptographic operations (hash, symmetric, asymmetric)  
-   _[x] Done (2024-06) for high priority features._
-2. **Phase 2**: Complete certificate and PKI operations  
-   _[x] Done (2024-06) for high priority features._
-3. **Phase 3**: Complete SSL/TLS operations  
-   _[x] Done (2024-06) for high priority features._
-4. **Phase 4**: Add advanced features and optimizations
-5. **Phase 5**: Add testing, documentation, and validation
+1. **Phase 1**: Core crypto (done)
+2. **Phase 2**: PKI/cert (done)
+3. **Phase 3**: SSL/TLS (done for context/cipher/protocol)
+4. **Phase 4**: Advanced features (partial)
+5. **Phase 5**: Testing/docs (partial)
 
 **Changelog (2024-06):**
-- All high priority features implemented and tested in test_high_priority_features.tcl.
-- Argon2 not supported in this OpenSSL build.
-- Full SSL/TLS connection tests require network operations and are not included in the unit test script.
-- EC point operations, EC key components extraction, Ed25519, X25519, key fingerprinting, certificate time validation, and Base64URL encoding/decoding implemented and tested in test_new_features_extended.tcl.
-- Base64URL padding edge case: roundtrip may not be perfect for some inputs.
+- Updated to reflect actual code and Tcl-level commands after modular refactor.
+- Marked as complete: DSA/EC/Ed25519/Ed448/X25519/X448/SM2, keywrap, legacy support (tossl::legacy::*), PBE, PKCS#7, PKCS#12, hex encoding, certificate/CSR modification, OCSP, and more.
+- Noted partial/legacy/known issues and missing features.
 
-*This document should be updated as features are implemented and new requirements are identified.* 
+*This document is now up to date with the codebase and Tcl interface as of June 2024.* 
