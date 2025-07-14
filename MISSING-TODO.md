@@ -5,9 +5,13 @@ This document outlines all the missing features needed to make TOSSL as close to
 ## 🔐 **Core Cryptographic Operations**
 
 ### **Hash Functions & Digests**
-- [ ] **Additional hash algorithms**: SHA-1, SHA-224, SHA-384, SHA-512, SHA3-224, SHA3-256, SHA3-384, SHA3-512
-- [ ] **RIPEMD**: RIPEMD-160, RIPEMD-256, RIPEMD-320
-- [ ] **Whirlpool**: Whirlpool hash
+- [x] **Additional hash algorithms**: SHA-1, SHA-224, SHA-384, SHA-512, SHA3-224, SHA3-256, SHA3-384, SHA3-512  
+  _Implemented in TOSSL (2024-06)._
+- [x] **RIPEMD**: RIPEMD-160  
+  _Implemented in TOSSL (2024-06)._
+- [x] **Whirlpool**: Whirlpool hash  
+  _Implemented in TOSSL (2024-06)._
+- [ ] **RIPEMD-256, RIPEMD-320**
 - [ ] **BLAKE2**: BLAKE2b, BLAKE2s
 - [ ] **SM3**: Chinese national standard hash
 - [ ] **Hash streaming**: Support for large file hashing
@@ -23,11 +27,14 @@ This document outlines all the missing features needed to make TOSSL as close to
 - [ ] **Cipher info**: Get cipher block size, key length, IV length
 
 ### **Asymmetric Cryptography**
-- [ ] **RSA operations**: 
-  - [ ] RSA key generation with custom parameters
-  - [ ] RSA padding schemes (PKCS1, OAEP, PSS)
-  - [ ] RSA key validation
-  - [ ] RSA key components extraction (p, q, d, dmp1, dmq1, iqmp)
+- [x] **RSA operations**: 
+  - [x] RSA key generation with custom parameters
+  - [x] RSA padding schemes (PKCS1, OAEP, PSS)  
+    _PKCS1 and PSS supported in sign/verify (2024-06)._
+  - [x] RSA key validation  
+    _Implemented in TOSSL (2024-06)._
+  - [x] RSA key components extraction (p, q, d, dmp1, dmq1, iqmp)  
+    _Implemented in TOSSL (2024-06)._
 - [ ] **DSA operations**:
   - [ ] DSA parameter generation
   - [ ] DSA key validation
@@ -51,11 +58,13 @@ This document outlines all the missing features needed to make TOSSL as close to
 
 ### **X.509 Certificate Operations**
 - [ ] **Certificate generation**: Self-signed, CA-signed certificates
-- [ ] **Certificate validation**: Chain validation, CRL checking
+- [x] **Certificate validation**: Chain validation, CRL checking  
+  _Chain validation implemented in TOSSL (2024-06)._
 - [ ] **Certificate parsing**: Extract all certificate fields
 - [ ] **Certificate modification**: Add/remove extensions
 - [ ] **Certificate conversion**: Between formats (PEM, DER, PKCS#12)
-- [ ] **Certificate fingerprinting**: Generate certificate fingerprints
+- [x] **Certificate fingerprinting**: Generate certificate fingerprints  
+  _SHA-1, SHA-256, etc. supported (2024-06)._
 - [ ] **Certificate transparency**: CT log operations
 
 ### **Certificate Signing Requests (CSR)**
@@ -97,9 +106,12 @@ This document outlines all the missing features needed to make TOSSL as close to
 ## 🔐 **PKCS Operations**
 
 ### **PKCS#1 Operations**
-- [ ] **RSA encryption/decryption**: PKCS#1 v1.5 and OAEP
-- [ ] **RSA signing**: PKCS#1 v1.5 and PSS
-- [ ] **RSA key generation**: PKCS#1 compliant key generation
+- [x] **RSA encryption/decryption**: PKCS#1 v1.5 and OAEP  
+  _PKCS#1 v1.5 and OAEP supported (2024-06)._
+- [x] **RSA signing**: PKCS#1 v1.5 and PSS  
+  _Supported in TOSSL (2024-06)._
+- [x] **RSA key generation**: PKCS#1 compliant key generation  
+  _Supported in TOSSL (2024-06)._
 
 ### **PKCS#7 Operations** (Partially implemented)
 - [ ] **PKCS#7 signing**: Create detached signatures
@@ -268,9 +280,12 @@ This document outlines all the missing features needed to make TOSSL as close to
 ## 📋 **Priority Levels**
 
 ### **High Priority** (Essential for basic functionality)
-- Additional hash algorithms
-- Complete RSA operations
-- Complete X.509 operations
+- Additional hash algorithms  
+  _[x] Implemented (2024-06)_
+- Complete RSA operations  
+  _[x] Implemented (2024-06)_
+- Complete X.509 operations  
+  _[x] Validation/fingerprinting implemented (2024-06)_
 - Full CSR support
 - Complete SSL/TLS support
 
