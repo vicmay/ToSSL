@@ -2149,6 +2149,24 @@ static int X509ValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
 // tossl::x509::fingerprint -cert <pem> ?-alg <digest>?
 static int X509FingerprintCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 
+// tossl::ca::generate -key <pem> -subject <subject> -days <days> ?-extensions <extensions>?
+static int CaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// tossl::ca::sign -ca_key <pem> -ca_cert <pem> -csr <pem> -days <days> ?-extensions <extensions>?
+static int CaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// tossl::ssl::protocol_version -ctx <ctx_handle>
+static int SslProtocolVersionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// tossl::ssl::set_protocol_version -ctx <ctx_handle> -min <version> -max <version>
+static int SslSetProtocolVersionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// tossl::crl::create -ca_key <pem> -ca_cert <pem> -revoked <list> -days <days>
+static int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// tossl::crl::parse <pem>
+static int CrlParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
 // tossl::pkcs7::encrypt -cert <cert1> ?-cert <cert2> ...? -cipher <cipher> <data> ?-pem 0|1?
 static int Pkcs7EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
@@ -4803,6 +4821,704 @@ static int CsrModifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
+// tossl::ca::generate -key <pem> -subject <subject> -days <days> ?-extensions <extensions>?
+static int CaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 7 && objc != 9) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-key pem -subject subject -days days ?-extensions extensions?");
+        return TCL_ERROR;
+    }
+    
+    const char *key_pem = NULL, *subject = NULL, *extensions = NULL;
+    int days = 0;
+    int key_len = 0;
+    
+    for (int i = 1; i < objc; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-key") == 0) {
+            key_pem = Tcl_GetStringFromObj(objv[i+1], &key_len);
+        } else if (strcmp(opt, "-subject") == 0) {
+            subject = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-days") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &days) != TCL_OK) {
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-extensions") == 0) {
+            extensions = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!key_pem || !subject || days <= 0) {
+        Tcl_SetResult(interp, "Missing required parameters", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *key_bio = BIO_new_mem_buf((void*)key_pem, key_len);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, NULL);
+    if (!pkey) {
+        BIO_free(key_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse private key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509 *cert = X509_new();
+    if (!cert) {
+        EVP_PKEY_free(pkey);
+        BIO_free(key_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509_set_version(cert, 2);
+    ASN1_INTEGER_set(X509_get_serialNumber(cert), 1);
+    X509_gmtime_adj(X509_get_notBefore(cert), 0);
+    X509_gmtime_adj(X509_get_notAfter(cert), days * 24 * 60 * 60);
+    
+    X509_NAME *name = X509_get_subject_name(cert);
+    if (!X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)subject, -1, -1, 0)) {
+        X509_free(cert);
+        EVP_PKEY_free(pkey);
+        BIO_free(key_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to set subject", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    X509_set_issuer_name(cert, name);
+    
+    if (!X509_set_pubkey(cert, pkey)) {
+        X509_free(cert);
+        EVP_PKEY_free(pkey);
+        BIO_free(key_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to set public key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509V3_CTX ctx;
+    X509V3_set_ctx(&ctx, cert, cert, NULL, NULL, 0);
+    
+    if (extensions) {
+        X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_basic_constraints, "CA:TRUE");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_key_usage, "keyCertSign,cRLSign");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_subject_key_identifier, "hash");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+    } else {
+        X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_basic_constraints, "CA:TRUE");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_key_usage, "keyCertSign,cRLSign");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_subject_key_identifier, "hash");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+    }
+    
+    if (!X509_sign(cert, pkey, EVP_sha256())) {
+        X509_free(cert);
+        EVP_PKEY_free(pkey);
+        BIO_free(key_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to sign certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *cert_bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509(cert_bio, cert);
+    
+    BUF_MEM *bptr;
+    BIO_get_mem_ptr(cert_bio, &bptr);
+    
+    Tcl_Obj *result = Tcl_NewStringObj(bptr->data, bptr->length);
+    
+    BIO_free(cert_bio);
+    X509_free(cert);
+    EVP_PKEY_free(pkey);
+    BIO_free(key_bio);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// tossl::ca::sign -ca_key <pem> -ca_cert <pem> -csr <pem> -days <days> ?-extensions <extensions>?
+static int CaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 9 && objc != 11) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-ca_key pem -ca_cert pem -csr pem -days days ?-extensions extensions?");
+        return TCL_ERROR;
+    }
+    
+    const char *ca_key_pem = NULL, *ca_cert_pem = NULL, *csr_pem = NULL, *extensions = NULL;
+    int days = 0;
+    int ca_key_len = 0, ca_cert_len = 0, csr_len = 0;
+    
+    for (int i = 1; i < objc; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-ca_key") == 0) {
+            ca_key_pem = Tcl_GetStringFromObj(objv[i+1], &ca_key_len);
+        } else if (strcmp(opt, "-ca_cert") == 0) {
+            ca_cert_pem = Tcl_GetStringFromObj(objv[i+1], &ca_cert_len);
+        } else if (strcmp(opt, "-csr") == 0) {
+            csr_pem = Tcl_GetStringFromObj(objv[i+1], &csr_len);
+        } else if (strcmp(opt, "-days") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &days) != TCL_OK) {
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-extensions") == 0) {
+            extensions = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!ca_key_pem || !ca_cert_pem || !csr_pem || days <= 0) {
+        Tcl_SetResult(interp, "Missing required parameters", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *ca_key_bio = BIO_new_mem_buf((void*)ca_key_pem, ca_key_len);
+    EVP_PKEY *ca_key = PEM_read_bio_PrivateKey(ca_key_bio, NULL, NULL, NULL);
+    if (!ca_key) {
+        BIO_free(ca_key_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CA private key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *ca_cert_bio = BIO_new_mem_buf((void*)ca_cert_pem, ca_cert_len);
+    X509 *ca_cert = PEM_read_bio_X509(ca_cert_bio, NULL, NULL, NULL);
+    if (!ca_cert) {
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CA certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *csr_bio = BIO_new_mem_buf((void*)csr_pem, csr_len);
+    X509_REQ *csr = PEM_read_bio_X509_REQ(csr_bio, NULL, NULL, NULL);
+    if (!csr) {
+        X509_free(ca_cert);
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        BIO_free(csr_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CSR", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509 *cert = X509_new();
+    if (!cert) {
+        X509_REQ_free(csr);
+        X509_free(ca_cert);
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        BIO_free(csr_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509_set_version(cert, 2);
+    ASN1_INTEGER_set(X509_get_serialNumber(cert), 1);
+    X509_gmtime_adj(X509_get_notBefore(cert), 0);
+    X509_gmtime_adj(X509_get_notAfter(cert), days * 24 * 60 * 60);
+    
+    X509_set_subject_name(cert, X509_REQ_get_subject_name(csr));
+    X509_set_issuer_name(cert, X509_get_subject_name(ca_cert));
+    
+    EVP_PKEY *csr_pubkey = X509_REQ_get_pubkey(csr);
+    if (!csr_pubkey) {
+        X509_free(cert);
+        X509_REQ_free(csr);
+        X509_free(ca_cert);
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        BIO_free(csr_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to get CSR public key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (!X509_set_pubkey(cert, csr_pubkey)) {
+        EVP_PKEY_free(csr_pubkey);
+        X509_free(cert);
+        X509_REQ_free(csr);
+        X509_free(ca_cert);
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        BIO_free(csr_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to set public key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509V3_CTX ctx;
+    X509V3_set_ctx(&ctx, ca_cert, cert, csr, NULL, 0);
+    
+    if (extensions) {
+        X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_basic_constraints, "CA:FALSE");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_key_usage, "digitalSignature,keyEncipherment");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_subject_key_identifier, "hash");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_authority_key_identifier, "keyid:always");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+    } else {
+        X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_basic_constraints, "CA:FALSE");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_key_usage, "digitalSignature,keyEncipherment");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_subject_key_identifier, "hash");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+        
+        ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_authority_key_identifier, "keyid:always");
+        if (ext) {
+            X509_add_ext(cert, ext, -1);
+            X509_EXTENSION_free(ext);
+        }
+    }
+    
+    if (!X509_sign(cert, ca_key, EVP_sha256())) {
+        EVP_PKEY_free(csr_pubkey);
+        X509_free(cert);
+        X509_REQ_free(csr);
+        X509_free(ca_cert);
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        BIO_free(csr_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to sign certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *cert_bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509(cert_bio, cert);
+    
+    BUF_MEM *bptr;
+    BIO_get_mem_ptr(cert_bio, &bptr);
+    
+    Tcl_Obj *result = Tcl_NewStringObj(bptr->data, bptr->length);
+    
+    BIO_free(cert_bio);
+    EVP_PKEY_free(csr_pubkey);
+    X509_free(cert);
+    X509_REQ_free(csr);
+    X509_free(ca_cert);
+    EVP_PKEY_free(ca_key);
+    BIO_free(ca_key_bio);
+    BIO_free(ca_cert_bio);
+    BIO_free(csr_bio);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// tossl::ssl::protocol_version -ctx <ctx_handle>
+static int SslProtocolVersionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-ctx ctx_handle");
+        return TCL_ERROR;
+    }
+    
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-ctx") != 0) {
+        Tcl_SetResult(interp, "Expected -ctx option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    const char *ctx_name = Tcl_GetString(objv[2]);
+    SslContextHandle *ctx_handle = NULL;
+    
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslContextTable, ctx_name);
+    if (entryPtr) {
+        ctx_handle = (SslContextHandle *)Tcl_GetHashValue(entryPtr);
+    }
+    
+    if (!ctx_handle) {
+        Tcl_SetResult(interp, "SSL context not found", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int min_version = SSL_CTX_get_min_proto_version(ctx_handle->ctx);
+    int max_version = SSL_CTX_get_max_proto_version(ctx_handle->ctx);
+    
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    
+    const char *min_str = "unknown";
+    const char *max_str = "unknown";
+    
+    switch (min_version) {
+        case TLS1_VERSION: min_str = "TLSv1.0"; break;
+        case TLS1_1_VERSION: min_str = "TLSv1.1"; break;
+        case TLS1_2_VERSION: min_str = "TLSv1.2"; break;
+        case TLS1_3_VERSION: min_str = "TLSv1.3"; break;
+    }
+    
+    switch (max_version) {
+        case TLS1_VERSION: max_str = "TLSv1.0"; break;
+        case TLS1_1_VERSION: max_str = "TLSv1.1"; break;
+        case TLS1_2_VERSION: max_str = "TLSv1.2"; break;
+        case TLS1_3_VERSION: max_str = "TLSv1.3"; break;
+    }
+    
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("min_version", -1), Tcl_NewStringObj(min_str, -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("max_version", -1), Tcl_NewStringObj(max_str, -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("min_version_code", -1), Tcl_NewIntObj(min_version));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("max_version_code", -1), Tcl_NewIntObj(max_version));
+    
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// tossl::ssl::set_protocol_version -ctx <ctx_handle> -min <version> -max <version>
+static int SslSetProtocolVersionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-ctx ctx_handle -min version -max version");
+        return TCL_ERROR;
+    }
+    
+    const char *ctx_name = NULL, *min_version = NULL, *max_version = NULL;
+    
+    for (int i = 1; i < 7; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-ctx") == 0) {
+            ctx_name = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-min") == 0) {
+            min_version = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-max") == 0) {
+            max_version = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!ctx_name || !min_version || !max_version) {
+        Tcl_SetResult(interp, "Missing required parameters", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    SslContextHandle *ctx_handle = NULL;
+    Tcl_HashEntry *entryPtr = Tcl_FindHashEntry(&sslContextTable, ctx_name);
+    if (entryPtr) {
+        ctx_handle = (SslContextHandle *)Tcl_GetHashValue(entryPtr);
+    }
+    
+    if (!ctx_handle) {
+        Tcl_SetResult(interp, "SSL context not found", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int min_code = 0, max_code = 0;
+    
+    if (strcmp(min_version, "TLSv1.0") == 0) min_code = TLS1_VERSION;
+    else if (strcmp(min_version, "TLSv1.1") == 0) min_code = TLS1_1_VERSION;
+    else if (strcmp(min_version, "TLSv1.2") == 0) min_code = TLS1_2_VERSION;
+    else if (strcmp(min_version, "TLSv1.3") == 0) min_code = TLS1_3_VERSION;
+    else {
+        Tcl_SetResult(interp, "Invalid minimum version", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (strcmp(max_version, "TLSv1.0") == 0) max_code = TLS1_VERSION;
+    else if (strcmp(max_version, "TLSv1.1") == 0) max_code = TLS1_1_VERSION;
+    else if (strcmp(max_version, "TLSv1.2") == 0) max_code = TLS1_2_VERSION;
+    else if (strcmp(max_version, "TLSv1.3") == 0) max_code = TLS1_3_VERSION;
+    else {
+        Tcl_SetResult(interp, "Invalid maximum version", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (!SSL_CTX_set_min_proto_version(ctx_handle->ctx, min_code)) {
+        Tcl_SetResult(interp, "OpenSSL: failed to set minimum protocol version", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (!SSL_CTX_set_max_proto_version(ctx_handle->ctx, max_code)) {
+        Tcl_SetResult(interp, "OpenSSL: failed to set maximum protocol version", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_SetResult(interp, "Protocol version set successfully", TCL_STATIC);
+    return TCL_OK;
+}
+
+// tossl::crl::create -ca_key <pem> -ca_cert <pem> -revoked <list> -days <days>
+static int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 9) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-ca_key pem -ca_cert pem -revoked list -days days");
+        return TCL_ERROR;
+    }
+    
+    const char *ca_key_pem = NULL, *ca_cert_pem = NULL;
+    Tcl_Obj *revoked_list = NULL;
+    int days = 0;
+    int ca_key_len = 0, ca_cert_len = 0;
+    
+    for (int i = 1; i < 9; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-ca_key") == 0) {
+            ca_key_pem = Tcl_GetStringFromObj(objv[i+1], &ca_key_len);
+        } else if (strcmp(opt, "-ca_cert") == 0) {
+            ca_cert_pem = Tcl_GetStringFromObj(objv[i+1], &ca_cert_len);
+        } else if (strcmp(opt, "-revoked") == 0) {
+            revoked_list = objv[i+1];
+        } else if (strcmp(opt, "-days") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &days) != TCL_OK) {
+                return TCL_ERROR;
+            }
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!ca_key_pem || !ca_cert_pem || !revoked_list || days <= 0) {
+        Tcl_SetResult(interp, "Missing required parameters", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *ca_key_bio = BIO_new_mem_buf((void*)ca_key_pem, ca_key_len);
+    EVP_PKEY *ca_key = PEM_read_bio_PrivateKey(ca_key_bio, NULL, NULL, NULL);
+    if (!ca_key) {
+        BIO_free(ca_key_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CA private key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *ca_cert_bio = BIO_new_mem_buf((void*)ca_cert_pem, ca_cert_len);
+    X509 *ca_cert = PEM_read_bio_X509(ca_cert_bio, NULL, NULL, NULL);
+    if (!ca_cert) {
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CA certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509_CRL *crl = X509_CRL_new();
+    if (!crl) {
+        X509_free(ca_cert);
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create CRL", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509_CRL_set_version(crl, 1);
+    X509_CRL_set_issuer_name(crl, X509_get_subject_name(ca_cert));
+    X509_CRL_set_lastUpdate(crl, X509_gmtime_adj(NULL, 0));
+    X509_CRL_set_nextUpdate(crl, X509_gmtime_adj(NULL, days * 24 * 60 * 60));
+    
+    int list_len;
+    Tcl_ListObjLength(interp, revoked_list, &list_len);
+    
+    for (int i = 0; i < list_len; i++) {
+        Tcl_Obj *revoked_item;
+        Tcl_ListObjIndex(interp, revoked_list, i, &revoked_item);
+        
+        int item_len;
+        Tcl_ListObjLength(interp, revoked_item, &item_len);
+        if (item_len >= 2) {
+            Tcl_Obj *serial_obj, *reason_obj;
+            Tcl_ListObjIndex(interp, revoked_item, 0, &serial_obj);
+            Tcl_ListObjIndex(interp, revoked_item, 1, &reason_obj);
+            
+            const char *serial_str = Tcl_GetString(serial_obj);
+            const char *reason_str = Tcl_GetString(reason_obj);
+            
+            ASN1_INTEGER *serial = ASN1_INTEGER_new();
+            if (ASN1_INTEGER_set(serial, atoi(serial_str))) {
+                X509_REVOKED *revoked = X509_REVOKED_new();
+                if (revoked) {
+                    X509_REVOKED_set_serialNumber(revoked, serial);
+                    X509_REVOKED_set_revocationDate(revoked, X509_gmtime_adj(NULL, 0));
+                    
+                    int reason_code = 0;
+                    if (strcmp(reason_str, "unspecified") == 0) reason_code = 0;
+                    else if (strcmp(reason_str, "keyCompromise") == 0) reason_code = 1;
+                    else if (strcmp(reason_str, "cACompromise") == 0) reason_code = 2;
+                    else if (strcmp(reason_str, "affiliationChanged") == 0) reason_code = 3;
+                    else if (strcmp(reason_str, "superseded") == 0) reason_code = 4;
+                    else if (strcmp(reason_str, "cessationOfOperation") == 0) reason_code = 5;
+                    else if (strcmp(reason_str, "certificateHold") == 0) reason_code = 6;
+                    
+                    if (reason_code > 0) {
+                        ASN1_ENUMERATED *reason = ASN1_ENUMERATED_new();
+                        ASN1_ENUMERATED_set(reason, reason_code);
+                        X509_REVOKED_add1_ext_i2d(revoked, NID_crl_reason, reason, 0, 0);
+                        ASN1_ENUMERATED_free(reason);
+                    }
+                    
+                    X509_CRL_add0_revoked(crl, revoked);
+                }
+            }
+            ASN1_INTEGER_free(serial);
+        }
+    }
+    
+    if (!X509_CRL_sign(crl, ca_key, EVP_sha256())) {
+        X509_CRL_free(crl);
+        X509_free(ca_cert);
+        EVP_PKEY_free(ca_key);
+        BIO_free(ca_key_bio);
+        BIO_free(ca_cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to sign CRL", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    BIO *crl_bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509_CRL(crl_bio, crl);
+    
+    BUF_MEM *bptr;
+    BIO_get_mem_ptr(crl_bio, &bptr);
+    
+    Tcl_Obj *result = Tcl_NewStringObj(bptr->data, bptr->length);
+    
+    BIO_free(crl_bio);
+    X509_CRL_free(crl);
+    X509_free(ca_cert);
+    EVP_PKEY_free(ca_key);
+    BIO_free(ca_key_bio);
+    BIO_free(ca_cert_bio);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// tossl::crl::parse <pem>
+static int CrlParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "pem");
+        return TCL_ERROR;
+    }
+    
+    int crl_len;
+    const char *crl_pem = Tcl_GetStringFromObj(objv[1], &crl_len);
+    
+    BIO *crl_bio = BIO_new_mem_buf((void*)crl_pem, crl_len);
+    X509_CRL *crl = PEM_read_bio_X509_CRL(crl_bio, NULL, NULL, NULL);
+    if (!crl) {
+        BIO_free(crl_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CRL", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    
+    X509_NAME *issuer = X509_CRL_get_issuer(crl);
+    char issuer_str[256];
+    X509_NAME_oneline(issuer, issuer_str, sizeof(issuer_str));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer_str, -1));
+    
+    ASN1_TIME *last_update = X509_CRL_get_lastUpdate(crl);
+    ASN1_TIME *next_update = X509_CRL_get_nextUpdate(crl);
+    
+    char last_str[32], next_str[32];
+    BIO_snprintf(last_str, sizeof(last_str), "%02d-%02d-%02d", 
+                 last_update->data[0] * 10 + last_update->data[1],
+                 last_update->data[2] * 10 + last_update->data[3],
+                 last_update->data[4] * 10 + last_update->data[5]);
+    
+    if (next_update) {
+        BIO_snprintf(next_str, sizeof(next_str), "%02d-%02d-%02d", 
+                     next_update->data[0] * 10 + next_update->data[1],
+                     next_update->data[2] * 10 + next_update->data[3],
+                     next_update->data[4] * 10 + next_update->data[5]);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("next_update", -1), Tcl_NewStringObj(next_str, -1));
+    }
+    
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("last_update", -1), Tcl_NewStringObj(last_str, -1));
+    
+    STACK_OF(X509_REVOKED) *revoked = X509_CRL_get_REVOKED(crl);
+    Tcl_Obj *revoked_list = Tcl_NewListObj(0, NULL);
+    
+    if (revoked) {
+        int num_revoked = sk_X509_REVOKED_num(revoked);
+        for (int i = 0; i < num_revoked; i++) {
+            X509_REVOKED *rev = sk_X509_REVOKED_value(revoked, i);
+            ASN1_INTEGER *serial = X509_REVOKED_get0_serialNumber(rev);
+            ASN1_TIME *rev_date = X509_REVOKED_get0_revocationDate(rev);
+            
+            Tcl_Obj *rev_dict = Tcl_NewDictObj();
+            Tcl_DictObjPut(interp, rev_dict, Tcl_NewStringObj("serial", -1), 
+                          Tcl_NewStringObj(ASN1_INTEGER_get(serial) ? "0" : "0", -1));
+            
+            char rev_str[32];
+            BIO_snprintf(rev_str, sizeof(rev_str), "%02d-%02d-%02d", 
+                         rev_date->data[0] * 10 + rev_date->data[1],
+                         rev_date->data[2] * 10 + rev_date->data[3],
+                         rev_date->data[4] * 10 + rev_date->data[5]);
+            Tcl_DictObjPut(interp, rev_dict, Tcl_NewStringObj("revocation_date", -1), 
+                          Tcl_NewStringObj(rev_str, -1));
+            
+            Tcl_ListObjAppendElement(interp, revoked_list, rev_dict);
+        }
+    }
+    
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("revoked", -1), revoked_list);
+    
+    X509_CRL_free(crl);
+    BIO_free(crl_bio);
+    
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
 // Package initialization
 int Tossl_Init(Tcl_Interp *interp) {
     if (Tcl_InitStubs(interp, TCL_VERSION, 0) == NULL) {
@@ -4888,6 +5604,19 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::csr::validate", CsrValidateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::csr::fingerprint", CsrFingerprintCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::csr::modify", CsrModifyCmd, NULL, NULL);
+    
+    // CA operations
+    Tcl_CreateObjCommand(interp, "tossl::ca::generate", CaGenerateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ca::sign", CaSignCmd, NULL, NULL);
+    
+    // Enhanced SSL/TLS operations
+    Tcl_CreateObjCommand(interp, "tossl::ssl::protocol_version", SslProtocolVersionCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::ssl::set_protocol_version", SslSetProtocolVersionCmd, NULL, NULL);
+    
+    // Certificate revocation operations
+    Tcl_CreateObjCommand(interp, "tossl::crl::create", CrlCreateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::crl::parse", CrlParseCmd, NULL, NULL);
+    
     return TCL_OK;
 }
 
