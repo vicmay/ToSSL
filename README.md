@@ -11,7 +11,11 @@ TOSSL is a Tcl extension for Linux that provides access to OpenSSL cryptographic
 - **Cryptographically secure random bytes** and random key/IV generation
 - **Symmetric encryption/decryption** (all OpenSSL ciphers supported) with enhanced cipher information and listing
 - **Public key cryptography** (RSA, DSA, EC): key generation, parsing, writing, encryption, decryption, signing, verifying (PEM and DER supported)
-- **X.509 certificate parsing, creation, and verification**
+- **X.509 certificate operations**: parsing, creation, verification, fingerprinting, and chain validation
+- **Certificate Authority (CA) operations**: CA certificate generation and certificate signing
+- **Certificate Signing Requests (CSR)**: creation, parsing, validation, fingerprinting, and extension modification
+- **Certificate Revocation Lists (CRL)**: creation and parsing
+- **Key derivation functions**: PBKDF2, Scrypt, and Argon2 (if supported)
 - **HMAC** (all OpenSSL digests supported)
 - **Base64 and hex encoding/decoding**
 - **PKCS#12 parsing and creation** (import/export certificates and keys)
@@ -20,6 +24,7 @@ TOSSL is a Tcl extension for Linux that provides access to OpenSSL cryptographic
   - SSL/TLS socket wrapping and session resumption (export/import)
   - Custom certificate verification and context options
   - Enhanced session management with caching and tickets
+  - Protocol version management and configuration
   - Detailed session/cipher/peer info retrieval
   - Robust error handling for all SSL/TLS commands
 
@@ -179,6 +184,125 @@ Allowed keyUsage values:
 - cRLSign
 - encipherOnly
 - decipherOnly
+
+---
+
+### Certificate Authority (CA) Operations
+
+#### Generate CA Certificate
+Create a Certificate Authority certificate:
+```tcl
+set ca_key [dict get [tossl::rsa::generate -bits 2048] private]
+set ca_cert [tossl::ca::generate -key $ca_key -subject "My CA" -days 3650]
+puts "CA Certificate: $ca_cert"
+```
+
+#### Sign Certificates with CA
+Sign a certificate using a CA private key and certificate:
+```tcl
+set csr ... ;# Certificate Signing Request
+set ca_key ... ;# CA private key
+set ca_cert ... ;# CA certificate
+set signed_cert [tossl::ca::sign -ca_key $ca_key -ca_cert $ca_cert -csr $csr -days 365]
+puts "Signed Certificate: $signed_cert"
+```
+
+---
+
+### Certificate Signing Requests (CSR)
+
+#### Create CSR
+Create a Certificate Signing Request:
+```tcl
+set keys [tossl::rsa::generate -bits 2048]
+set priv [dict get $keys private]
+set pub [dict get $keys public]
+set csr [tossl::csr::create -subject "CN=example.com" -pubkey $pub -privkey $priv]
+puts "CSR: $csr"
+```
+
+Add Subject Alternative Names to CSR:
+```tcl
+set csr [tossl::csr::create -subject "CN=example.com" -pubkey $pub -privkey $priv -san {example.com www.example.com}]
+```
+
+Add Key Usage extensions to CSR:
+```tcl
+set csr [tossl::csr::create -subject "CN=example.com" -pubkey $pub -privkey $priv -keyusage {digitalSignature keyEncipherment}]
+```
+
+#### Parse CSR
+Parse a CSR and extract information:
+```tcl
+set csr_info [tossl::csr::parse $csr]
+puts "Subject: [dict get $csr_info subject]"
+puts "Public Key: [dict get $csr_info pubkey]"
+puts "Extensions: [dict get $csr_info extensions]"
+```
+
+#### Validate CSR
+Validate a CSR structure and signature:
+```tcl
+set valid [tossl::csr::validate $csr]
+puts "CSR valid? $valid"
+```
+
+#### Generate CSR Fingerprint
+Generate a fingerprint of a CSR:
+```tcl
+set fingerprint [tossl::csr::fingerprint $csr -algorithm sha256]
+puts "CSR fingerprint: $fingerprint"
+```
+
+#### Modify CSR Extensions
+Add or remove extensions from a CSR:
+```tcl
+# Add extension
+set modified_csr [tossl::csr::modify -csr $csr -add_extension "subjectAltName" "DNS:new.example.com" 0]
+
+# Remove extension
+set modified_csr [tossl::csr::modify -csr $csr -remove_extension "subjectAltName"]
+```
+
+---
+
+### Certificate Revocation Lists (CRL)
+
+#### Create CRL
+Create a Certificate Revocation List:
+```tcl
+set revoked_certs [list [list 123 "keyCompromise"] [list 456 "unspecified"]]
+set crl [tossl::crl::create -ca_key $ca_key -ca_cert $ca_cert -revoked $revoked_certs -days 30]
+puts "CRL: $crl"
+```
+
+#### Parse CRL
+Parse a CRL and extract information:
+```tcl
+set crl_info [tossl::crl::parse $crl]
+puts "Issuer: [dict get $crl_info issuer]"
+puts "This Update: [dict get $crl_info thisUpdate]"
+puts "Next Update: [dict get $crl_info nextUpdate]"
+puts "Revoked Certificates: [dict get $crl_info revoked]"
+```
+
+---
+
+### Certificate Validation and Fingerprinting
+
+#### Validate Certificate Chain
+Validate a certificate against a CA certificate:
+```tcl
+set valid [tossl::x509::validate -cert $cert -ca $ca_cert]
+puts "Certificate valid? $valid"
+```
+
+#### Generate Certificate Fingerprint
+Generate a fingerprint of a certificate:
+```tcl
+set fingerprint [tossl::x509::fingerprint -cert $cert -alg sha256]
+puts "Certificate fingerprint: $fingerprint"
+```
 
 ---
 
@@ -453,6 +577,37 @@ puts "AES-256 IV length: [string length $iv] bytes"
 
 ---
 
+### Key Derivation Functions
+
+#### PBKDF2 (Password-Based Key Derivation Function 2)
+Derive a key from a password using PBKDF2:
+```tcl
+set password "my_password"
+set salt [tossl::randbytes 16]
+set key [tossl::kdf::pbkdf2 -password $password -salt $salt -iterations 10000 -keylen 32 -digest sha256]
+puts "Derived key length: [string length $key] bytes"
+```
+
+#### Scrypt
+Derive a key using the Scrypt algorithm:
+```tcl
+set password "my_password"
+set salt [tossl::randbytes 16]
+set key [tossl::kdf::scrypt -password $password -salt $salt -n 16384 -r 8 -p 1 -keylen 32]
+puts "Scrypt derived key length: [string length $key] bytes"
+```
+
+#### Argon2
+Derive a key using the Argon2 algorithm (if supported by your OpenSSL build):
+```tcl
+set password "my_password"
+set salt [tossl::randbytes 16]
+set key [tossl::kdf::argon2 -password $password -salt $salt -time 3 -memory 65536 -parallel 4 -keylen 32]
+puts "Argon2 derived key length: [string length $key] bytes"
+```
+
+---
+
 ## API Reference
 
 ### `tossl::pkcs7::sign -cert <cert> -key <key> <data> ?-detached 0|1? ?-pem 0|1?`
@@ -610,6 +765,109 @@ Parses a PEM-encoded X.509 certificate and returns a Tcl dict with the following
 - `serial`: Serial number (hex)
 - `notBefore`: Certificate validity start (human-readable)
 - `notAfter`: Certificate validity end (human-readable)
+
+### `tossl::x509::validate -cert <pem> -ca <pem>`
+Validates a certificate against a CA certificate.
+- `-cert <pem>`: PEM certificate to validate
+- `-ca <pem>`: PEM CA certificate
+- Returns: 1 if valid, 0 otherwise
+
+### `tossl::x509::fingerprint -cert <pem> -alg <algorithm>`
+Generates a fingerprint of a certificate.
+- `-cert <pem>`: PEM certificate
+- `-alg <algorithm>`: Hash algorithm (e.g., sha1, sha256, sha512)
+- Returns: Hex-encoded fingerprint
+
+### `tossl::ca::generate -key <pem> -subject <subject> -days <days> ?-extensions <extensions>?`
+Generates a CA certificate.
+- `-key <pem>`: PEM private key
+- `-subject <subject>`: Subject distinguished name
+- `-days <days>`: Validity period in days
+- `-extensions <extensions>`: Optional extensions
+- Returns: PEM CA certificate
+
+### `tossl::ca::sign -ca_key <pem> -ca_cert <pem> -csr <pem> -days <days> ?-extensions <extensions>?`
+Signs a certificate using a CA.
+- `-ca_key <pem>`: CA private key
+- `-ca_cert <pem>`: CA certificate
+- `-csr <pem>`: Certificate signing request
+- `-days <days>`: Validity period in days
+- `-extensions <extensions>`: Optional extensions
+- Returns: PEM signed certificate
+
+### `tossl::csr::create -subject <dn> -pubkey <pem> -privkey <pem> ?-san {dns1 dns2 ...}? ?-keyusage {usage1 usage2 ...}?`
+Creates a certificate signing request.
+- `-subject <dn>`: Subject distinguished name
+- `-pubkey <pem>`: Public key PEM
+- `-privkey <pem>`: Private key PEM
+- `-san {dns1 dns2 ...}`: Optional subject alternative names
+- `-keyusage {usage1 usage2 ...}`: Optional key usage extensions
+- Returns: PEM CSR
+
+### `tossl::csr::parse <pem>`
+Parses a CSR and returns information.
+- `<pem>`: PEM CSR
+- Returns: Dictionary with CSR information
+
+### `tossl::csr::validate <pem>`
+Validates a CSR structure and signature.
+- `<pem>`: PEM CSR
+- Returns: 1 if valid, 0 otherwise
+
+### `tossl::csr::fingerprint <pem> ?-algorithm sha1|sha256|sha512?`
+Generates a fingerprint of a CSR.
+- `<pem>`: PEM CSR
+- `-algorithm`: Hash algorithm (default: sha256)
+- Returns: Hex-encoded fingerprint
+
+### `tossl::csr::modify -csr <pem> -add_extension <oid> <value> <critical> ?-remove_extension <oid>?`
+Modifies CSR extensions.
+- `-csr <pem>`: PEM CSR
+- `-add_extension <oid> <value> <critical>`: Add extension
+- `-remove_extension <oid>`: Remove extension
+- Returns: Modified PEM CSR
+
+### `tossl::crl::create -ca_key <pem> -ca_cert <pem> -revoked <list> -days <days>`
+Creates a certificate revocation list.
+- `-ca_key <pem>`: CA private key
+- `-ca_cert <pem>`: CA certificate
+- `-revoked <list>`: List of revoked certificates with serial numbers and reasons
+- `-days <days>`: Validity period in days
+- Returns: PEM CRL
+
+### `tossl::crl::parse <pem>`
+Parses a CRL and returns information.
+- `<pem>`: PEM CRL
+- Returns: Dictionary with CRL information
+
+### `tossl::kdf::pbkdf2 -password <password> -salt <salt> -iterations <n> -keylen <length> -digest <algorithm>`
+Derives a key using PBKDF2.
+- `-password <password>`: Password string
+- `-salt <salt>`: Salt bytes
+- `-iterations <n>`: Number of iterations
+- `-keylen <length>`: Output key length
+- `-digest <algorithm>`: Hash algorithm (e.g., sha256)
+- Returns: Derived key bytes
+
+### `tossl::kdf::scrypt -password <password> -salt <salt> -n <n> -r <r> -p <p> -keylen <length>`
+Derives a key using Scrypt.
+- `-password <password>`: Password string
+- `-salt <salt>`: Salt bytes
+- `-n <n>`: CPU/memory cost parameter
+- `-r <r>`: Block size parameter
+- `-p <p>`: Parallelization parameter
+- `-keylen <length>`: Output key length
+- Returns: Derived key bytes
+
+### `tossl::kdf::argon2 -password <password> -salt <salt> -time <time> -memory <memory> -parallel <parallel> -keylen <length>`
+Derives a key using Argon2 (if supported).
+- `-password <password>`: Password string
+- `-salt <salt>`: Salt bytes
+- `-time <time>`: Time cost parameter
+- `-memory <memory>`: Memory cost parameter (in KB)
+- `-parallel <parallel>`: Parallelization parameter
+- `-keylen <length>`: Output key length
+- Returns: Derived key bytes
 
 ### `tossl::key::generate ?-bits <n>?`
 Generates an RSA key pair. Default is 2048 bits.
@@ -860,6 +1118,18 @@ Creates a new SSL/TLS context with customizable options.
 Frees the specified SSL context and its associated resources.
 - `<ctx_handle>`: The handle of the SSL context to free (e.g., sslctx1).
 - Call this when a context is no longer needed to prevent resource leaks.
+
+### `tossl::ssl::protocol_version -ctx <ctx_handle>`
+Retrieves the current protocol version settings for an SSL context.
+- `<ctx_handle>`: The handle of the SSL context (e.g., sslctx1).
+- Returns: Dictionary with current protocol version information.
+
+### `tossl::ssl::set_protocol_version -ctx <ctx_handle> -min <version> -max <version>`
+Sets the minimum and maximum protocol versions for an SSL context.
+- `<ctx_handle>`: The handle of the SSL context (e.g., sslctx1).
+- `-min <version>`: Minimum protocol version (e.g., TLSv1.2, TLSv1.3).
+- `-max <version>`: Maximum protocol version (e.g., TLSv1.2, TLSv1.3).
+- Returns: 1 on success, 0 on failure.
 
 ### `tossl::ssl::socket <ctx> <sock> ?-session <sessionhandle>?`
 Wraps a Tcl socket in SSL/TLS, optionally resuming a session.
