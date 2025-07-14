@@ -135,7 +135,20 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 ### **Other Protocols**
 - [x] **PKCS#7**: tossl::pkcs7::* (sign, verify, encrypt, decrypt, info)
 - [x] **PKCS#12**: tossl::pkcs12::* (create, parse)
-- [ ] **S/MIME, OpenPGP, SSH, Kerberos**: Not implemented
+- [ ] **OpenPGP (partial)**: tossl::pgp::* (basic RSA keygen, parse, import/export, demo hybrid encryption)
+  - **Implemented:**
+    - RSA OpenPGP key generation (with self-signature)
+    - Key parsing, import, export (with roundtrip tests)
+    - PGP-style hybrid encryption/decryption (AES+RSA, demo only)
+  - **Missing for full RFC 4880 compliance:**
+    - DSA/ElGamal, ECC, and subkey support
+    - Multiple user IDs, subpackets, revocation, key expiration
+    - OpenPGP message formats (literal data, compressed data, signature packets, etc.)
+    - Signature creation/verification, detached signatures, message signing
+    - GnuPG and OpenPGP interoperability
+    - S2K password-protected secret key export/import (beyond basic stub)
+    - Advanced features: armor CRC, trust packets, etc.
+- [ ] **S/MIME, SSH, Kerberos**: Not implemented
 
 ## 🧪 **Testing & Validation**
 
