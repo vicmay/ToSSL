@@ -174,18 +174,18 @@ int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
 // tossl::key::generate -type <rsa|dsa|ec> ?-bits <bits>? ?-curve <curve>?
 int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 3 && objc != 5 && objc != 7) {
+    if (objc != 1 && objc != 3 && objc != 5 && objc != 7) {
         Tcl_WrongNumArgs(interp, 1, objv, "-type rsa|dsa|ec ?-bits bits? ?-curve curve?");
         return TCL_ERROR;
     }
-    
-    const char *type = NULL, *curve = "prime256v1";
+    const char *type = "rsa", *curve = "prime256v1";
     int bits = 2048;
-    
+    int type_explicit = 0;
     for (int i = 1; i < objc; i += 2) {
         const char *opt = Tcl_GetString(objv[i]);
         if (strcmp(opt, "-type") == 0) {
             type = Tcl_GetString(objv[i+1]);
+            type_explicit = 1;
         } else if (strcmp(opt, "-bits") == 0) {
             if (Tcl_GetIntFromObj(interp, objv[i+1], &bits) != TCL_OK) {
                 return TCL_ERROR;
@@ -197,8 +197,7 @@ int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
             return TCL_ERROR;
         }
     }
-    
-    if (!type) {
+    if (type_explicit && !type) {
         Tcl_SetResult(interp, "Key type is required", TCL_STATIC);
         return TCL_ERROR;
     }
@@ -264,21 +263,36 @@ int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         Tcl_SetResult(interp, "OpenSSL: key generation failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    BIO *bio = BIO_new(BIO_s_mem());
-    if (!PEM_write_bio_PrivateKey(bio, pkey, NULL, NULL, 0, NULL, NULL)) {
-        BIO_free(bio);
-        EVP_PKEY_free(pkey);
-        EVP_PKEY_CTX_free(ctx);
-        Tcl_SetResult(interp, "OpenSSL: failed to write private key", TCL_STATIC);
-        return TCL_ERROR;
+
+    // Write private key to PEM
+    BIO *priv_bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_PrivateKey(priv_bio, pkey, NULL, NULL, 0, NULL, NULL);
+    BUF_MEM *priv_bptr;
+    BIO_get_mem_ptr(priv_bio, &priv_bptr);
+    Tcl_Obj *priv_pem = Tcl_NewStringObj(priv_bptr->data, priv_bptr->length);
+
+    // Write public key to PEM
+    BIO *pub_bio = BIO_new(BIO_s_mem());
+    PEM_write_bio_PUBKEY(pub_bio, pkey);
+    BUF_MEM *pub_bptr;
+    BIO_get_mem_ptr(pub_bio, &pub_bptr);
+    Tcl_Obj *pub_pem = Tcl_NewStringObj(pub_bptr->data, pub_bptr->length);
+
+    int keybits = EVP_PKEY_get_bits(pkey);
+
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), priv_pem);
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("public", -1), pub_pem);
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj(type, -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(keybits));
+    if (strcmp(type, "ec") == 0) {
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve, -1));
     }
-    
-    BUF_MEM *bptr;
-    BIO_get_mem_ptr(bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
-    
-    BIO_free(bio);
+
+    Tcl_SetObjResult(interp, dict);
+
+    BIO_free(priv_bio);
+    BIO_free(pub_bio);
     EVP_PKEY_free(pkey);
     EVP_PKEY_CTX_free(ctx);
     return TCL_OK;

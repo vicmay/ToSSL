@@ -1,0 +1,10 @@
+=== Testing OpenPGP Signature Support ===
+
+--- Test 1: Generate RSA Key Pair ---
+Generated private key, length: 844 bytes
+Key info: type unknown bits 0 userid {}
+
+--- Test 2: Create OpenPGP Signature ---
+Test data: Hello, this is a test message for OpenPGP signature verification!
+parse_packet_header: tag=5 len=810 consumed=3
+Failed to extract private key from PGP key

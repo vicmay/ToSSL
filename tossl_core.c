@@ -1,4 +1,6 @@
 #include "tossl.h"
+#include <stdio.h>
+#include <openssl/err.h>
 
 // Common utility function
 void bin2hex(const unsigned char *in, int len, char *out) {
@@ -13,7 +15,7 @@ void bin2hex(const unsigned char *in, int len, char *out) {
 // tossl::hmac -alg <name> -key <key> <data>
 int HmacCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 6) {
+    if (objc != 7) {
         Tcl_WrongNumArgs(interp, 1, objv, "-alg name -key key data");
         return TCL_ERROR;
     }
@@ -318,7 +320,7 @@ int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
 // tossl::digest::compare <hash1> <hash2>
 int DigestCompareCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 3) {
+    if (objc != 4) {
         Tcl_WrongNumArgs(interp, 1, objv, "hash1 hash2");
         return TCL_ERROR;
     }
@@ -338,7 +340,7 @@ int DigestCompareCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 // tossl::rand::bytes <count>
 int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 2) {
+    if (objc != 3) {
         Tcl_WrongNumArgs(interp, 1, objv, "count");
         return TCL_ERROR;
     }
@@ -725,7 +727,20 @@ int CipherListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
 // tossl::encrypt -alg <cipher> -key <key> -iv <iv> <data>
 int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 7) {
+    fprintf(stderr, "[DEBUG] EncryptCmd called: objc=%d\n", objc);
+    for (int i = 0; i < objc; ++i) {
+        int arglen = 0;
+        const unsigned char *argstr = (const unsigned char *)Tcl_GetStringFromObj(objv[i], &arglen);
+        fprintf(stderr, "[DEBUG] arg %d: len=%d, str=\"%.*s\"\n", i, arglen, arglen, argstr);
+        // Print hex dump for binary args
+        fprintf(stderr, "[DEBUG] arg %d hex: ", i);
+        for (int j = 0; j < arglen; ++j) {
+            fprintf(stderr, "%02x", argstr[j]);
+        }
+        fprintf(stderr, "\n");
+    }
+    if (objc != 8) {
+        fprintf(stderr, "[DEBUG] ERROR: wrong # args, expected 8 (including command name), got %d\n", objc);
         Tcl_WrongNumArgs(interp, 1, objv, "-alg cipher -key key -iv iv data");
         return TCL_ERROR;
     }
@@ -736,24 +751,34 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     
     for (int i = 1; i < 6; i += 2) {
         const char *opt = Tcl_GetString(objv[i]);
+        fprintf(stderr, "[DEBUG] parsing arg %d: option '%s'\n", i, opt);
         if (strcmp(opt, "-alg") == 0) {
             cipher = Tcl_GetString(objv[i+1]);
         } else if (strcmp(opt, "-key") == 0) {
             key = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &key_len);
+            fprintf(stderr, "[DEBUG] key arg %d: len=%d, hex=", i+1, key_len);
+            for (int j = 0; j < key_len; ++j) fprintf(stderr, "%02x", key[j]);
+            fprintf(stderr, "\n");
         } else if (strcmp(opt, "-iv") == 0) {
             iv = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &iv_len);
+            fprintf(stderr, "[DEBUG] iv arg %d: len=%d, hex=", i+1, iv_len);
+            for (int j = 0; j < iv_len; ++j) fprintf(stderr, "%02x", iv[j]);
+            fprintf(stderr, "\n");
         } else {
             Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
             return TCL_ERROR;
         }
     }
-    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[6], &data_len);
+    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[7], &data_len);
     
-    EVP_CIPHER *cipher_obj = EVP_CIPHER_fetch(NULL, cipher, NULL);
+    const EVP_CIPHER *cipher_obj = EVP_get_cipherbyname(cipher);
     if (!cipher_obj) {
         Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
         return TCL_ERROR;
     }
+    fprintf(stderr, "[DEBUG] EncryptCmd cipher: %s, block_size=%d, key_len=%d, iv_len=%d\n", 
+            EVP_CIPHER_get0_name(cipher_obj), EVP_CIPHER_get_block_size(cipher_obj),
+            EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
     
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
@@ -771,10 +796,12 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     
     unsigned char *out = malloc(data_len + EVP_CIPHER_get_block_size(cipher_obj));
     int out_len = 0;
+    fprintf(stderr, "[DEBUG] EncryptCmd data hex: ");
+    for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
+    fprintf(stderr, "\n");
     if (!EVP_EncryptUpdate(ctx, out, &out_len, data, data_len)) {
         EVP_CIPHER_CTX_free(ctx);
         EVP_CIPHER_free(cipher_obj);
-        free(out);
         Tcl_SetResult(interp, "OpenSSL: encryption update failed", TCL_STATIC);
         return TCL_ERROR;
     }
@@ -783,7 +810,6 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     if (!EVP_EncryptFinal_ex(ctx, out + out_len, &final_len)) {
         EVP_CIPHER_CTX_free(ctx);
         EVP_CIPHER_free(cipher_obj);
-        free(out);
         Tcl_SetResult(interp, "OpenSSL: encryption final failed", TCL_STATIC);
         return TCL_ERROR;
     }
@@ -791,14 +817,24 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, out_len + final_len));
     EVP_CIPHER_CTX_free(ctx);
     EVP_CIPHER_free(cipher_obj);
-    free(out);
     return TCL_OK;
 }
 
 // tossl::decrypt -alg <cipher> -key <key> -iv <iv> <data>
 int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 7) {
+    fprintf(stderr, "[DEBUG] DecryptCmd called: objc=%d\n", objc);
+    for (int i = 0; i < objc; ++i) {
+        int arglen = 0;
+        unsigned char *argbytes = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &arglen);
+        fprintf(stderr, "[DEBUG] arg %d: len=%d, hex=", i, arglen);
+        for (int j = 0; j < arglen; ++j) {
+            fprintf(stderr, "%02x", argbytes[j]);
+        }
+        fprintf(stderr, "\n");
+    }
+    if (objc != 8) {
+        fprintf(stderr, "[DEBUG] ERROR: wrong # args, expected 8 (including command name), got %d\n", objc);
         Tcl_WrongNumArgs(interp, 1, objv, "-alg cipher -key key -iv iv data");
         return TCL_ERROR;
     }
@@ -809,24 +845,41 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     
     for (int i = 1; i < 6; i += 2) {
         const char *opt = Tcl_GetString(objv[i]);
+        fprintf(stderr, "[DEBUG] parsing arg %d: option '%s'\n", i, opt);
         if (strcmp(opt, "-alg") == 0) {
             cipher = Tcl_GetString(objv[i+1]);
         } else if (strcmp(opt, "-key") == 0) {
             key = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &key_len);
+            fprintf(stderr, "[DEBUG] key arg %d: len=%d, hex=", i+1, key_len);
+            for (int j = 0; j < key_len; ++j) fprintf(stderr, "%02x", key[j]);
+            fprintf(stderr, "\n");
         } else if (strcmp(opt, "-iv") == 0) {
             iv = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &iv_len);
+            fprintf(stderr, "[DEBUG] iv arg %d: len=%d, hex=", i+1, iv_len);
+            for (int j = 0; j < iv_len; ++j) fprintf(stderr, "%02x", iv[j]);
+            fprintf(stderr, "\n");
         } else {
             Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
             return TCL_ERROR;
         }
     }
-    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[6], &data_len);
+    // Debug: print key and IV hex
+    fprintf(stderr, "[DEBUG] DecryptCmd key hex: ");
+    for (int i = 0; i < key_len; ++i) fprintf(stderr, "%02x", key[i]);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "[DEBUG] DecryptCmd IV hex: ");
+    for (int i = 0; i < iv_len; ++i) fprintf(stderr, "%02x", iv[i]);
+    fprintf(stderr, "\n");
+    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[7], &data_len);
     
-    EVP_CIPHER *cipher_obj = EVP_CIPHER_fetch(NULL, cipher, NULL);
+    const EVP_CIPHER *cipher_obj = EVP_get_cipherbyname(cipher);
     if (!cipher_obj) {
         Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
         return TCL_ERROR;
     }
+    fprintf(stderr, "[DEBUG] DecryptCmd cipher: %s, block_size=%d, key_len=%d, iv_len=%d\n", 
+            EVP_CIPHER_get0_name(cipher_obj), EVP_CIPHER_get_block_size(cipher_obj),
+            EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
     
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
@@ -834,36 +887,40 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         Tcl_SetResult(interp, "OpenSSL: failed to create cipher context", TCL_STATIC);
         return TCL_ERROR;
     }
-    
+    fprintf(stderr, "[DEBUG] Default OpenSSL padding is used (PKCS#7 for block ciphers)\n");
     if (!EVP_DecryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
         EVP_CIPHER_CTX_free(ctx);
         EVP_CIPHER_free(cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: decryption init failed", TCL_STATIC);
+        fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return TCL_ERROR;
     }
-    
-    unsigned char *out = malloc(data_len);
+    // Allocate output buffer large enough for decrypted data (with padding)
+    unsigned char *out = malloc(data_len + EVP_CIPHER_get_block_size(cipher_obj));
     int out_len = 0;
+    fprintf(stderr, "[DEBUG] DecryptCmd data hex: ");
+    for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
+    fprintf(stderr, "\n");
     if (!EVP_DecryptUpdate(ctx, out, &out_len, data, data_len)) {
         EVP_CIPHER_CTX_free(ctx);
         EVP_CIPHER_free(cipher_obj);
         free(out);
         Tcl_SetResult(interp, "OpenSSL: decryption update failed", TCL_STATIC);
+        fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return TCL_ERROR;
     }
-    
     int final_len = 0;
     if (!EVP_DecryptFinal_ex(ctx, out + out_len, &final_len)) {
         EVP_CIPHER_CTX_free(ctx);
         EVP_CIPHER_free(cipher_obj);
         free(out);
         Tcl_SetResult(interp, "OpenSSL: decryption final failed", TCL_STATIC);
+        fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return TCL_ERROR;
     }
-    
+    fprintf(stderr, "[DEBUG] Decrypt output: out_len=%d, final_len=%d\n", out_len, final_len);
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, out_len + final_len));
     EVP_CIPHER_CTX_free(ctx);
     EVP_CIPHER_free(cipher_obj);
-    free(out);
     return TCL_OK;
 } 

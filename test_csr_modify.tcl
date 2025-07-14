@@ -1,1 +1,4 @@
-load ./libtossl.so; set keypair [tossl::key::generate rsa 2048]; set privkey [dict get $keypair private]; set pubkey [dict get $keypair public]; set csr [tossl::csr::create -subject "CN=test.example.com" -pubkey $pubkey -privkey $privkey]; puts "Original CSR:"; puts [tossl::csr::parse $csr]; set modified_csr [tossl::csr::modify -csr $csr -add_extension "subjectAltName" "DNS:test.example.com,DNS:www.test.example.com" 0]; puts "Modified CSR:"; puts [tossl::csr::parse $modified_csr]; puts "CSR valid: [tossl::csr::validate $modified_csr]"
+load ./libtossl.so; set keypair [tossl::key::generate -type rsa -bits 2048]; set privkey [dict get $keypair private]; set pubkey [dict get $keypair public]; set subject [dict create CN test.example.com]
+set csr [tossl::csr::create -key $privkey -subject $subject]; puts "Original CSR:"; puts [tossl::csr::parse $csr]; set modified_csr [tossl::csr::modify $csr -subject "CN=modified.example.com,O=ExampleOrg" -key $privkey]
+puts "Modified CSR:"; puts [tossl::csr::parse $modified_csr]
+puts "CSR valid: [tossl::csr::validate $modified_csr]"

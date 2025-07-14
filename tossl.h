@@ -237,6 +237,18 @@ int Ed448VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 int X448GenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int X448DeriveCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 
+// PGP functions
+int PgpKeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpKeyExportCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpKeyImportCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpKeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpKeyGenerateSecretCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpKeyImportSecretCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpKeyExportSecretCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpMessageParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpMessageCreateLiteralCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int PgpMessageCreateCompressedCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
 // JWK functions
 int JwkExtractCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int JwkThumbprintCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);

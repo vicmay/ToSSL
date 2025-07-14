@@ -1,0 +1,6 @@
+parse_packet_header: tag=11 len=35 consumed=2
+parse_packet_header: tag=8 len=52 consumed=2
+parse_packet_header: tag=11 len=27 consumed=2
+parse_packet_header: tag=11 len=28 consumed=2
+parse_packet_header: tag=8 len=19 consumed=2
+parse_packet_header: tag=10 len=28278 consumed=3

@@ -1,0 +1,19 @@
+DEBUG: BIO_new_mem_buf done
+DEBUG: Private key parsed
+DEBUG: CSR allocated
+DEBUG: isDict=1
+DEBUG: Tcl_DictObjFirst result=0
+DEBUG: Tcl_DictObjFirst OK, entering for loop
+DEBUG: Before X509_NAME_add_entry_by_txt CN=test.example.com
+DEBUG: After X509_NAME_add_entry_by_txt CN=test.example.com, result=1
+DEBUG: End of for loop
+DEBUG: All subject fields set from dict
+DEBUG: Subject name set on req
+DEBUG: Public key set
+DEBUG: Before extensions block
+DEBUG: After extensions block
+DEBUG: Before attributes block
+DEBUG: After attributes block
+DEBUG: CSR signed
+DEBUG: CSR written to PEM
+DEBUG: CSR creation done

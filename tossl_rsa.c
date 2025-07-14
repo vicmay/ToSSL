@@ -388,7 +388,7 @@ int RsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
 int RsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
     if (objc != 7 && objc != 9 && objc != 11) {
-        Tcl_WrongNumArgs(interp, 1, objv, "-key pem -data data -sig signature ?-alg digest? ?-padding pkcs1|pss?");
+        Tcl_WrongNumArgs(interp, 1, objv, "-key pem -data data -sig sig ?-alg digest? ?-padding pkcs1|pss?");
         return TCL_ERROR;
     }
     

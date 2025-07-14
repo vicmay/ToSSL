@@ -1,0 +1,18 @@
+[DEBUG] EncryptCmd called: objc=8
+[DEBUG] arg 0: len=14, str="tossl::encrypt"
+[DEBUG] arg 0 hex: 746f73736c3a3a656e6372797074
+[DEBUG] arg 1: len=4, str="-alg"
+[DEBUG] arg 1 hex: 2d616c67
+[DEBUG] arg 2: len=11, str="aes-128-cbc"
+[DEBUG] arg 2 hex: 6165732d3132382d636263
+[DEBUG] arg 3: len=4, str="-key"
+[DEBUG] arg 3 hex: 2d6b6579
+[DEBUG] arg 4: len=25, str="��"3DUfwª»ÌÝîÿ"
+[DEBUG] arg 4 hex: c08011223344556677c288c299c2aac2bbc38cc39dc3aec3bf
+[DEBUG] arg 5: len=3, str="-iv"
+[DEBUG] arg 5 hex: 2d6976
+[DEBUG] arg 6: len=16, str="	
+"
+[DEBUG] arg 6 hex: 0102030405060708090a0b0c0d0e0f10
+[DEBUG] arg 7: len=13, str="Test message!"
+[DEBUG] arg 7 hex: 54657374206d65737361676521

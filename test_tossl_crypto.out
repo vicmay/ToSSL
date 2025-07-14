@@ -1,0 +1,12 @@
+DEBUG: AES key: 00112233445566778899aabbccddeeff
+DEBUG: AES IV:  0102030405060708090a0b0c0d0e0f10
+DEBUG: Plaintext: Secret message!
+DEBUG: Ciphertext: fde4fbae4a09e020eff722969f83832b000afae0b345ae95688e032d1f676bda
+DEBUG: Ciphertext length: 32
+DEBUG: Decrypt result: 1, Output: OpenSSL: decryption final failed
+encrypt/decrypt roundtrip... rsa verify valid... OK
+ec verify valid... OK
+dsa sign/verify... SKIPPED (not supported)
+x509 create PEM header... OK
+
+Crypto ToSSL tests complete.

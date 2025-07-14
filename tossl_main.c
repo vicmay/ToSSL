@@ -1,4 +1,5 @@
 #include "tossl.h"
+extern int Tossl_Pgp_Init(Tcl_Interp *interp);
 
 // Global variables for SSL/TLS handles
 static SslContextHandle *ssl_contexts = NULL;
@@ -186,5 +187,12 @@ int Tossl_Init(Tcl_Interp *interp) {
     // Provide the package to Tcl
     Tcl_PkgProvide(interp, "tossl", "0.1");
     TosslRegisterSslCommands(interp);
+    
+    // Debug: Check if PGP init is being called
+    int pgp_result = Tossl_Pgp_Init(interp);
+    if (pgp_result != TCL_OK) {
+        return pgp_result;
+    }
+    
     return TCL_OK;
 } 

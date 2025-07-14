@@ -1,0 +1,28 @@
+DEBUG: BIO_new_mem_buf done
+DEBUG: Private key parsed
+DEBUG: CSR allocated
+DEBUG: X509_NAME allocated
+DEBUG: isDict=1
+DEBUG: About to call Tcl_DictObjFirst
+DEBUG: Tcl_DictObjFirst result=0
+DEBUG: Tcl_DictObjFirst OK, entering for loop
+DEBUG: Before X509_NAME_add_entry_by_txt CN=ec.example.com
+DEBUG: After X509_NAME_add_entry_by_txt CN=ec.example.com, result=1
+DEBUG: Before X509_NAME_add_entry_by_txt O=ECOrg
+DEBUG: After X509_NAME_add_entry_by_txt O=ECOrg, result=1
+DEBUG: Before X509_NAME_add_entry_by_txt OU=ECTest
+DEBUG: After X509_NAME_add_entry_by_txt OU=ECTest, result=1
+DEBUG: Before X509_NAME_add_entry_by_txt L=ECCity
+DEBUG: After X509_NAME_add_entry_by_txt L=ECCity, result=1
+DEBUG: Before X509_NAME_add_entry_by_txt ST=ECState
+DEBUG: After X509_NAME_add_entry_by_txt ST=ECState, result=1
+DEBUG: Before X509_NAME_add_entry_by_txt C=US
+DEBUG: After X509_NAME_add_entry_by_txt C=US, result=1
+DEBUG: Before X509_NAME_add_entry_by_txt emailAddress=ec@example.com
+DEBUG: After X509_NAME_add_entry_by_txt emailAddress=ec@example.com, result=1
+DEBUG: End of for loop
+DEBUG: All subject fields set from dict
+DEBUG: About to call X509_REQ_set_subject_name
+DEBUG: Subject name set on req
+DEBUG: Public key set
+free(): double free detected in tcache 2

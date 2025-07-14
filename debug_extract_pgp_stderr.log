@@ -1,0 +1,12 @@
+parse_packet_header: tag=5 len=810 consumed=3
+extract_pgp_private_key: tag=5 len=810 consumed=3
+extract_pgp_private_key: version=4
+extract_pgp_private_key: algo=1
+extract_pgp_private_key: n_bits=2048 n_len=256
+extract_pgp_private_key: e_bits=17 e_len=3
+extract_pgp_private_key: s2k_type=0
+extract_pgp_private_key: d_bits=1024 d_len=128
+extract_pgp_private_key: p_bits=1024 p_len=128
+extract_pgp_private_key: q_bits=1024 q_len=128
+extract_pgp_private_key: u_bits=1024 u_len=128
+Unsupported signature version

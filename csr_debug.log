@@ -1,0 +1,18 @@
+DEBUG: BIO_new_mem_buf done
+DEBUG: Private key parsed
+DEBUG: CSR allocated
+DEBUG: X509_NAME allocated
+DEBUG: isDict=1
+DEBUG: About to call Tcl_DictObjFirst
+DEBUG: Tcl_DictObjFirst result=0
+DEBUG: Tcl_DictObjFirst OK, entering for loop
+DEBUG: Before X509_NAME_add_entry_by_txt CN=test.example.com
+DEBUG: After X509_NAME_add_entry_by_txt CN=test.example.com, result=1
+DEBUG: End of for loop
+DEBUG: All subject fields set from dict
+DEBUG: About to call X509_REQ_set_subject_name
+DEBUG: Subject name set on req
+DEBUG: Public key set
+DEBUG: CSR signed
+DEBUG: CSR written to PEM
+DEBUG: CSR creation done
