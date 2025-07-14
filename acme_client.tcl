@@ -94,86 +94,16 @@ proc acme::create_jws {payload url nonce key_private} {
 
 # Extract JWK (JSON Web Key) from private key
 proc acme::extract_jwk {key_private} {
-    set key_info [tossl::key::parse $key_private]
-    set key_type [dict get $key_info type]
-    if {$key_type eq "rsa"} {
-        # Get public key from private key
-        set pub_key [tossl::key::getpub $key_private]
-        
-        # Parse the public key to extract components
-        set pub_info [tossl::key::parse $pub_key]
-        
-        # For RSA, we need to extract n and e from the public key
-        # Since TOSSL doesn't expose the raw components, we'll use OpenSSL
-        # but in a more controlled way
-        set tmpfile [file tempfile]
-        set f [open $tmpfile w]
-        puts $f $pub_key
-        close $f
-        
-        set pubout [exec openssl rsa -pubin -in $tmpfile -noout -text]
-        file delete $tmpfile
-        
-        set n_hex ""
-        set e_dec ""
-        set lines [split $pubout "\n"]
-        set in_mod 0
-        foreach line $lines {
-            if {[string match "Modulus:*" $line]} {
-                set in_mod 1
-                set n_hex ""
-                continue
-            }
-            if {$in_mod} {
-                if {[string match "*Exponent*" $line]} {
-                    set in_mod 0
-                    if {[regexp {Exponent: ([0-9]+)} $line -> e]} {
-                        set e_dec $e
-                    } else {
-                        error "Failed to parse exponent from OpenSSL output: $line"
-                    }
-                } else {
-                    set l [string trim $line]
-                    regsub -all ":" $l "" l
-                    append n_hex $l
-                }
-            }
-        }
-        
-        if {$n_hex eq ""} {
-            error "Failed to parse modulus from OpenSSL output"
-        }
-        if {$e_dec eq ""} { 
-            error "Failed to parse exponent from OpenSSL output" 
-        }
-        
-        # Remove leading zero if present
-        if {[string match "00*" [string range $n_hex 0 1]]} {
-            set n_hex [string range $n_hex 2 end]
-        }
-        
-        # Convert to binary and encode
-        set n_bin [binary format H* $n_hex]
-        set n_b64u [acme::base64url_encode $n_bin]
-        
-        # Convert exponent to binary
-        set e_int [expr {$e_dec + 0}]
-        set e_bin ""
-        while {$e_int > 0} {
-            set byte [expr {$e_int & 0xFF}]
-            set e_bin [binary format c $byte]$e_bin
-            set e_int [expr {$e_int >> 8}]
-        }
-        if {[string length $e_bin] == 0} { set e_bin "\x01" }
-        set e_b64u [acme::base64url_encode $e_bin]
-        
-        return [rl_json::json object \
-            kty {string RSA} \
-            n [list string $n_b64u] \
-            e [list string $e_b64u]]
-    } else {
-        error "Only RSA keys are currently supported for JWK extraction"
+    # Use TOSSL's JWK extraction
+    set jwk_dict [tossl::jwk::extract -key $key_private]
+    
+    # Convert dict to JSON format expected by ACME
+    set jwk_obj [rl_json::json object]
+    dict for {key value} $jwk_dict {
+        rl_json::json set jwk_obj $key $value
     }
+    
+    return $jwk_obj
 }
 
 # Base64URL encoding (RFC 4648)
@@ -341,13 +271,12 @@ proc acme::complete_http_challenge {challenge_url key_private key_authorization 
 
 # Generate key authorization for HTTP-01 challenge
 proc acme::generate_key_authorization {token key_private} {
-    # Extract JWK thumbprint
+    # Extract JWK using TOSSL
     set jwk [acme::extract_jwk $key_private]
     set jwk_json [rl_json::json normalize $jwk]
-    # Get SHA-256 hash as hex, convert to binary, then to base64url
-    set jwk_thumbprint_hex [tossl::digest -alg sha256 $jwk_json]
-    set jwk_thumbprint_bin [tossl::hex::decode $jwk_thumbprint_hex]
-    set jwk_thumbprint [acme::base64url_encode $jwk_thumbprint_bin]
+    
+    # Generate JWK thumbprint using TOSSL
+    set jwk_thumbprint [tossl::jwk::thumbprint -jwk $jwk_json]
     
     # Create key authorization
     return "${token}.${jwk_thumbprint}"
@@ -543,58 +472,20 @@ proc acme::get_order_status {order_url key_private directory} {
 
 # Create CSR (Certificate Signing Request)
 proc acme::create_csr {domains private_key} {
-    # Create a temporary config file for OpenSSL
+    # Get public key from private key
+    set public_key [tossl::key::getpub $private_key]
+    
+    # Create subject (use first domain as CN)
     set primary_domain [lindex $domains 0]
-    set config_file [file tempfile]
-    set f [open $config_file w]
+    set subject "CN=$primary_domain"
     
-    puts $f "\[req\]"
-    puts $f "default_bits = 2048"
-    puts $f "prompt = no"
-    puts $f "default_md = sha256"
-    puts $f "distinguished_name = dn"
-    puts $f "req_extensions = v3_req"
-    puts $f ""
-    puts $f "\[dn\]"
-    puts $f "CN = $primary_domain"
-    puts $f ""
-    puts $f "\[v3_req\]"
-    puts $f "keyUsage = keyEncipherment, dataEncipherment"
-    puts $f "extendedKeyUsage = serverAuth"
-    puts $f "subjectAltName = @alt_names"
-    puts $f ""
-    puts $f "\[alt_names\]"
+    # Create key usage for server certificates
+    set key_usage {digitalSignature keyEncipherment}
     
-    set dns_count 1
-    foreach domain $domains {
-        puts $f "DNS.$dns_count = $domain"
-        incr dns_count
-    }
+    # Create CSR using TOSSL (basic version without extensions)
+    set csr [tossl::csr::create -subject $subject -pubkey $public_key -privkey $private_key]
     
-    close $f
-    
-    # Write private key to temporary file
-    set key_file [file tempfile]
-    set f [open $key_file w]
-    puts -nonewline $f $private_key
-    close $f
-    
-    # Generate CSR using OpenSSL
-    set csr_file [file tempfile]
-    set cmd "openssl req -new -key $key_file -out $csr_file -config $config_file"
-    set result [exec {*}$cmd]
-    
-    # Read the generated CSR
-    set f [open $csr_file r]
-    set csr_content [read $f]
-    close $f
-    
-    # Clean up temporary files
-    file delete $config_file
-    file delete $key_file
-    file delete $csr_file
-    
-    return $csr_content
+    return $csr
 }
 
 # Example usage
