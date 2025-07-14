@@ -68,10 +68,14 @@ This document outlines all the missing features needed to make TOSSL as close to
 - [ ] **Certificate transparency**: CT log operations
 
 ### **Certificate Signing Requests (CSR)**
-- [ ] **CSR extensions**: Full support for all X.509 extensions
-- [ ] **CSR validation**: Validate CSR structure and signature
-- [ ] **CSR modification**: Add/remove CSR attributes
-- [ ] **CSR fingerprinting**: Generate CSR fingerprints
+- [x] **CSR extensions**: Full support for all X.509 extensions  
+  _Implemented in TOSSL (2024-06)._
+- [x] **CSR validation**: Validate CSR structure and signature  
+  _Implemented in TOSSL (2024-06)._
+- [x] **CSR modification**: Add/remove CSR attributes  
+  _Implemented in TOSSL (2024-06)._
+- [x] **CSR fingerprinting**: Generate CSR fingerprints  
+  _Implemented in TOSSL (2024-06)._
 
 ### **Certificate Revocation**
 - [ ] **CRL operations**: Create, parse, validate CRLs
@@ -123,9 +127,11 @@ This document outlines all the missing features needed to make TOSSL as close to
 - [ ] **PKCS#8 key import/export**: Encrypted and unencrypted
 - [ ] **PKCS#8 key generation**: Generate PKCS#8 compliant keys
 
-### **PKCS#10 Operations** (CSR - Partially implemented)
-- [ ] **PKCS#10 CSR creation**: Full PKCS#10 compliance
-- [ ] **PKCS#10 CSR parsing**: Parse all PKCS#10 attributes
+### **PKCS#10 Operations** (CSR - Fully implemented)
+- [x] **PKCS#10 CSR creation**: Full PKCS#10 compliance  
+  _Implemented in TOSSL (2024-06)._
+- [x] **PKCS#10 CSR parsing**: Parse all PKCS#10 attributes  
+  _Implemented in TOSSL (2024-06)._
 
 ### **PKCS#11 Operations**
 - [ ] **PKCS#11 interface**: Hardware security module support
@@ -286,7 +292,8 @@ This document outlines all the missing features needed to make TOSSL as close to
   _[x] Implemented (2024-06)_
 - Complete X.509 operations  
   _[x] Validation/fingerprinting implemented (2024-06)_
-- Full CSR support
+- Full CSR support  
+  _[x] Implemented (2024-06)_
 - Complete SSL/TLS support
 
 ### **Medium Priority** (Important for advanced usage)

@@ -643,6 +643,235 @@ static int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
+// tossl::kdf::pbkdf2 -password <password> -salt <salt> -iterations <n> -keylen <n> ?-digest <name>?
+static int Pbkdf2Cmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 9 && objc != 11) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-password password -salt salt -iterations n -keylen n ?-digest name?");
+        return TCL_ERROR;
+    }
+    const char *password = NULL, *salt = NULL, *digest = "sha256";
+    int password_len = 0, salt_len = 0;
+    int iterations = 0, keylen = 0;
+    
+    for (int i = 1; i < objc; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-password") == 0) {
+            password = Tcl_GetStringFromObj(objv[i+1], &password_len);
+        } else if (strcmp(opt, "-salt") == 0) {
+            salt = Tcl_GetStringFromObj(objv[i+1], &salt_len);
+        } else if (strcmp(opt, "-iterations") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &iterations) != TCL_OK || iterations <= 0) {
+                Tcl_SetResult(interp, "iterations must be a positive integer", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-keylen") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &keylen) != TCL_OK || keylen <= 0 || keylen > 4096) {
+                Tcl_SetResult(interp, "keylen must be a positive integer between 1 and 4096", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-digest") == 0) {
+            digest = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!password || !salt || iterations == 0 || keylen == 0) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    const EVP_MD *md = EVP_get_digestbyname(digest);
+    if (!md) {
+        Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char *key = OPENSSL_malloc(keylen);
+    if (!key) {
+        Tcl_SetResult(interp, "OpenSSL: memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (!PKCS5_PBKDF2_HMAC(password, password_len, (const unsigned char*)salt, salt_len, 
+                           iterations, md, keylen, key)) {
+        OPENSSL_free(key);
+        Tcl_SetResult(interp, "OpenSSL: PBKDF2 failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *result = Tcl_NewByteArrayObj(key, keylen);
+    OPENSSL_free(key);
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// tossl::kdf::scrypt -password <password> -salt <salt> -n <n> -r <r> -p <p> -keylen <n>
+static int ScryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 13) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-password password -salt salt -n n -r r -p p -keylen n");
+        return TCL_ERROR;
+    }
+    const char *password = NULL, *salt = NULL;
+    int password_len = 0, salt_len = 0;
+    int n = 0, r = 0, p = 0, keylen = 0;
+    
+    for (int i = 1; i < objc; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-password") == 0) {
+            password = Tcl_GetStringFromObj(objv[i+1], &password_len);
+        } else if (strcmp(opt, "-salt") == 0) {
+            salt = Tcl_GetStringFromObj(objv[i+1], &salt_len);
+        } else if (strcmp(opt, "-n") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &n) != TCL_OK || n <= 0) {
+                Tcl_SetResult(interp, "n must be a positive integer", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-r") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &r) != TCL_OK || r <= 0) {
+                Tcl_SetResult(interp, "r must be a positive integer", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-p") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &p) != TCL_OK || p <= 0) {
+                Tcl_SetResult(interp, "p must be a positive integer", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-keylen") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &keylen) != TCL_OK || keylen <= 0 || keylen > 4096) {
+                Tcl_SetResult(interp, "keylen must be a positive integer between 1 and 4096", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!password || !salt || n == 0 || r == 0 || p == 0 || keylen == 0) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char *key = OPENSSL_malloc(keylen);
+    if (!key) {
+        Tcl_SetResult(interp, "OpenSSL: memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (!EVP_PBE_scrypt(password, password_len, (const unsigned char*)salt, salt_len, 
+                        n, r, p, 0, key, keylen)) {
+        OPENSSL_free(key);
+        Tcl_SetResult(interp, "OpenSSL: scrypt failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *result = Tcl_NewByteArrayObj(key, keylen);
+    OPENSSL_free(key);
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// tossl::kdf::argon2 -password <password> -salt <salt> -time <t> -memory <m> -parallel <p> -keylen <n> ?-type <type>?
+static int Argon2Cmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 13 && objc != 15) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-password password -salt salt -time t -memory m -parallel p -keylen n ?-type type?");
+        return TCL_ERROR;
+    }
+    const char *password = NULL, *salt = NULL;
+    int password_len = 0, salt_len = 0;
+    int time_cost = 0, memory_cost = 0, parallelism = 0, keylen = 0;
+    const char *type = "argon2id";
+    
+    for (int i = 1; i < objc; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-password") == 0) {
+            password = Tcl_GetStringFromObj(objv[i+1], &password_len);
+        } else if (strcmp(opt, "-salt") == 0) {
+            salt = Tcl_GetStringFromObj(objv[i+1], &salt_len);
+        } else if (strcmp(opt, "-time") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &time_cost) != TCL_OK || time_cost <= 0) {
+                Tcl_SetResult(interp, "time must be a positive integer", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-memory") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &memory_cost) != TCL_OK || memory_cost <= 0) {
+                Tcl_SetResult(interp, "memory must be a positive integer", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-parallel") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &parallelism) != TCL_OK || parallelism <= 0) {
+                Tcl_SetResult(interp, "parallel must be a positive integer", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-keylen") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &keylen) != TCL_OK || keylen <= 0 || keylen > 4096) {
+                Tcl_SetResult(interp, "keylen must be a positive integer between 1 and 4096", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strcmp(opt, "-type") == 0) {
+            type = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!password || !salt || time_cost == 0 || memory_cost == 0 || parallelism == 0 || keylen == 0) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Note: OpenSSL doesn't have built-in Argon2 support in all versions
+    // This is a placeholder implementation - in practice, you might need to use a separate library
+    Tcl_SetResult(interp, "Argon2 not supported in this OpenSSL build", TCL_STATIC);
+    return TCL_ERROR;
+}
+
+// tossl::cipher::info <algorithm>
+static int CipherInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "algorithm");
+        return TCL_ERROR;
+    }
+    const char *alg = Tcl_GetString(objv[1]);
+    const EVP_CIPHER *cipher = EVP_get_cipherbyname(alg);
+    if (!cipher) {
+        Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("name", -1), Tcl_NewStringObj(alg, -1));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("block_size", -1), Tcl_NewIntObj(EVP_CIPHER_block_size(cipher)));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("key_length", -1), Tcl_NewIntObj(EVP_CIPHER_key_length(cipher)));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("iv_length", -1), Tcl_NewIntObj(EVP_CIPHER_iv_length(cipher)));
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("flags", -1), Tcl_NewLongObj(EVP_CIPHER_flags(cipher)));
+    
+    // Determine mode
+    const char *mode = "unknown";
+    if (EVP_CIPHER_flags(cipher) & EVP_CIPH_MODE) {
+        int mode_flags = EVP_CIPHER_flags(cipher) & EVP_CIPH_MODE;
+        if (mode_flags == EVP_CIPH_ECB_MODE) mode = "ecb";
+        else if (mode_flags == EVP_CIPH_CBC_MODE) mode = "cbc";
+        else if (mode_flags == EVP_CIPH_CFB_MODE) mode = "cfb";
+        else if (mode_flags == EVP_CIPH_OFB_MODE) mode = "ofb";
+        else if (mode_flags == EVP_CIPH_CTR_MODE) mode = "ctr";
+        else if (mode_flags == EVP_CIPH_GCM_MODE) mode = "gcm";
+        else if (mode_flags == EVP_CIPH_CCM_MODE) mode = "ccm";
+        else if (mode_flags == EVP_CIPH_XTS_MODE) mode = "xts";
+    }
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("mode", -1), Tcl_NewStringObj(mode, -1));
+    
+    Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
 // tossl::encrypt -alg <name> -key <key> -iv <iv> <data>
 static int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
@@ -1009,14 +1238,17 @@ static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
         return TCL_ERROR;
     }
     Tcl_Obj *dict = Tcl_NewDictObj();
+    
     // Subject
     char subj[256];
     X509_NAME_oneline(X509_get_subject_name(cert), subj, sizeof(subj));
     Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("subject", -1), Tcl_NewStringObj(subj, -1));
+    
     // Issuer
     char issuer[256];
     X509_NAME_oneline(X509_get_issuer_name(cert), issuer, sizeof(issuer));
     Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+    
     // Serial
     ASN1_INTEGER *serial = X509_get_serialNumber(cert);
     BIGNUM *bn = ASN1_INTEGER_to_BN(serial, NULL);
@@ -1024,6 +1256,7 @@ static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("serial", -1), Tcl_NewStringObj(serial_hex, -1));
     BN_free(bn);
     OPENSSL_free(serial_hex);
+    
     // Validity
     const ASN1_TIME *notBefore = X509_get0_notBefore(cert);
     const ASN1_TIME *notAfter = X509_get0_notAfter(cert);
@@ -1038,40 +1271,329 @@ static int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     BIO_read(mem, notafter_str, sizeof(notafter_str)-1);
     Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("notAfter", -1), Tcl_NewStringObj(notafter_str, -1));
     BIO_free(mem);
-    // Subject Alternative Name (SAN)
-    STACK_OF(GENERAL_NAME) *san_names = (STACK_OF(GENERAL_NAME) *)X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);
-    if (san_names) {
-        Tcl_Obj *sanList = Tcl_NewListObj(0, NULL);
-        int num = sk_GENERAL_NAME_num(san_names);
+    
+    // Certificate version
+    long version = X509_get_version(cert);
+    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("version", -1), Tcl_NewLongObj(version));
+
+    // Signature algorithm
+    const X509_ALGOR *sig_alg = X509_get0_tbs_sigalg(cert);
+    if (sig_alg) {
+        const ASN1_OBJECT *sig_obj;
+        X509_ALGOR_get0(&sig_obj, NULL, NULL, sig_alg);
+        if (sig_obj) {
+            char sig_name[128];
+            OBJ_obj2txt(sig_name, sizeof(sig_name), sig_obj, 0);
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("signature_algorithm", -1), Tcl_NewStringObj(sig_name, -1));
+        }
+    }
+
+    // Public key info
+    EVP_PKEY *pkey = X509_get_pubkey(cert);
+    if (pkey) {
+        int key_type = EVP_PKEY_base_id(pkey);
+        int key_bits = EVP_PKEY_get_bits(pkey);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("key_bits", -1), Tcl_NewIntObj(key_bits));
+        
+        const char *key_type_str = "unknown";
+        if (key_type == EVP_PKEY_RSA) key_type_str = "rsa";
+        else if (key_type == EVP_PKEY_DSA) key_type_str = "dsa";
+        else if (key_type == EVP_PKEY_EC) key_type_str = "ec";
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("key_type", -1), Tcl_NewStringObj(key_type_str, -1));
+        
+        EVP_PKEY_free(pkey);
+    }
+
+    // Subject Alternative Name (SAN) - with defensive programming
+    int san_idx = X509_get_ext_by_NID(cert, NID_subject_alt_name, -1);
+    if (san_idx >= 0) {
+        X509_EXTENSION *san_ext = X509_get_ext(cert, san_idx);
+        if (san_ext) {
+            STACK_OF(GENERAL_NAME) *san_names = (STACK_OF(GENERAL_NAME) *)X509V3_EXT_d2i(san_ext);
+            if (san_names) {
+                Tcl_Obj *sanList = Tcl_NewListObj(0, NULL);
+                int num = sk_GENERAL_NAME_num(san_names);
+                for (int i = 0; i < num; ++i) {
+                    const GENERAL_NAME *name = sk_GENERAL_NAME_value(san_names, i);
+                    if (!name) continue; // Defensive
+                    if (name->type == GEN_DNS && name->d.dNSName) {
+                        const unsigned char *dns = ASN1_STRING_get0_data(name->d.dNSName);
+                        int len = ASN1_STRING_length(name->d.dNSName);
+                        if (dns)
+                            Tcl_ListObjAppendElement(interp, sanList, Tcl_NewStringObj((const char*)dns, len));
+                    } else if (name->type == GEN_IPADD && name->d.iPAddress) {
+                        const unsigned char *ip = ASN1_STRING_get0_data(name->d.iPAddress);
+                        int len = ASN1_STRING_length(name->d.iPAddress);
+                        if (ip) {
+                            char ipstr[64] = {0};
+                            if (len == 4) { // IPv4
+                                snprintf(ipstr, sizeof(ipstr), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
+                                Tcl_ListObjAppendElement(interp, sanList, Tcl_NewStringObj(ipstr, -1));
+                            } else if (len == 16) { // IPv6
+                                snprintf(ipstr, sizeof(ipstr), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+                                    ip[0], ip[1], ip[2], ip[3], ip[4], ip[5], ip[6], ip[7],
+                                    ip[8], ip[9], ip[10], ip[11], ip[12], ip[13], ip[14], ip[15]);
+                                Tcl_ListObjAppendElement(interp, sanList, Tcl_NewStringObj(ipstr, -1));
+                            }
+                        }
+                    }
+                }
+                Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("san", -1), sanList);
+                sk_GENERAL_NAME_pop_free(san_names, GENERAL_NAME_free);
+            }
+            X509_EXTENSION_free(san_ext);
+        }
+    }
+
+    // Key Usage
+    ASN1_BIT_STRING *key_usage = (ASN1_BIT_STRING *)X509_get_ext_d2i(cert, NID_key_usage, NULL, NULL);
+    if (key_usage) {
+        Tcl_Obj *usageList = Tcl_NewListObj(0, NULL);
+        if (ASN1_BIT_STRING_get_bit(key_usage, 0)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("digitalSignature", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 1)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("nonRepudiation", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 2)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("keyEncipherment", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 3)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("dataEncipherment", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 4)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("keyAgreement", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 5)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("keyCertSign", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 6)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("cRLSign", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 7)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("encipherOnly", -1));
+        if (ASN1_BIT_STRING_get_bit(key_usage, 8)) Tcl_ListObjAppendElement(interp, usageList, Tcl_NewStringObj("decipherOnly", -1));
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("key_usage", -1), usageList);
+        ASN1_BIT_STRING_free(key_usage);
+    }
+
+    // Extended Key Usage
+    STACK_OF(ASN1_OBJECT) *ext_key_usage = (STACK_OF(ASN1_OBJECT) *)X509_get_ext_d2i(cert, NID_ext_key_usage, NULL, NULL);
+    if (ext_key_usage) {
+        Tcl_Obj *extUsageList = Tcl_NewListObj(0, NULL);
+        int num = sk_ASN1_OBJECT_num(ext_key_usage);
         for (int i = 0; i < num; ++i) {
-            const GENERAL_NAME *name = sk_GENERAL_NAME_value(san_names, i);
-            if (name->type == GEN_DNS) {
-                const unsigned char *dns = ASN1_STRING_get0_data(name->d.dNSName);
-                int len = ASN1_STRING_length(name->d.dNSName);
-                Tcl_ListObjAppendElement(interp, sanList, Tcl_NewStringObj((const char*)dns, len));
-            } else if (name->type == GEN_IPADD) {
-                const unsigned char *ip = ASN1_STRING_get0_data(name->d.iPAddress);
-                int len = ASN1_STRING_length(name->d.iPAddress);
-                char ipstr[64] = {0};
-                if (len == 4) { // IPv4
-                    snprintf(ipstr, sizeof(ipstr), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
-                    Tcl_ListObjAppendElement(interp, sanList, Tcl_NewStringObj(ipstr, -1));
-                } else if (len == 16) { // IPv6
-                    snprintf(ipstr, sizeof(ipstr), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-                        ip[0], ip[1], ip[2], ip[3], ip[4], ip[5], ip[6], ip[7],
-                        ip[8], ip[9], ip[10], ip[11], ip[12], ip[13], ip[14], ip[15]);
-                    Tcl_ListObjAppendElement(interp, sanList, Tcl_NewStringObj(ipstr, -1));
+            ASN1_OBJECT *obj = sk_ASN1_OBJECT_value(ext_key_usage, i);
+            char obj_name[128];
+            OBJ_obj2txt(obj_name, sizeof(obj_name), obj, 0);
+            Tcl_ListObjAppendElement(interp, extUsageList, Tcl_NewStringObj(obj_name, -1));
+        }
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("extended_key_usage", -1), extUsageList);
+        sk_ASN1_OBJECT_pop_free(ext_key_usage, ASN1_OBJECT_free);
+    }
+
+    // Basic Constraints
+    int bc_idx = X509_get_ext_by_NID(cert, NID_basic_constraints, -1);
+    if (bc_idx >= 0) {
+        X509_EXTENSION *basic_constraints = X509_get_ext(cert, bc_idx);
+        if (basic_constraints) {
+            BASIC_CONSTRAINTS *bc = (BASIC_CONSTRAINTS *)X509V3_EXT_d2i(basic_constraints);
+            if (bc) {
+                Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("ca", -1), Tcl_NewBooleanObj(bc->ca));
+                if (bc->pathlen) {
+                    long pathlen = ASN1_INTEGER_get(bc->pathlen);
+                    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("pathlen", -1), Tcl_NewLongObj(pathlen));
+                }
+                BASIC_CONSTRAINTS_free(bc);
+            }
+            // Do NOT free basic_constraints here!
+        }
+    }
+
+    // Authority Information Access
+    AUTHORITY_INFO_ACCESS *aia = (AUTHORITY_INFO_ACCESS *)X509_get_ext_d2i(cert, NID_info_access, NULL, NULL);
+    if (aia) {
+        Tcl_Obj *aiaList = Tcl_NewListObj(0, NULL);
+        int num = sk_ACCESS_DESCRIPTION_num(aia);
+        for (int i = 0; i < num; ++i) {
+            ACCESS_DESCRIPTION *ad = sk_ACCESS_DESCRIPTION_value(aia, i);
+            if (!ad) continue; // Defensive
+            char method[128] = {0};
+            if (ad->method)
+                OBJ_obj2txt(method, sizeof(method), ad->method, 0);
+            if (ad->location && ad->location->type == GEN_URI && ad->location->d.uniformResourceIdentifier) {
+                const unsigned char *uri = ASN1_STRING_get0_data(ad->location->d.uniformResourceIdentifier);
+                int len = ASN1_STRING_length(ad->location->d.uniformResourceIdentifier);
+                if (uri) {
+                    Tcl_Obj *entry = Tcl_NewDictObj();
+                    Tcl_DictObjPut(interp, entry, Tcl_NewStringObj("method", -1), Tcl_NewStringObj(method, -1));
+                    Tcl_DictObjPut(interp, entry, Tcl_NewStringObj("uri", -1), Tcl_NewStringObj((const char*)uri, len));
+                    Tcl_ListObjAppendElement(interp, aiaList, entry);
                 }
             }
         }
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("san", -1), sanList);
-        sk_GENERAL_NAME_pop_free(san_names, GENERAL_NAME_free);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("authority_info_access", -1), aiaList);
+        AUTHORITY_INFO_ACCESS_free(aia);
+    }
+
+    // CRL Distribution Points
+    STACK_OF(DIST_POINT) *crl_dps = (STACK_OF(DIST_POINT) *)X509_get_ext_d2i(cert, NID_crl_distribution_points, NULL, NULL);
+    if (crl_dps) {
+        Tcl_Obj *crlList = Tcl_NewListObj(0, NULL);
+        int num = sk_DIST_POINT_num(crl_dps);
+        for (int i = 0; i < num; ++i) {
+            DIST_POINT *dp = sk_DIST_POINT_value(crl_dps, i);
+            if (!dp || !dp->distpoint || dp->distpoint->type != 0) continue; // Defensive
+            GENERAL_NAMES *names = dp->distpoint->name.fullname;
+            if (!names) continue;
+            int name_num = sk_GENERAL_NAME_num(names);
+            for (int j = 0; j < name_num; ++j) {
+                GENERAL_NAME *name = sk_GENERAL_NAME_value(names, j);
+                if (!name) continue;
+                if (name->type == GEN_URI && name->d.uniformResourceIdentifier) {
+                    const unsigned char *uri = ASN1_STRING_get0_data(name->d.uniformResourceIdentifier);
+                    int len = ASN1_STRING_length(name->d.uniformResourceIdentifier);
+                    if (uri)
+                        Tcl_ListObjAppendElement(interp, crlList, Tcl_NewStringObj((const char*)uri, len));
+                }
+            }
+        }
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("crl_distribution_points", -1), crlList);
+        sk_DIST_POINT_pop_free(crl_dps, DIST_POINT_free);
+    }
+
+    // Subject Key Identifier
+    ASN1_OCTET_STRING *ski = (ASN1_OCTET_STRING *)X509_get_ext_d2i(cert, NID_subject_key_identifier, NULL, NULL);
+    if (ski) {
+        char ski_hex[256];
+        bin2hex(ASN1_STRING_get0_data(ski), ASN1_STRING_length(ski), ski_hex);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("subject_key_identifier", -1), Tcl_NewStringObj(ski_hex, -1));
+        ASN1_OCTET_STRING_free(ski);
+    }
+
+    // Authority Key Identifier
+    AUTHORITY_KEYID *aki = (AUTHORITY_KEYID *)X509_get_ext_d2i(cert, NID_authority_key_identifier, NULL, NULL);
+    if (aki && aki->keyid) {
+        char aki_hex[256];
+        bin2hex(ASN1_STRING_get0_data(aki->keyid), ASN1_STRING_length(aki->keyid), aki_hex);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("authority_key_identifier", -1), Tcl_NewStringObj(aki_hex, -1));
+        AUTHORITY_KEYID_free(aki);
+    }
+
+    // Certificate Policies
+    STACK_OF(POLICYINFO) *policies = (STACK_OF(POLICYINFO) *)X509_get_ext_d2i(cert, NID_certificate_policies, NULL, NULL);
+    if (policies) {
+        Tcl_Obj *policyList = Tcl_NewListObj(0, NULL);
+        int num = sk_POLICYINFO_num(policies);
+        for (int i = 0; i < num; ++i) {
+            POLICYINFO *policy = sk_POLICYINFO_value(policies, i);
+            if (!policy || !policy->policyid) continue;
+            char policy_name[128];
+            OBJ_obj2txt(policy_name, sizeof(policy_name), policy->policyid, 0);
+            Tcl_ListObjAppendElement(interp, policyList, Tcl_NewStringObj(policy_name, -1));
+        }
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("certificate_policies", -1), policyList);
+        sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
     }
 
     // Cleanup
     X509_free(cert);
     BIO_free(bio);
     Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// tossl::x509::modify -cert <pem> -add_extension <oid> <value> <critical> ?-remove_extension <oid>?
+static int X509ModifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 6 && objc != 8) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-cert pem -add_extension oid value critical ?-remove_extension oid?");
+        return TCL_ERROR;
+    }
+    const char *cert_pem = NULL, *add_oid = NULL, *add_value = NULL, *remove_oid = NULL;
+    int cert_len = 0;
+    int add_critical = 0;
+    
+    for (int i = 1; i < objc; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-cert") == 0) {
+            cert_pem = Tcl_GetStringFromObj(objv[i+1], &cert_len);
+        } else if (strcmp(opt, "-add_extension") == 0) {
+            add_oid = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-remove_extension") == 0) {
+            remove_oid = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    // Parse critical flag
+    if (objc >= 6) {
+        const char *critical_str = Tcl_GetString(objv[5]);
+        add_critical = (strcmp(critical_str, "true") == 0 || strcmp(critical_str, "1") == 0);
+    }
+    
+    if (!cert_pem || !add_oid) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse certificate
+    BIO *cert_bio = BIO_new_mem_buf((void*)cert_pem, cert_len);
+    X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
+    if (!cert) {
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Remove extension if specified
+    if (remove_oid) {
+        int nid = OBJ_txt2nid(remove_oid);
+        if (nid == NID_undef) {
+            X509_free(cert);
+            BIO_free(cert_bio);
+            Tcl_SetResult(interp, "Unknown extension OID", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        int ext_idx = X509_get_ext_by_NID(cert, nid, -1);
+        if (ext_idx >= 0) {
+            X509_EXTENSION *ext = X509_get_ext(cert, ext_idx);
+            if (ext) {
+                X509_delete_ext(cert, ext_idx);
+                X509_EXTENSION_free(ext);
+            }
+        }
+    }
+    
+    // Add extension
+    int nid = OBJ_txt2nid(add_oid);
+    if (nid == NID_undef) {
+        X509_free(cert);
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "Unknown extension OID", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, NULL, nid, (char*)add_value);
+    if (!ext) {
+        X509_free(cert);
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create extension", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (add_critical) {
+        X509_EXTENSION_set_critical(ext, 1);
+    }
+    
+    if (!X509_add_ext(cert, ext, -1)) {
+        X509_EXTENSION_free(ext);
+        X509_free(cert);
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to add extension", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Output modified certificate
+    BIO *out = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509(out, cert);
+    char *pem = NULL;
+    long pemlen = BIO_get_mem_data(out, &pem);
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(pem, pemlen));
+    
+    // Cleanup
+    BIO_free(out);
+    X509_EXTENSION_free(ext);
+    X509_free(cert);
+    BIO_free(cert_bio);
+    
     return TCL_OK;
 }
 
@@ -3143,8 +3665,64 @@ static int CsrCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     // Set public key
     X509_REQ_set_pubkey(req, pkey);
     
-    // Note: Extensions are not supported in this basic CSR implementation
-    // For ACME, the CA will typically add the necessary extensions
+    // Add extensions if provided
+    if (sanListObj || keyUsageListObj) {
+        STACK_OF(X509_EXTENSION) *exts = sk_X509_EXTENSION_new_null();
+        
+        // Subject Alternative Name
+        if (sanListObj) {
+            int san_count;
+            Tcl_Obj **san_items;
+            if (Tcl_ListObjGetElements(interp, sanListObj, &san_count, &san_items) == TCL_OK) {
+                GENERAL_NAMES *sans = sk_GENERAL_NAME_new_null();
+                for (int i = 0; i < san_count; ++i) {
+                    const char *dns = Tcl_GetString(san_items[i]);
+                    GENERAL_NAME *name = GENERAL_NAME_new();
+                    name->type = GEN_DNS;
+                    name->d.dNSName = ASN1_IA5STRING_new();
+                    ASN1_STRING_set(name->d.dNSName, dns, strlen(dns));
+                    sk_GENERAL_NAME_push(sans, name);
+                }
+                X509_EXTENSION *san_ext = X509V3_EXT_i2d(NID_subject_alt_name, 0, sans);
+                if (san_ext) {
+                    sk_X509_EXTENSION_push(exts, san_ext);
+                }
+                sk_GENERAL_NAME_pop_free(sans, GENERAL_NAME_free);
+            }
+        }
+        
+        // Key Usage
+        if (keyUsageListObj) {
+            int usage_count;
+            Tcl_Obj **usage_items;
+            if (Tcl_ListObjGetElements(interp, keyUsageListObj, &usage_count, &usage_items) == TCL_OK) {
+                ASN1_BIT_STRING *key_usage = ASN1_BIT_STRING_new();
+                for (int i = 0; i < usage_count; ++i) {
+                    const char *usage = Tcl_GetString(usage_items[i]);
+                    if (strcmp(usage, "digitalSignature") == 0) ASN1_BIT_STRING_set_bit(key_usage, 0, 1);
+                    else if (strcmp(usage, "nonRepudiation") == 0) ASN1_BIT_STRING_set_bit(key_usage, 1, 1);
+                    else if (strcmp(usage, "keyEncipherment") == 0) ASN1_BIT_STRING_set_bit(key_usage, 2, 1);
+                    else if (strcmp(usage, "dataEncipherment") == 0) ASN1_BIT_STRING_set_bit(key_usage, 3, 1);
+                    else if (strcmp(usage, "keyAgreement") == 0) ASN1_BIT_STRING_set_bit(key_usage, 4, 1);
+                    else if (strcmp(usage, "keyCertSign") == 0) ASN1_BIT_STRING_set_bit(key_usage, 5, 1);
+                    else if (strcmp(usage, "cRLSign") == 0) ASN1_BIT_STRING_set_bit(key_usage, 6, 1);
+                    else if (strcmp(usage, "encipherOnly") == 0) ASN1_BIT_STRING_set_bit(key_usage, 7, 1);
+                    else if (strcmp(usage, "decipherOnly") == 0) ASN1_BIT_STRING_set_bit(key_usage, 8, 1);
+                }
+                X509_EXTENSION *usage_ext = X509V3_EXT_i2d(NID_key_usage, 0, key_usage);
+                if (usage_ext) {
+                    sk_X509_EXTENSION_push(exts, usage_ext);
+                }
+                ASN1_BIT_STRING_free(key_usage);
+            }
+        }
+        
+        // Add extensions to CSR
+        if (sk_X509_EXTENSION_num(exts) > 0) {
+            X509_REQ_add_extensions(req, exts);
+        }
+        sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+    }
     
     // Sign the CSR
     if (!X509_REQ_sign(req, signing_key, EVP_sha256())) {
@@ -3231,6 +3809,38 @@ static int CsrParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         }
         Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("extensions", -1), extList);
         sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+    }
+    
+    // Parse all PKCS#10 attributes
+    int attr_count = X509_REQ_get_attr_count(req);
+    if (attr_count > 0) {
+        Tcl_Obj *attrList = Tcl_NewListObj(0, NULL);
+        for (int i = 0; i < attr_count; ++i) {
+            X509_ATTRIBUTE *attr = X509_REQ_get_attr(req, i);
+            int nid = OBJ_obj2nid(X509_ATTRIBUTE_get0_object(attr));
+            const char *attr_name = OBJ_nid2sn(nid);
+            Tcl_Obj *entry = Tcl_NewDictObj();
+            Tcl_DictObjPut(interp, entry, Tcl_NewStringObj("oid", -1), Tcl_NewStringObj(attr_name ? attr_name : "unknown", -1));
+            int val_count = X509_ATTRIBUTE_count(attr);
+            Tcl_Obj *valList = Tcl_NewListObj(0, NULL);
+            for (int j = 0; j < val_count; ++j) {
+                ASN1_TYPE *val = X509_ATTRIBUTE_get0_type(attr, j);
+                if (val->type == V_ASN1_UTF8STRING) {
+                    Tcl_ListObjAppendElement(interp, valList, Tcl_NewStringObj((const char*)ASN1_STRING_get0_data(val->value.utf8string), ASN1_STRING_length(val->value.utf8string)));
+                } else if (val->type == V_ASN1_IA5STRING) {
+                    Tcl_ListObjAppendElement(interp, valList, Tcl_NewStringObj((const char*)ASN1_STRING_get0_data(val->value.ia5string), ASN1_STRING_length(val->value.ia5string)));
+                } else if (val->type == V_ASN1_OCTET_STRING) {
+                    char hex[256];
+                    bin2hex(ASN1_STRING_get0_data(val->value.octet_string), ASN1_STRING_length(val->value.octet_string), hex);
+                    Tcl_ListObjAppendElement(interp, valList, Tcl_NewStringObj(hex, -1));
+                } else {
+                    Tcl_ListObjAppendElement(interp, valList, Tcl_NewStringObj("(unparsed)", -1));
+                }
+            }
+            Tcl_DictObjPut(interp, entry, Tcl_NewStringObj("values", -1), valList);
+            Tcl_ListObjAppendElement(interp, attrList, entry);
+        }
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("attributes", -1), attrList);
     }
     
     // Cleanup
@@ -3643,6 +4253,189 @@ static int RsaComponentsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj
     return TCL_OK;
 }
 
+// tossl::csr::validate <pem>
+static int CsrValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "pem");
+        return TCL_ERROR;
+    }
+    int pem_len;
+    const char *pem = Tcl_GetStringFromObj(objv[1], &pem_len);
+    BIO *bio = BIO_new_mem_buf((void*)pem, pem_len);
+    X509_REQ *req = PEM_read_bio_X509_REQ(bio, NULL, NULL, NULL);
+    if (!req) {
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CSR", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Validate CSR signature
+    EVP_PKEY *pkey = X509_REQ_get_pubkey(req);
+    int valid = 0;
+    if (pkey) {
+        valid = X509_REQ_verify(req, pkey);
+        EVP_PKEY_free(pkey);
+    }
+    
+    // Cleanup
+    X509_REQ_free(req);
+    BIO_free(bio);
+    
+    Tcl_SetObjResult(interp, Tcl_NewBooleanObj(valid == 1));
+    return TCL_OK;
+}
+
+// tossl::csr::fingerprint <pem> ?-algorithm sha1|sha256|sha512?
+static int CsrFingerprintCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc < 2 || objc > 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "pem ?-algorithm sha1|sha256|sha512?");
+        return TCL_ERROR;
+    }
+    
+    const char *algorithm = "sha256"; // Default
+    const char *pem = NULL;
+    int pem_len = 0;
+    
+    if (objc == 4) {
+        const char *opt = Tcl_GetString(objv[1]);
+        if (strcmp(opt, "-algorithm") == 0) {
+            algorithm = Tcl_GetString(objv[2]);
+            pem = Tcl_GetStringFromObj(objv[3], &pem_len);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    } else {
+        pem = Tcl_GetStringFromObj(objv[1], &pem_len);
+    }
+    
+    // Parse CSR
+    BIO *bio = BIO_new_mem_buf((void*)pem, pem_len);
+    X509_REQ *req = PEM_read_bio_X509_REQ(bio, NULL, NULL, NULL);
+    if (!req) {
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CSR", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Get DER encoding
+    BIO *der_bio = BIO_new(BIO_s_mem());
+    i2d_X509_REQ_bio(der_bio, req);
+    char *der_data = NULL;
+    long der_len = BIO_get_mem_data(der_bio, &der_data);
+    
+    // Calculate hash
+    const EVP_MD *md = NULL;
+    if (strcmp(algorithm, "sha1") == 0) md = EVP_sha1();
+    else if (strcmp(algorithm, "sha256") == 0) md = EVP_sha256();
+    else if (strcmp(algorithm, "sha512") == 0) md = EVP_sha512();
+    else {
+        X509_REQ_free(req);
+        BIO_free(bio);
+        BIO_free(der_bio);
+        Tcl_SetResult(interp, "Unsupported algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len;
+    EVP_Digest(der_data, der_len, hash, &hash_len, md, NULL);
+    
+    // Convert to hex
+    char hex_hash[EVP_MAX_MD_SIZE * 2 + 1];
+    bin2hex(hash, hash_len, hex_hash);
+    
+    // Cleanup
+    X509_REQ_free(req);
+    BIO_free(bio);
+    BIO_free(der_bio);
+    
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(hex_hash, -1));
+    return TCL_OK;
+}
+
+// tossl::csr::modify -csr <pem> -add_extension <oid> <value> <critical> ?-remove_extension <oid>?
+static int CsrModifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    const char *csr_pem = NULL, *oid = NULL, *value = NULL;
+    int csr_len = 0, critical = 0;
+    const char *remove_oid = NULL;
+    int i = 1;
+    for (; i < objc; ++i) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-csr") == 0 && i+1 < objc) {
+            csr_pem = Tcl_GetStringFromObj(objv[++i], &csr_len);
+        } else if (strcmp(opt, "-add_extension") == 0 && i+3 < objc) {
+            oid = Tcl_GetString(objv[++i]);
+            value = Tcl_GetString(objv[++i]);
+            if (Tcl_GetIntFromObj(interp, objv[++i], &critical) != TCL_OK) return TCL_ERROR;
+        } else if (strcmp(opt, "-remove_extension") == 0 && i+1 < objc) {
+            remove_oid = Tcl_GetString(objv[++i]);
+        } else {
+            break;
+        }
+    }
+    if (!csr_pem) {
+        Tcl_SetResult(interp, "Missing -csr option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    BIO *bio = BIO_new_mem_buf((void*)csr_pem, csr_len);
+    X509_REQ *req = PEM_read_bio_X509_REQ(bio, NULL, NULL, NULL);
+    if (!req) {
+        BIO_free(bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse CSR", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Remove extension if requested
+    if (remove_oid) {
+        int nid = OBJ_txt2nid(remove_oid);
+        STACK_OF(X509_EXTENSION) *exts = X509_REQ_get_extensions(req);
+        if (exts) {
+            for (int j = 0; j < sk_X509_EXTENSION_num(exts); ++j) {
+                X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, j);
+                if (OBJ_obj2nid(X509_EXTENSION_get_object(ext)) == nid) {
+                    sk_X509_EXTENSION_delete(exts, j);
+                    break;
+                }
+            }
+            X509_REQ_add_extensions(req, exts);
+            sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+        }
+    }
+    // Add extension if requested
+    if (oid && value) {
+        int nid = OBJ_txt2nid(oid);
+        X509V3_CTX ctx;
+        X509V3_set_ctx_nodb(&ctx);
+        X509V3_set_ctx(&ctx, NULL, NULL, NULL, NULL, 0);
+        X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, &ctx, nid, value);
+        if (!ext) {
+            X509_REQ_free(req);
+            BIO_free(bio);
+            Tcl_SetResult(interp, "OpenSSL: failed to create extension", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        X509_EXTENSION_set_critical(ext, critical);
+        STACK_OF(X509_EXTENSION) *exts = X509_REQ_get_extensions(req);
+        if (!exts) exts = sk_X509_EXTENSION_new_null();
+        sk_X509_EXTENSION_push(exts, ext);
+        X509_REQ_add_extensions(req, exts);
+        sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+    }
+    // Output PEM
+    BIO *out = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509_REQ(out, req);
+    char *pem = NULL;
+    long pemlen = BIO_get_mem_data(out, &pem);
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(pem, pemlen));
+    BIO_free(out);
+    X509_REQ_free(req);
+    BIO_free(bio);
+    return TCL_OK;
+}
+
 // Package initialization
 int Tossl_Init(Tcl_Interp *interp) {
     if (Tcl_InitStubs(interp, TCL_VERSION, 0) == NULL) {
@@ -3658,12 +4451,17 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::digest", DigestCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::hmac", HmacCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::randbytes", RandBytesCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::kdf::pbkdf2", Pbkdf2Cmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::kdf::scrypt", ScryptCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::kdf::argon2", Argon2Cmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::cipher::info", CipherInfoCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::encrypt", EncryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::decrypt", DecryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::generate", RsaGenerateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::encrypt", RsaEncryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::decrypt", RsaDecryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::x509::parse", X509ParseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::x509::modify", X509ModifyCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::sign", RsaSignCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::verify", RsaVerifyCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::dsa::sign", DsaSignCmd, NULL, NULL);
@@ -3708,10 +4506,15 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::pkcs7::info", Pkcs7InfoCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::csr::create", CsrCreateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::csr::parse", CsrParseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::csr::validate", CsrValidateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::csr::fingerprint", CsrFingerprintCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::jwk::extract", JwkExtractCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::jwk::thumbprint", JwkThumbprintCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::validate", RsaValidateCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::components", RsaComponentsCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::csr::validate", CsrValidateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::csr::fingerprint", CsrFingerprintCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::csr::modify", CsrModifyCmd, NULL, NULL);
     return TCL_OK;
 }
 
