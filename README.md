@@ -5,18 +5,21 @@ TOSSL is a Tcl extension for Linux that provides access to OpenSSL cryptographic
 ---
 
 ## Features
-- Message digests (hash functions) for any OpenSSL-supported algorithm
-- Cryptographically secure random bytes
-- Symmetric encryption/decryption (all OpenSSL ciphers supported)
-- Public key cryptography (RSA, DSA, EC): key generation, parsing, writing, encryption, decryption, signing, verifying (PEM and DER supported)
-- X.509 certificate parsing, creation, and verification
-- HMAC (all OpenSSL digests supported)
-- Base64 and hex encoding/decoding
-- PKCS#12 parsing and creation (import/export certificates and keys)
+- **Message digests (hash functions)** for any OpenSSL-supported algorithm including SHA-1, SHA-2, SHA-3, BLAKE2, SM3, RIPEMD-160, Whirlpool, MD5, MD4
+- **Hash streaming** for large file hashing with `tossl::digest::stream`
+- **Hash comparison** with `tossl::digest::compare`
+- **Cryptographically secure random bytes** and random key/IV generation
+- **Symmetric encryption/decryption** (all OpenSSL ciphers supported) with enhanced cipher information and listing
+- **Public key cryptography** (RSA, DSA, EC): key generation, parsing, writing, encryption, decryption, signing, verifying (PEM and DER supported)
+- **X.509 certificate parsing, creation, and verification**
+- **HMAC** (all OpenSSL digests supported)
+- **Base64 and hex encoding/decoding**
+- **PKCS#12 parsing and creation** (import/export certificates and keys)
 - **Advanced SSL/TLS support:**
-  - SSL/TLS context creation and management
+  - SSL/TLS context creation and management with secure defaults
   - SSL/TLS socket wrapping and session resumption (export/import)
   - Custom certificate verification and context options
+  - Enhanced session management with caching and tickets
   - Detailed session/cipher/peer info retrieval
   - Robust error handling for all SSL/TLS commands
 
@@ -347,6 +350,38 @@ puts "SHA256: $hash"
 
 set md5 [tossl::digest -alg md5 "test"]
 puts "MD5: $md5"
+
+# New algorithms: BLAKE2, SM3
+set blake2 [tossl::digest -alg blake2b512 "hello world"]
+puts "BLAKE2b-512: $blake2"
+
+set sm3 [tossl::digest -alg sm3 "hello world"]
+puts "SM3: $sm3"
+```
+
+### Hash Streaming for Large Files
+Compute hash of large files without loading them entirely into memory:
+```tcl
+set file_hash [tossl::digest::stream -alg sha256 -file "large_file.dat"]
+puts "File SHA256: $file_hash"
+```
+
+### Hash Comparison
+Compare two hash values securely:
+```tcl
+set hash1 [tossl::digest -alg sha256 "Hello"]
+set hash2 [tossl::digest -alg sha256 "Hello"]
+set hash3 [tossl::digest -alg sha256 "World"]
+
+puts "Identical: [tossl::digest::compare $hash1 $hash2]"  ;# Returns 1
+puts "Different: [tossl::digest::compare $hash1 $hash3]"  ;# Returns 0
+```
+
+### List Available Algorithms
+Get a list of all supported hash algorithms:
+```tcl
+set algorithms [tossl::digest::list]
+puts "Available algorithms: $algorithms"
 ```
 
 ### Symmetric Encryption/Decryption
@@ -363,11 +398,57 @@ set decrypted [tossl::decrypt -alg aes-128-cbc -key $key -iv $iv $ciphertext]
 puts "Decrypted: $decrypted"
 ```
 
-### Random Bytes
+### Enhanced Encryption with Random Keys/IVs
+Use the new random key/IV generation for secure encryption:
+```tcl
+# Generate random key and IV
+set key [tossl::rand::key -alg aes-256-cbc]
+set iv [tossl::rand::iv -alg aes-256-cbc]
+
+# Encrypt with GCM mode (returns dict with ciphertext and tag)
+set encrypted [tossl::encrypt -alg aes-128-gcm -key $key -iv $iv $plaintext]
+set ciphertext [dict get $encrypted ciphertext]
+set tag [dict get $encrypted tag]
+
+# Decrypt GCM mode
+set decrypted [tossl::decrypt -alg aes-128-gcm -key $key -iv $iv $ciphertext -tag $tag]
+puts "Decrypted: $decrypted"
+```
+
+### Cipher Information and Listing
+Get information about available ciphers:
+```tcl
+# Get cipher information
+set info [tossl::cipher::info aes-256-cbc]
+puts "Block size: [dict get $info block_size]"
+puts "Key length: [dict get $info key_length]"
+puts "Mode: [dict get $info mode]"
+
+# List all available ciphers
+set ciphers [tossl::cipher::list]
+puts "Available ciphers: [llength $ciphers]"
+
+# List ciphers by mode
+set cbc_ciphers [tossl::cipher::list -type cbc]
+puts "CBC ciphers: [llength $cbc_ciphers]"
+```
+
+### Random Bytes and Key/IV Generation
 Generate cryptographically secure random bytes:
 ```tcl
 set bytes [tossl::randbytes 16]
 puts "Random bytes (hex): [binary encode hex $bytes]"
+```
+
+Generate random keys and IVs for specific ciphers:
+```tcl
+# Generate random key for AES-256-CBC
+set key [tossl::rand::key -alg aes-256-cbc]
+puts "AES-256 key length: [string length $key] bytes"
+
+# Generate random IV for AES-256-CBC
+set iv [tossl::rand::iv -alg aes-256-cbc]
+puts "AES-256 IV length: [string length $iv] bytes"
 ```
 
 ---
@@ -433,8 +514,23 @@ if {[dict exists $info recipients]} {
 - For enveloped data, `recipients` is a list of dicts with `issuer` and `serial`, and `cipher` is the encryption algorithm.
 
 ### `tossl::digest -alg <name> <data>`
-Computes the hash of `<data>` using the specified digest algorithm (e.g., sha256, sha512, md5).
+Computes the hash of `<data>` using the specified digest algorithm (e.g., sha256, sha512, md5, blake2b512, sm3).
 - Returns: Hex-encoded string of the digest.
+
+### `tossl::digest::stream -alg <name> -file <filename>`
+Computes the hash of a file using streaming (memory-efficient for large files).
+- `-alg <name>`: Digest algorithm name
+- `-file <filename>`: Path to the file to hash
+- Returns: Hex-encoded string of the digest.
+
+### `tossl::digest::compare <hash1> <hash2>`
+Compares two hash values securely.
+- `<hash1>`, `<hash2>`: Hex-encoded hash strings to compare
+- Returns: 1 if hashes are identical, 0 otherwise.
+
+### `tossl::digest::list`
+Returns a list of all supported hash algorithms.
+- Returns: List of algorithm names.
 
 ### `tossl::encrypt -alg <name> -key <key> -iv <iv> <data>`
 Encrypts `<data>` using the specified cipher, key, and IV.
@@ -561,6 +657,26 @@ Decrypts `<data>` using the specified cipher, key, and IV.
 ### `tossl::randbytes <n>`
 Generates `<n>` random bytes (as a Tcl byte array).
 - Returns: Byte array of length `<n>`.
+
+### `tossl::rand::key -alg <name>`
+Generates a random key for the specified cipher algorithm.
+- `-alg <name>`: Cipher algorithm name (e.g., aes-256-cbc, chacha20)
+- Returns: Byte array of the appropriate key length for the cipher.
+
+### `tossl::rand::iv -alg <name>`
+Generates a random IV for the specified cipher algorithm.
+- `-alg <name>`: Cipher algorithm name (e.g., aes-256-cbc, aes-128-gcm)
+- Returns: Byte array of the appropriate IV length for the cipher.
+
+### `tossl::cipher::info <algorithm>`
+Returns information about a cipher algorithm.
+- `<algorithm>`: Cipher algorithm name
+- Returns: Dictionary with keys: `name`, `block_size`, `key_length`, `iv_length`, `mode`, `flags`
+
+### `tossl::cipher::list ?-type type?`
+Returns a list of available cipher algorithms.
+- `-type type`: Optional filter by cipher mode (e.g., cbc, gcm, ecb)
+- Returns: List of cipher algorithm names.
 
 ---
 
