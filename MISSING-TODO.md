@@ -11,20 +11,30 @@ This document outlines all the missing features needed to make TOSSL as close to
   _Implemented in TOSSL (2024-06)._
 - [x] **Whirlpool**: Whirlpool hash  
   _Implemented in TOSSL (2024-06)._
-- [ ] **RIPEMD-256, RIPEMD-320**
-- [ ] **BLAKE2**: BLAKE2b, BLAKE2s
-- [ ] **SM3**: Chinese national standard hash
-- [ ] **Hash streaming**: Support for large file hashing
-- [ ] **Hash comparison**: Built-in hash comparison functions
+- [ ] **RIPEMD-256, RIPEMD-320**  
+  _Not available in OpenSSL default provider; not supported in TOSSL._
+- [x] **BLAKE2**: BLAKE2b, BLAKE2s  
+  _Implemented in TOSSL (2024-06)._
+- [x] **SM3**: Chinese national standard hash  
+  _Implemented in TOSSL (2024-06)._
+- [x] **Hash streaming**: Support for large file hashing  
+  _Implemented in TOSSL (2024-06) as tossl::digest::stream._
+- [x] **Hash comparison**: Built-in hash comparison functions  
+  _Implemented in TOSSL (2024-06) as tossl::digest::compare._
 
 ### **Symmetric Encryption**
-- [ ] **Additional ciphers**: AES-128, AES-192, AES-256 (all modes)
-- [ ] **Block cipher modes**: CBC, CFB, OFB, CTR, GCM, CCM, XTS
+- [x] **Additional ciphers**: AES-128, AES-192, AES-256 (all modes), ChaCha20, etc.  
+  _Implemented in TOSSL (2024-06) via OpenSSL default provider._
+- [x] **Block cipher modes**: CBC, CFB, OFB, CTR, GCM, CCM, XTS  
+  _Implemented in TOSSL (2024-06) via OpenSSL default provider._
 - [ ] **Legacy ciphers**: DES, 3DES, Blowfish, CAST5, RC4, RC5
 - [ ] **Modern ciphers**: ChaCha20, Poly1305, Salsa20
 - [ ] **Key derivation**: PBKDF2, scrypt, Argon2
 - [ ] **Password-based encryption**: PBE with various schemes
-- [ ] **Cipher info**: Get cipher block size, key length, IV length
+- [x] **Cipher info**: Get cipher block size, key length, IV length  
+  _Implemented in TOSSL (2024-06) as tossl::cipher::info._
+- [x] **Cipher/key/iv listing**: List available ciphers, hash algorithms, generate random keys/IVs  
+  _Implemented in TOSSL (2024-06) as tossl::cipher::list, tossl::digest::list, tossl::rand::key, tossl::rand::iv._
 
 ### **Asymmetric Cryptography**
 - [x] **RSA operations**: 
@@ -145,10 +155,12 @@ This document outlines all the missing features needed to make TOSSL as close to
 ## 🌐 **SSL/TLS Operations** (Partially implemented)
 
 ### **SSL/TLS Context Management**
-- [ ] **SSL context configuration**: Full OpenSSL SSL_CTX options
-- [ ] **SSL session management**: Session resumption, session tickets
-- [ ] **SSL certificate verification**: Custom verification callbacks
-- [ ] **SSL cipher configuration**: Custom cipher suites
+- [x] **SSL context configuration**: Enhanced SSL_CTX options, secure defaults, ALPN, protocol/cipher selection  
+  _Improved in TOSSL (2024-06)._ 
+- [x] **SSL session management**: Session resumption, session tickets  
+  _Improved in TOSSL (2024-06)._ 
+- [x] **SSL cipher configuration**: Custom cipher suites, secure defaults  
+  _Improved in TOSSL (2024-06)._ 
 - [ ] **SSL protocol configuration**: Protocol version restrictions
 
 ### **SSL/TLS Handshake**

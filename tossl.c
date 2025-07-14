@@ -591,6 +591,12 @@ static int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     else if (strcmp(alg, "sha3-384") == 0) openssl_alg = "sha3-384";
     else if (strcmp(alg, "sha3-512") == 0) openssl_alg = "sha3-512";
     else if (strcmp(alg, "ripemd160") == 0) openssl_alg = "ripemd160";
+    else if (strcmp(alg, "ripemd256") == 0) openssl_alg = "ripemd256";
+    else if (strcmp(alg, "ripemd320") == 0) openssl_alg = "ripemd320";
+    else if (strcmp(alg, "blake2b256") == 0) openssl_alg = "blake2b256";
+    else if (strcmp(alg, "blake2b512") == 0) openssl_alg = "blake2b512";
+    else if (strcmp(alg, "blake2s256") == 0) openssl_alg = "blake2s256";
+    else if (strcmp(alg, "sm3") == 0) openssl_alg = "sm3";
     else if (strcmp(alg, "md5") == 0) openssl_alg = "md5";
     else if (strcmp(alg, "md4") == 0) openssl_alg = "md4";
     else if (strcmp(alg, "whirlpool") == 0) openssl_alg = "whirlpool";
@@ -621,6 +627,127 @@ static int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     return TCL_OK;
 }
 
+// tossl::digest::stream -alg <name> -file <filename>
+static int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 4) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name -file filename");
+        return TCL_ERROR;
+    }
+    const char *alg = NULL, *filename = NULL;
+    for (int i = 1; i < 3; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-alg") == 0) {
+            alg = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-file") == 0) {
+            filename = Tcl_GetString(objv[i+1]);
+        } else {
+            Tcl_SetResult(interp, "Expected -alg or -file option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    if (!alg || !filename) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    // Map common algorithm names to OpenSSL names
+    const char *openssl_alg = alg;
+    if (strcmp(alg, "sha1") == 0) openssl_alg = "sha1";
+    else if (strcmp(alg, "sha224") == 0) openssl_alg = "sha224";
+    else if (strcmp(alg, "sha256") == 0) openssl_alg = "sha256";
+    else if (strcmp(alg, "sha384") == 0) openssl_alg = "sha384";
+    else if (strcmp(alg, "sha512") == 0) openssl_alg = "sha512";
+    else if (strcmp(alg, "sha3-224") == 0) openssl_alg = "sha3-224";
+    else if (strcmp(alg, "sha3-256") == 0) openssl_alg = "sha3-256";
+    else if (strcmp(alg, "sha3-384") == 0) openssl_alg = "sha3-384";
+    else if (strcmp(alg, "sha3-512") == 0) openssl_alg = "sha3-512";
+    else if (strcmp(alg, "ripemd160") == 0) openssl_alg = "ripemd160";
+    else if (strcmp(alg, "ripemd256") == 0) openssl_alg = "ripemd256";
+    else if (strcmp(alg, "ripemd320") == 0) openssl_alg = "ripemd320";
+    else if (strcmp(alg, "blake2b256") == 0) openssl_alg = "blake2b256";
+    else if (strcmp(alg, "blake2b512") == 0) openssl_alg = "blake2b512";
+    else if (strcmp(alg, "blake2s256") == 0) openssl_alg = "blake2s256";
+    else if (strcmp(alg, "sm3") == 0) openssl_alg = "sm3";
+    else if (strcmp(alg, "md5") == 0) openssl_alg = "md5";
+    else if (strcmp(alg, "md4") == 0) openssl_alg = "md4";
+    else if (strcmp(alg, "whirlpool") == 0) openssl_alg = "whirlpool";
+
+    const EVP_MD *md = EVP_get_digestbyname(openssl_alg);
+    if (!md) {
+        Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        Tcl_SetResult(interp, "Cannot open file for reading", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        fclose(file);
+        Tcl_SetResult(interp, "OpenSSL: failed to create context", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    if (!EVP_DigestInit_ex(mdctx, md, NULL)) {
+        EVP_MD_CTX_free(mdctx);
+        fclose(file);
+        Tcl_SetResult(interp, "OpenSSL: digest init failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    unsigned char buffer[8192];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        if (!EVP_DigestUpdate(mdctx, buffer, bytes_read)) {
+            EVP_MD_CTX_free(mdctx);
+            fclose(file);
+            Tcl_SetResult(interp, "OpenSSL: digest update failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+
+    fclose(file);
+
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hashlen = 0;
+    if (!EVP_DigestFinal_ex(mdctx, hash, &hashlen)) {
+        EVP_MD_CTX_free(mdctx);
+        Tcl_SetResult(interp, "OpenSSL: digest final failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
+    EVP_MD_CTX_free(mdctx);
+    char hex[2*EVP_MAX_MD_SIZE+1];
+    bin2hex(hash, hashlen, hex);
+    Tcl_SetResult(interp, hex, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+// tossl::digest::compare <hash1> <hash2>
+static int DigestCompareCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "hash1 hash2");
+        return TCL_ERROR;
+    }
+    
+    const char *hash1 = Tcl_GetString(objv[1]);
+    const char *hash2 = Tcl_GetString(objv[2]);
+    
+    if (strlen(hash1) != strlen(hash2)) {
+        Tcl_SetResult(interp, "0", TCL_STATIC);
+        return TCL_OK;
+    }
+    
+    int result = (strcmp(hash1, hash2) == 0) ? 1 : 0;
+    Tcl_SetResult(interp, result ? "1" : "0", TCL_STATIC);
+    return TCL_OK;
+}
+
 
 // tossl::randbytes nbytes
 static int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -640,6 +767,125 @@ static int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
         return TCL_ERROR;
     }
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(buf, nbytes));
+    return TCL_OK;
+}
+
+// tossl::rand::key -alg <name>
+static int RandKeyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name");
+        return TCL_ERROR;
+    }
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-alg") != 0) {
+        Tcl_SetResult(interp, "Expected -alg option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    const char *alg = Tcl_GetString(objv[2]);
+    
+    const EVP_CIPHER *cipher = EVP_get_cipherbyname(alg);
+    if (!cipher) {
+        Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int key_len = EVP_CIPHER_key_length(cipher);
+    if (key_len <= 0) {
+        Tcl_SetResult(interp, "Invalid key length", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char *key = OPENSSL_malloc(key_len);
+    if (!key) {
+        Tcl_SetResult(interp, "OpenSSL: memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (RAND_bytes(key, key_len) != 1) {
+        OPENSSL_free(key);
+        Tcl_SetResult(interp, "OpenSSL: RAND_bytes failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *result = Tcl_NewByteArrayObj(key, key_len);
+    OPENSSL_free(key);
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// tossl::digest::list
+static int DigestListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "");
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *list = Tcl_NewListObj(0, NULL);
+    
+    // Common hash algorithm names to check
+    const char *hash_names[] = {
+        "sha1", "sha224", "sha256", "sha384", "sha512",
+        "sha3-224", "sha3-256", "sha3-384", "sha3-512",
+        "ripemd160", "ripemd256", "ripemd320",
+        "blake2b256", "blake2b512", "blake2s256",
+        "sm3", "md5", "md4", "whirlpool",
+        NULL
+    };
+    
+    for (int i = 0; hash_names[i] != NULL; i++) {
+        const EVP_MD *md = EVP_get_digestbyname(hash_names[i]);
+        if (md) {
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj(hash_names[i], -1));
+        }
+    }
+    
+    Tcl_SetObjResult(interp, list);
+    return TCL_OK;
+}
+
+// tossl::rand::iv -alg <name>
+static int RandIvCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name");
+        return TCL_ERROR;
+    }
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-alg") != 0) {
+        Tcl_SetResult(interp, "Expected -alg option", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    const char *alg = Tcl_GetString(objv[2]);
+    
+    const EVP_CIPHER *cipher = EVP_get_cipherbyname(alg);
+    if (!cipher) {
+        Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int iv_len = EVP_CIPHER_iv_length(cipher);
+    if (iv_len <= 0) {
+        Tcl_SetResult(interp, "Cipher does not require IV", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    unsigned char *iv = OPENSSL_malloc(iv_len);
+    if (!iv) {
+        Tcl_SetResult(interp, "OpenSSL: memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (RAND_bytes(iv, iv_len) != 1) {
+        OPENSSL_free(iv);
+        Tcl_SetResult(interp, "OpenSSL: RAND_bytes failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *result = Tcl_NewByteArrayObj(iv, iv_len);
+    OPENSSL_free(iv);
+    Tcl_SetObjResult(interp, result);
     return TCL_OK;
 }
 
@@ -869,6 +1115,100 @@ static int CipherInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("mode", -1), Tcl_NewStringObj(mode, -1));
     
     Tcl_SetObjResult(interp, dict);
+    return TCL_OK;
+}
+
+// tossl::cipher::list ?-type type?
+static int CipherListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)cd;
+    const char *type_filter = NULL;
+    if (objc == 3) {
+        const char *opt = Tcl_GetString(objv[1]);
+        if (strcmp(opt, "-type") == 0) {
+            type_filter = Tcl_GetString(objv[2]);
+        } else {
+            Tcl_SetResult(interp, "Expected -type option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    } else if (objc != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "?-type type?");
+        return TCL_ERROR;
+    }
+
+    Tcl_Obj *list = Tcl_NewListObj(0, NULL);
+    
+    // Common cipher names to check
+    const char *cipher_names[] = {
+        // AES ciphers
+        "aes-128-ecb", "aes-192-ecb", "aes-256-ecb",
+        "aes-128-cbc", "aes-192-cbc", "aes-256-cbc",
+        "aes-128-cfb", "aes-192-cfb", "aes-256-cfb",
+        "aes-128-ofb", "aes-192-ofb", "aes-256-ofb",
+        "aes-128-ctr", "aes-192-ctr", "aes-256-ctr",
+        "aes-128-gcm", "aes-192-gcm", "aes-256-gcm",
+        "aes-128-ccm", "aes-192-ccm", "aes-256-ccm",
+        "aes-128-xts", "aes-256-xts",
+        
+        // DES ciphers
+        "des-ecb", "des-cbc", "des-cfb", "des-ofb",
+        "des-ede", "des-ede-cbc", "des-ede-cfb", "des-ede-ofb",
+        "des-ede3", "des-ede3-cbc", "des-ede3-cfb", "des-ede3-ofb",
+        
+        // Blowfish
+        "bf-ecb", "bf-cbc", "bf-cfb", "bf-ofb",
+        
+        // CAST5
+        "cast5-ecb", "cast5-cbc", "cast5-cfb", "cast5-ofb",
+        
+        // RC4
+        "rc4", "rc4-40",
+        
+        // ChaCha20
+        "chacha20", "chacha20-poly1305",
+        
+        // Camellia
+        "camellia-128-ecb", "camellia-192-ecb", "camellia-256-ecb",
+        "camellia-128-cbc", "camellia-192-cbc", "camellia-256-cbc",
+        "camellia-128-cfb", "camellia-192-cfb", "camellia-256-cfb",
+        "camellia-128-ofb", "camellia-192-ofb", "camellia-256-ofb",
+        
+        // SEED
+        "seed-ecb", "seed-cbc", "seed-cfb", "seed-ofb",
+        
+        // SM4 (Chinese standard)
+        "sm4-ecb", "sm4-cbc", "sm4-cfb", "sm4-ofb", "sm4-ctr",
+        
+        NULL
+    };
+
+    for (int i = 0; cipher_names[i] != NULL; i++) {
+        const EVP_CIPHER *cipher = EVP_get_cipherbyname(cipher_names[i]);
+        if (cipher) {
+            if (type_filter) {
+                // Check if cipher matches type filter
+                const char *mode = "unknown";
+                if (EVP_CIPHER_flags(cipher) & EVP_CIPH_MODE) {
+                    int mode_flags = EVP_CIPHER_flags(cipher) & EVP_CIPH_MODE;
+                    if (mode_flags == EVP_CIPH_ECB_MODE) mode = "ecb";
+                    else if (mode_flags == EVP_CIPH_CBC_MODE) mode = "cbc";
+                    else if (mode_flags == EVP_CIPH_CFB_MODE) mode = "cfb";
+                    else if (mode_flags == EVP_CIPH_OFB_MODE) mode = "ofb";
+                    else if (mode_flags == EVP_CIPH_CTR_MODE) mode = "ctr";
+                    else if (mode_flags == EVP_CIPH_GCM_MODE) mode = "gcm";
+                    else if (mode_flags == EVP_CIPH_CCM_MODE) mode = "ccm";
+                    else if (mode_flags == EVP_CIPH_XTS_MODE) mode = "xts";
+                }
+                
+                if (strcmp(mode, type_filter) == 0) {
+                    Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj(cipher_names[i], -1));
+                }
+            } else {
+                Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj(cipher_names[i], -1));
+            }
+        }
+    }
+
+    Tcl_SetObjResult(interp, list);
     return TCL_OK;
 }
 
@@ -2948,7 +3288,34 @@ static int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
             Tcl_SetResult(interp, "Invalid cipher list", TCL_STATIC);
             return TCL_ERROR;
         }
+    } else {
+        // Set secure default cipher list
+        const char *default_ciphers = "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
+        if (!SSL_CTX_set_cipher_list(ctx, default_ciphers)) {
+            SSL_CTX_free(ctx);
+            Tcl_SetResult(interp, "Failed to set default cipher list", TCL_STATIC);
+            return TCL_ERROR;
+        }
     }
+    
+    // Enable session caching
+    SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER | SSL_SESS_CACHE_NO_INTERNAL_LOOKUP | SSL_SESS_CACHE_NO_AUTO_CLEAR);
+    SSL_CTX_sess_set_cache_size(ctx, 1024);
+    SSL_CTX_set_session_id_context(ctx, (const unsigned char*)"TOSSL", 5);
+    
+    // Set session timeout
+    SSL_CTX_set_timeout(ctx, 300); // 5 minutes
+    
+    // Enable automatic session resumption
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
+    
+    // Enable session tickets
+    SSL_CTX_set_options(ctx, SSL_OP_NO_TICKET);
+    
+    // Enable OCSP stapling
+    SSL_CTX_set_tlsext_status_type(ctx, TLSEXT_STATUSTYPE_ocsp);
+    SSL_CTX_set_tlsext_status_cb(ctx, NULL); // No callback for now
+    
     // Certificate and key
     if (cert) {
         if (SSL_CTX_use_certificate_chain_file(ctx, cert) != 1) {
@@ -4449,12 +4816,18 @@ int Tossl_Init(Tcl_Interp *interp) {
         return TCL_ERROR;
     }
     Tcl_CreateObjCommand(interp, "tossl::digest", DigestCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::digest::list", DigestListCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::digest::stream", DigestStreamCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::digest::compare", DigestCompareCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::hmac", HmacCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::randbytes", RandBytesCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::rand::iv", RandIvCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::rand::key", RandKeyCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::kdf::pbkdf2", Pbkdf2Cmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::kdf::scrypt", ScryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::kdf::argon2", Argon2Cmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::cipher::info", CipherInfoCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::cipher::list", CipherListCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::encrypt", EncryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::decrypt", DecryptCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::rsa::generate", RsaGenerateCmd, NULL, NULL);
