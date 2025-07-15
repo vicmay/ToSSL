@@ -2,6 +2,122 @@
 #include <json-c/json.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+// Helper function to convert JSON object to Tcl object
+Tcl_Obj* json_to_tcl(json_object *json_obj) {
+    if (!json_obj) return NULL;
+    
+    if (json_object_is_type(json_obj, json_type_string)) {
+        return Tcl_NewStringObj(json_object_get_string(json_obj), -1);
+    } else if (json_object_is_type(json_obj, json_type_int)) {
+        return Tcl_NewIntObj(json_object_get_int(json_obj));
+    } else if (json_object_is_type(json_obj, json_type_boolean)) {
+        return Tcl_NewBooleanObj(json_object_get_boolean(json_obj));
+    } else if (json_object_is_type(json_obj, json_type_double)) {
+        return Tcl_NewDoubleObj(json_object_get_double(json_obj));
+    } else if (json_object_is_type(json_obj, json_type_array)) {
+        Tcl_Obj *list = Tcl_NewListObj(0, NULL);
+        int array_len = json_object_array_length(json_obj);
+        for (int i = 0; i < array_len; i++) {
+            json_object *item = json_object_array_get_idx(json_obj, i);
+            Tcl_Obj *tcl_item = json_to_tcl(item);
+            if (tcl_item) {
+                Tcl_ListObjAppendElement(NULL, list, tcl_item);
+            }
+        }
+        return list;
+    } else if (json_object_is_type(json_obj, json_type_object)) {
+        Tcl_Obj *dict = Tcl_NewDictObj();
+        json_object_object_foreach(json_obj, key, val) {
+            Tcl_Obj *key_obj = Tcl_NewStringObj(key, -1);
+            Tcl_Obj *value_obj = json_to_tcl(val);
+            if (value_obj) {
+                Tcl_DictObjPut(NULL, dict, key_obj, value_obj);
+            }
+        }
+        return dict;
+    } else {
+        // For null or unknown types, return as string
+        return Tcl_NewStringObj(json_object_to_json_string(json_obj), -1);
+    }
+}
+
+// Helper function to convert Tcl object to JSON object
+json_object* tcl_to_json(Tcl_Interp *interp, Tcl_Obj *obj) {
+    if (!obj) return NULL;
+    
+    const char *str = Tcl_GetString(obj);
+    
+    // Check for boolean strings first
+    if (strcmp(str, "true") == 0) {
+        return json_object_new_boolean(1);
+    } else if (strcmp(str, "false") == 0) {
+        return json_object_new_boolean(0);
+    } else if (strcmp(str, "1") == 0) {
+        return json_object_new_boolean(1);
+    } else if (strcmp(str, "0") == 0) {
+        return json_object_new_boolean(0);
+    }
+    
+    // Try to get as integer
+    int int_val;
+    if (Tcl_GetIntFromObj(interp, obj, &int_val) == TCL_OK) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%d", int_val);
+        if (strcmp(str, buf) == 0) {
+            return json_object_new_int(int_val);
+        }
+    }
+    
+    // Try to get as double
+    double double_val;
+    if (Tcl_GetDoubleFromObj(interp, obj, &double_val) == TCL_OK) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%g", double_val);
+        if (strcmp(str, buf) == 0) {
+            return json_object_new_double(double_val);
+        }
+    }
+    
+    // Check if it's a dict (object)
+    int dict_size = 0;
+    if (Tcl_DictObjSize(interp, obj, &dict_size) == TCL_OK && dict_size > 0) {
+        Tcl_DictSearch search;
+        Tcl_Obj *key, *value;
+        int done;
+        json_object *json_obj = json_object_new_object();
+        if (Tcl_DictObjFirst(interp, obj, &search, &key, &value, &done) == TCL_OK) {
+            while (!done) {
+                const char *key_str = Tcl_GetString(key);
+                json_object *value_json = tcl_to_json(interp, value);
+                if (value_json) {
+                    json_object_object_add(json_obj, key_str, value_json);
+                }
+                Tcl_DictObjNext(&search, &key, &value, &done);
+            }
+        }
+        return json_obj;
+    }
+    
+    // Check if it's a list (array): only if list_len > 1 (conservative approach)
+    int list_len = 0;
+    Tcl_Obj **list_elems = NULL;
+    if (Tcl_ListObjLength(interp, obj, &list_len) == TCL_OK && list_len > 1) {
+        if (Tcl_ListObjGetElements(interp, obj, &list_len, &list_elems) == TCL_OK) {
+            json_object *array = json_object_new_array();
+            for (int i = 0; i < list_len; i++) {
+                json_object *item = tcl_to_json(interp, list_elems[i]);
+                if (item) {
+                    json_object_array_add(array, item);
+                }
+            }
+            return array;
+        }
+    }
+    
+    return json_object_new_string(str);
+}
 
 // JSON parse command
 int Tossl_JsonParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -19,29 +135,12 @@ int Tossl_JsonParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         return TCL_ERROR;
     }
     
-    // Convert to Tcl dict
-    Tcl_Obj *result = Tcl_NewDictObj();
-    
-    if (json_object_is_type(json_obj, json_type_object)) {
-        json_object_object_foreach(json_obj, key, val) {
-            Tcl_Obj *key_obj = Tcl_NewStringObj(key, -1);
-            Tcl_Obj *value_obj;
-            
-            if (json_object_is_type(val, json_type_string)) {
-                value_obj = Tcl_NewStringObj(json_object_get_string(val), -1);
-            } else if (json_object_is_type(val, json_type_int)) {
-                value_obj = Tcl_NewIntObj(json_object_get_int(val));
-            } else if (json_object_is_type(val, json_type_boolean)) {
-                value_obj = Tcl_NewBooleanObj(json_object_get_boolean(val));
-            } else if (json_object_is_type(val, json_type_double)) {
-                value_obj = Tcl_NewDoubleObj(json_object_get_double(val));
-            } else {
-                // For complex types, convert to string
-                value_obj = Tcl_NewStringObj(json_object_to_json_string(val), -1);
-            }
-            
-            Tcl_DictObjPut(interp, result, key_obj, value_obj);
-        }
+    // Convert to Tcl object
+    Tcl_Obj *result = json_to_tcl(json_obj);
+    if (!result) {
+        json_object_put(json_obj);
+        Tcl_SetResult(interp, "Failed to convert JSON to Tcl", TCL_STATIC);
+        return TCL_ERROR;
     }
     
     json_object_put(json_obj);
@@ -56,41 +155,13 @@ int Tossl_JsonGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
         return TCL_ERROR;
     }
     
-    Tcl_Obj *dict_obj = objv[1];
+    Tcl_Obj *obj = objv[1];
     
-    // Create JSON object
-    json_object *json_obj = json_object_new_object();
-    
-    // Iterate through Tcl dict
-    Tcl_DictSearch search;
-    Tcl_Obj *key, *value;
-    int done;
-    
-    if (Tcl_DictObjFirst(interp, dict_obj, &search, &key, &value, &done) != TCL_OK) {
-        json_object_put(json_obj);
+    // Convert Tcl object to JSON
+    json_object *json_obj = tcl_to_json(interp, obj);
+    if (!json_obj) {
+        Tcl_SetResult(interp, "Failed to convert Tcl object to JSON", TCL_STATIC);
         return TCL_ERROR;
-    }
-    
-    while (!done) {
-        const char *key_str = Tcl_GetString(key);
-        
-        // Determine value type and add to JSON
-        int int_val;
-        double double_val;
-        
-        if (Tcl_GetBooleanFromObj(interp, value, &int_val) == TCL_OK) {
-            json_object_object_add(json_obj, key_str, json_object_new_boolean(int_val));
-        } else if (Tcl_GetIntFromObj(interp, value, &int_val) == TCL_OK) {
-            json_object_object_add(json_obj, key_str, json_object_new_int(int_val));
-        } else if (Tcl_GetDoubleFromObj(interp, value, &double_val) == TCL_OK) {
-            json_object_object_add(json_obj, key_str, json_object_new_double(double_val));
-        } else {
-            // Treat as string
-            const char *value_str = Tcl_GetString(value);
-            json_object_object_add(json_obj, key_str, json_object_new_string(value_str));
-        }
-        
-        Tcl_DictObjNext(&search, &key, &value, &done);
     }
     
     // Convert to string
