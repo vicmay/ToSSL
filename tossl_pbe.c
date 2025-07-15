@@ -14,6 +14,8 @@ int PbeEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     
     // Parse salt
     int salt_len = strlen(salt_data);
+    (void)algorithm; // Suppress unused variable warning
+    (void)salt_len;  // Suppress unused variable warning
     unsigned char *salt = (unsigned char*)salt_data;
     
     // Generate key and IV from password
@@ -86,6 +88,8 @@ int PbeDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     
     // Parse salt
     int salt_len = strlen(salt_data);
+    (void)algorithm; // Suppress unused variable warning
+    (void)salt_len;  // Suppress unused variable warning
     unsigned char *salt = (unsigned char*)salt_data;
     
     // Generate key and IV from password
@@ -195,6 +199,8 @@ int PbeKeyDeriveCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     
     // Parse salt
     int salt_len = strlen(salt_data);
+    (void)algorithm; // Suppress unused variable warning
+    (void)salt_len;  // Suppress unused variable warning
     unsigned char *salt = (unsigned char*)salt_data;
     
     // Derive key using PBKDF2

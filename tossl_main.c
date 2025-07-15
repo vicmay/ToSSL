@@ -1,12 +1,29 @@
 #include "tossl.h"
-extern int Tossl_Pgp_Init(Tcl_Interp *interp);
 
-// Global variables for SSL/TLS handles
+// Global variables for SSL/TLS handles (unused in current implementation)
+#ifdef __GNUC__
+__attribute__((unused))
+#endif
 static SslContextHandle *ssl_contexts = NULL;
+#ifdef __GNUC__
+__attribute__((unused))
+#endif
 static SslSocketHandle *ssl_sockets = NULL;
+#ifdef __GNUC__
+__attribute__((unused))
+#endif
 static SslSessionHandle *ssl_sessions = NULL;
+#ifdef __GNUC__
+__attribute__((unused))
+#endif
 static int ssl_context_count = 0;
+#ifdef __GNUC__
+__attribute__((unused))
+#endif
 static int ssl_socket_count = 0;
+#ifdef __GNUC__
+__attribute__((unused))
+#endif
 static int ssl_session_count = 0;
 
 // Utility function to get file descriptor from Tcl channel
@@ -187,12 +204,6 @@ int Tossl_Init(Tcl_Interp *interp) {
     // Provide the package to Tcl
     Tcl_PkgProvide(interp, "tossl", "0.1");
     TosslRegisterSslCommands(interp);
-    
-    // Debug: Check if PGP init is being called
-    int pgp_result = Tossl_Pgp_Init(interp);
-    if (pgp_result != TCL_OK) {
-        return pgp_result;
-    }
     
     return TCL_OK;
 } 

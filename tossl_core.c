@@ -431,8 +431,7 @@ int DigestListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    OSSL_ALGORITHM *algorithms = NULL;
-    algorithms = OSSL_PROVIDER_query_operation(provider, OSSL_OP_DIGEST, NULL);
+    OSSL_ALGORITHM *algorithms = OSSL_PROVIDER_query_operation(provider, OSSL_OP_DIGEST, NULL);
     if (algorithms) {
         for (int i = 0; algorithms[i].algorithm_names != NULL; i++) {
             const char *name = algorithms[i].algorithm_names;
@@ -462,7 +461,7 @@ int RandIvCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
     }
     
     int iv_len = EVP_CIPHER_get_iv_length(cipher_obj);
-    EVP_CIPHER_free(cipher_obj);
+    EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
     
     if (iv_len <= 0) {
         Tcl_SetResult(interp, "Cipher does not require IV", TCL_STATIC);
@@ -782,14 +781,14 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: failed to create cipher context", TCL_STATIC);
         return TCL_ERROR;
     }
     
     if (!EVP_EncryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
         EVP_CIPHER_CTX_free(ctx);
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: encryption init failed", TCL_STATIC);
         return TCL_ERROR;
     }
@@ -801,7 +800,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     fprintf(stderr, "\n");
     if (!EVP_EncryptUpdate(ctx, out, &out_len, data, data_len)) {
         EVP_CIPHER_CTX_free(ctx);
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: encryption update failed", TCL_STATIC);
         return TCL_ERROR;
     }
@@ -809,14 +808,14 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     int final_len = 0;
     if (!EVP_EncryptFinal_ex(ctx, out + out_len, &final_len)) {
         EVP_CIPHER_CTX_free(ctx);
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: encryption final failed", TCL_STATIC);
         return TCL_ERROR;
     }
     
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, out_len + final_len));
     EVP_CIPHER_CTX_free(ctx);
-    EVP_CIPHER_free(cipher_obj);
+    EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
     return TCL_OK;
 }
 
@@ -883,14 +882,14 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: failed to create cipher context", TCL_STATIC);
         return TCL_ERROR;
     }
     fprintf(stderr, "[DEBUG] Default OpenSSL padding is used (PKCS#7 for block ciphers)\n");
     if (!EVP_DecryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
         EVP_CIPHER_CTX_free(ctx);
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: decryption init failed", TCL_STATIC);
         fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return TCL_ERROR;
@@ -903,7 +902,7 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     fprintf(stderr, "\n");
     if (!EVP_DecryptUpdate(ctx, out, &out_len, data, data_len)) {
         EVP_CIPHER_CTX_free(ctx);
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         free(out);
         Tcl_SetResult(interp, "OpenSSL: decryption update failed", TCL_STATIC);
         fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
@@ -912,7 +911,7 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     int final_len = 0;
     if (!EVP_DecryptFinal_ex(ctx, out + out_len, &final_len)) {
         EVP_CIPHER_CTX_free(ctx);
-        EVP_CIPHER_free(cipher_obj);
+        EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
         free(out);
         Tcl_SetResult(interp, "OpenSSL: decryption final failed", TCL_STATIC);
         fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
@@ -921,6 +920,6 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     fprintf(stderr, "[DEBUG] Decrypt output: out_len=%d, final_len=%d\n", out_len, final_len);
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, out_len + final_len));
     EVP_CIPHER_CTX_free(ctx);
-    EVP_CIPHER_free(cipher_obj);
+    EVP_CIPHER_free((EVP_CIPHER *)cipher_obj);
     return TCL_OK;
 } 
