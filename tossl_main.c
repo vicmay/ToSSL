@@ -145,6 +145,7 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::x509::fingerprint", X509FingerprintCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::x509::verify", X509VerifyCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::x509::time_validate", X509TimeValidateCmd, NULL, NULL);
+    // Tcl_CreateObjCommand(interp, "tossl::x509::ct_extensions", X509CtExtensionsCmd, NULL, NULL);
     
     // Legacy cipher commands
     Tcl_CreateObjCommand(interp, "tossl::legacy::encrypt", LegacyEncryptCmd, NULL, NULL);
@@ -229,6 +230,50 @@ int Tossl_Init(Tcl_Interp *interp) {
     // Algorithm discovery commands
     Tcl_CreateObjCommand(interp, "tossl::algorithm::list", AlgorithmListCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::algorithm::info", AlgorithmInfoCmd, NULL, NULL);
+    
+    // URL encoding/decoding commands
+    Tcl_CreateObjCommand(interp, "tossl::url::encode", UrlEncodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::url::decode", UrlDecodeCmd, NULL, NULL);
+    
+    // Time conversion/comparison commands
+    Tcl_CreateObjCommand(interp, "tossl::time::convert", TimeConvertCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::time::compare", TimeCompareCmd, NULL, NULL);
+    
+    // Random number testing commands
+    Tcl_CreateObjCommand(interp, "tossl::rand::test", RandomTestCmd, NULL, NULL);
+    
+    // Key/cert/cipher analysis commands
+    Tcl_CreateObjCommand(interp, "tossl::key::analyze", KeyAnalysisCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::cipher::analyze", CipherAnalysisCmd, NULL, NULL);
+    
+    // Signature validation command
+    Tcl_CreateObjCommand(interp, "tossl::signature::validate", SignatureValidateCmd, NULL, NULL);
+    
+    // ASN.1 commands
+    Tcl_CreateObjCommand(interp, "tossl::asn1::parse", Asn1ParseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::asn1::encode", Asn1EncodeCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::asn1::oid_to_text", Asn1OidToTextCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::asn1::text_to_oid", Asn1TextToOidCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::asn1::sequence_create", Asn1SequenceCreateCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::asn1::set_create", Asn1SetCreateCmd, NULL, NULL);
+    
+    // Hardware acceleration detection commands
+    Tcl_CreateObjCommand(interp, "tossl::hardware::detect", Tossl_HardwareAccelCmd, NULL, NULL);
+    
+    // Benchmarking commands
+    Tcl_CreateObjCommand(interp, "tossl::benchmark", Tossl_BenchmarkCmd, NULL, NULL);
+    
+    // Side-channel protection commands
+    Tcl_CreateObjCommand(interp, "tossl::sidechannel::protect", Tossl_SideChannelProtectCmd, NULL, NULL);
+    
+    // Cryptographic logging commands
+    Tcl_CreateObjCommand(interp, "tossl::cryptolog", Tossl_CryptoLogCmd, NULL, NULL);
+    
+    // Certificate status checking commands
+    Tcl_CreateObjCommand(interp, "tossl::cert::status", Tossl_CertStatusCmd, NULL, NULL);
+    
+    // Perfect forward secrecy testing commands
+    Tcl_CreateObjCommand(interp, "tossl::pfs::test", Tossl_PfsTestCmd, NULL, NULL);
     
     return TCL_OK;
 } 

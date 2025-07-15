@@ -7,7 +7,7 @@ LDFLAGS = -shared -lssl -lcrypto
 TARGET = libtossl.so
 
 # Source files for modular build
-SRC_MODULAR = tossl_main.c tossl_core.c tossl_keys.c tossl_rsa.c tossl_dsa.c tossl_ec.c tossl_ed25519.c tossl_x509.c tossl_legacy.c tossl_pbe.c tossl_keywrap.c tossl_sm2.c tossl_ed448.c tossl_x448.c tossl_csr.c tossl_pkcs7.c tossl_pkcs12.c tossl_ocsp.c tossl_crl.c tossl_ca.c tossl_ssl.c tossl_modern.c
+SRC_MODULAR = tossl_main.c tossl_core.c tossl_keys.c tossl_rsa.c tossl_dsa.c tossl_ec.c tossl_ed25519.c tossl_x509.c tossl_legacy.c tossl_pbe.c tossl_keywrap.c tossl_sm2.c tossl_ed448.c tossl_x448.c tossl_csr.c tossl_pkcs7.c tossl_pkcs12.c tossl_ocsp.c tossl_crl.c tossl_ca.c tossl_ssl.c tossl_modern.c tossl_asn1.c
 
 # Original single file build (kept for reference)
 SRC_ORIGINAL = tossl.c

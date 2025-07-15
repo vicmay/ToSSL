@@ -78,6 +78,51 @@ int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     return TCL_OK;
 }
 
+// tossl::x509::ct_extensions certificate
+int X509CtExtensionsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "certificate");
+        return TCL_ERROR;
+    }
+    const char *cert_data = Tcl_GetString(objv[1]);
+    X509 *cert = NULL;
+    BIO *bio = BIO_new_mem_buf(cert_data, -1);
+    if (!bio) {
+        Tcl_SetResult(interp, "Failed to create BIO", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+    if (!cert) {
+        Tcl_SetResult(interp, "Failed to parse certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_Obj *result = Tcl_NewListObj(0, NULL);
+#ifdef OPENSSL_VERSION_MAJOR
+#if OPENSSL_VERSION_MAJOR >= 1
+    // Try to extract SCTs (Signed Certificate Timestamps)
+    int ext_count = X509_get_ext_count(cert);
+    for (int i = 0; i < ext_count; i++) {
+        X509_EXTENSION *ext = X509_get_ext(cert, i);
+        ASN1_OBJECT *obj = X509_EXTENSION_get_object(ext);
+        char extname[128];
+        OBJ_obj2txt(extname, sizeof(extname), obj, 1);
+        if (strcmp(extname, "1.3.6.1.4.1.11129.2.4.2") == 0) { // SCT extension OID
+            // Add SCT extension as hex string
+            ASN1_OCTET_STRING *oct = X509_EXTENSION_get_data(ext);
+            char *hex = OPENSSL_buf2hexstr(oct->data, oct->length);
+            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("sct", -1));
+            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(hex, -1));
+            OPENSSL_free(hex);
+        }
+    }
+#endif
+#endif
+    X509_free(cert);
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
 // X.509 certificate modification command
 int X509ModifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc < 3) {

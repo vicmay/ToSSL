@@ -201,6 +201,17 @@ int SslSessionInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
 int SslPeerCertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int SslProtocolVersionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int SslSetProtocolVersionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslAlpnSelectedCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslSetAlpnCallbackCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslSocketInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslCipherInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslSetCertPinningCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslSetOcspStaplingCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslGetPeerCertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslVerifyPeerCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslCheckCertStatusCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslCheckPfsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int SslVerifyCertPinningCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 
 // Legacy cipher functions
 int LegacyEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
@@ -248,5 +259,41 @@ int JwkThumbprintCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 
 // Utility functions
 int GetFdFromChannel(Tcl_Interp *interp, const char *chanName);
+
+// URL encoding/decoding functions
+int UrlEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// Time conversion/comparison functions
+int TimeConvertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int TimeCompareCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// Random number testing functions
+int RandomTestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// Key/cert/cipher analysis functions
+int KeyAnalysisCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int CipherAnalysisCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// Signature validation function
+int SignatureValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// ASN.1 operations
+int Asn1ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Asn1EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Asn1OidToTextCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Asn1TextToOidCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Asn1SequenceCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Asn1SetCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// Hardware acceleration and benchmarking functions
+int Tossl_HardwareAccelCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_BenchmarkCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// Security and monitoring functions
+int Tossl_SideChannelProtectCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_CryptoLogCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_CertStatusCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_PfsTestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 
 #endif // TOSSL_H 

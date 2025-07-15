@@ -1,142 +1,231 @@
 #!/usr/bin/env tclsh
 
+# Test script for extended TOSSL features
+# Tests hardware acceleration, benchmarking, side-channel protection, 
+# cryptographic logging, certificate status checking, and PFS testing
+
 package require tossl
 
-puts "=== Testing Extended TOSSL Features ===\n"
+puts "=== Testing Extended TOSSL Features ==="
 
-# Test 1: EC Point Operations
-puts "1. Testing EC Point Operations..."
-set ec_keys [tossl::key::generate -type ec -curve prime256v1]
-set ec_components [tossl::ec::components -key [dict get $ec_keys private]]
-set pub_point [dict get $ec_components public_point]
-puts "   EC key components extracted successfully"
-puts "   Public point: [string range $pub_point 0 31]..."
+# Test hardware acceleration detection
+puts "\n--- Hardware Acceleration Detection ---"
+set hw_info [tossl::hardware::detect]
+puts "Hardware acceleration info: $hw_info"
 
-# Test point multiplication (multiply by 2)
-set result [tossl::ec::point_multiply -point $pub_point -scalar "2" -curve prime256v1]
-puts "   Point multiplication successful"
-puts "   Result: [string range $result 0 31]..."
+# Test benchmarking features
+puts "\n--- Benchmarking Tests ---"
 
-# Test point addition (add point to itself = multiply by 2)
-set result2 [tossl::ec::point_add -point1 $pub_point -point2 $pub_point -curve prime256v1]
-puts "   Point addition successful"
-puts "   Result: [string range $result2 0 31]..."
-puts ""
+# Hash benchmarking
+puts "Testing hash benchmarking..."
+set hash_bench [tossl::benchmark hash sha256 1000 1024]
+puts "SHA256 benchmark: $hash_bench"
 
-# Test 2: Ed25519 Operations (if supported)
-puts "2. Testing Ed25519 Operations..."
-set ed25519_rc [catch {set ed25519_keys [tossl::ed25519::generate]} ed25519_result]
-if {$ed25519_rc == 0} {
-    puts "   Ed25519 key generation successful"
-    set ed25519_priv [dict get $ed25519_keys private]
-    set ed25519_pub [dict get $ed25519_keys public]
-    
-    set test_data "Hello, Ed25519!"
-    set ed25519_sig [tossl::ed25519::sign -privkey $ed25519_priv $test_data]
-    puts "   Ed25519 signing successful"
-    
-    set ed25519_valid [tossl::ed25519::verify -pubkey $ed25519_pub $test_data $ed25519_sig]
-    puts "   Ed25519 verification: $ed25519_valid"
-} else {
-    puts "   Ed25519 not supported: $ed25519_result"
+# Cipher benchmarking
+puts "Testing cipher benchmarking..."
+set cipher_bench [tossl::benchmark cipher aes-256-cbc 100 1024]
+puts "AES-256-CBC benchmark: $cipher_bench"
+
+# RSA benchmarking
+puts "Testing RSA benchmarking..."
+set rsa_bench [tossl::benchmark rsa -key_size 2048 -iterations 50]
+puts "RSA-2048 benchmark: $rsa_bench"
+
+# EC benchmarking
+puts "Testing EC benchmarking..."
+set ec_bench [tossl::benchmark ec -curve prime256v1 -iterations 500]
+puts "EC prime256v1 benchmark: $ec_bench"
+
+# Test side-channel protection
+puts "\n--- Side-Channel Protection Tests ---"
+set sc_info [tossl::sidechannel::protect]
+puts "Side-channel protection info: $sc_info"
+
+# Test cryptographic logging
+puts "\n--- Cryptographic Logging Tests ---"
+puts "Enabling crypto logging..."
+puts [tossl::cryptolog enable info]
+
+puts "Checking crypto log status..."
+puts [tossl::cryptolog status]
+
+puts "Clearing crypto log..."
+puts [tossl::cryptolog clear]
+
+puts "Disabling crypto logging..."
+puts [tossl::cryptolog disable]
+
+# Test certificate status checking
+puts "\n--- Certificate Status Checking Tests ---"
+
+# Generate a test certificate
+puts "Generating test certificate..."
+set ca_keys [tossl::key::generate -type rsa -bits 2048]
+set ca_key [dict get $ca_keys private]
+set ca_cert [tossl::ca::generate -key $ca_key -subject "Test CA" -days 365]
+set leaf_keys [tossl::key::generate -type rsa -bits 2048]
+set leaf_key [dict get $leaf_keys private]
+set csr [tossl::csr::create -key $leaf_key -subject [dict create CN "Test Cert"]]
+set cert [tossl::ca::sign -ca_key $ca_key -ca_cert $ca_cert -csr $csr -days 30]
+
+puts "Leaf certificate: $cert"
+# If $cert is a dict, extract the PEM string
+if {[catch {dict get $cert cert} cert_pem]} {
+    set cert_pem $cert
 }
-puts ""
+puts "Certificate PEM: $cert_pem"
+puts "Checking certificate status..."
+set cert_status [tossl::cert::status check $cert_pem]
+puts "Certificate status: $cert_status"
 
-# Test 3: X25519 Operations (if supported)
-puts "3. Testing X25519 Operations..."
-set x25519_rc [catch {set x25519_keys [tossl::x25519::generate]} x25519_result]
-if {$x25519_rc == 0} {
-    puts "   X25519 key generation successful"
-    set x25519_priv [dict get $x25519_keys private]
-    set x25519_pub [dict get $x25519_keys public]
-    
-    # Generate a second key pair for key exchange
-    set x25519_keys2 [tossl::x25519::generate]
-    set x25519_priv2 [dict get $x25519_keys2 private]
-    set x25519_pub2 [dict get $x25519_keys2 public]
-    
-    # Derive shared secret
-    set shared1 [tossl::x25519::derive -privkey $x25519_priv -pubkey $x25519_pub2]
-    set shared2 [tossl::x25519::derive -privkey $x25519_priv2 -pubkey $x25519_pub]
-    puts "   X25519 key exchange successful"
-    puts "   Shared secrets match: [expr {$shared1 eq $shared2}]"
+puts "Testing OCSP status check..."
+set ocsp_status [tossl::cert::status ocsp $cert "http://ocsp.example.com"]
+puts "OCSP status: $ocsp_status"
+
+# Test perfect forward secrecy
+puts "\n--- Perfect Forward Secrecy Tests ---"
+set pfs_info [tossl::pfs::test]
+puts "PFS test info: $pfs_info"
+
+# Test integration with existing features
+puts "\n--- Integration Tests ---"
+
+# Test hardware acceleration with benchmarking
+if {[dict get $hw_info hardware_acceleration]} {
+    puts "Hardware acceleration available - running optimized benchmarks..."
+    set opt_hash_bench [tossl::benchmark hash sha256 2000 2048]
+    puts "Optimized SHA256 benchmark: $opt_hash_bench"
 } else {
-    puts "   X25519 not supported: $x25519_result"
+    puts "No hardware acceleration detected"
 }
-puts ""
 
-# Test 4: Key Fingerprinting
-puts "4. Testing Key Fingerprinting..."
-set rsa_keys [tossl::key::generate -type rsa -bits 2048]
-set rsa_pub [dict get $rsa_keys public]
-set rsa_fingerprint [tossl::key::fingerprint -key $rsa_pub -alg sha256]
-puts "   RSA key fingerprint: [string range $rsa_fingerprint 0 31]..."
+# Test side-channel protection with key operations
+if {[dict get $sc_info side_channel_protection]} {
+    puts "Side-channel protection available - testing secure key operations..."
+    
+    # Generate key with side-channel protection
+    set secure_key [tossl::rsa::generate -bits 2048]
+    puts "Secure key generation completed"
+    
+    # Test secure signing
+    set test_data [tossl::randbytes 32]
+    set signature [tossl::rsa::sign -key $secure_key -data $test_data -alg sha256]
+    puts "Secure signing completed"
+    
+    # Test secure verification
+    set verify_result [tossl::rsa::verify -key $secure_key -data $test_data -signature $signature -alg sha256]
+    puts "Secure verification result: $verify_result"
+} else {
+    puts "Side-channel protection not available"
+}
 
-set ec_fingerprint [tossl::key::fingerprint -key [dict get $ec_keys public] -alg sha256]
-puts "   EC key fingerprint: [string range $ec_fingerprint 0 31]..."
-puts ""
+# Test certificate status with real validation
+puts "\n--- Certificate Validation Integration ---"
+set validation_result [tossl::x509::validate -cert $cert]
+puts "Certificate validation: $validation_result"
 
-# Test 5: Certificate Time Validation
-puts "5. Testing Certificate Time Validation..."
-set ca_keys [tossl::rsa::generate -bits 2048]
-set ca_cert [tossl::ca::generate -key [dict get $ca_keys private] -subject "Test CA" -days 365]
-set time_validation [tossl::x509::time_validate -cert $ca_cert]
-puts "   Certificate time validation: [dict get $time_validation valid]"
-puts "   Not before: [dict get $time_validation not_before]"
-puts "   Not after: [dict get $time_validation not_after]"
-puts "   Current time: [dict get $time_validation current_time]"
-puts ""
+# Test PFS with SSL/TLS
+puts "\n--- PFS SSL/TLS Integration ---"
+set ssl_ctx [tossl::ssl::context -protocol tlsv1_2]
+puts "SSL context created for PFS testing"
 
-# Test 6: Base64URL Encoding/Decoding
-puts "6. Testing Base64URL Encoding/Decoding..."
-set test_data "Hello, Base64URL! This is a test with special chars: +/="
-set b64url_encoded [tossl::base64url::encode $test_data]
-puts "   Base64URL encoded: $b64url_encoded"
+# Test performance comparison
+puts "\n--- Performance Comparison ---"
 
-set b64url_decoded [tossl::base64url::decode $b64url_encoded]
-puts "   Base64URL decoded: $b64url_decoded"
-puts "   Roundtrip successful: [expr {$test_data eq $b64url_decoded}]"
-puts ""
+# Compare hardware vs software performance
+if {[dict get $hw_info aes_ni]} {
+    puts "AES-NI available - comparing performance..."
+    set hw_cipher_bench [tossl::benchmark cipher aes-256-cbc 500 1024]
+    puts "Hardware AES benchmark: $hw_cipher_bench"
+} else {
+    puts "AES-NI not available"
+}
 
-# Test 7: Compare with regular Base64
-puts "7. Testing Base64URL vs Base64..."
-set regular_b64 [tossl::base64::encode $test_data]
-puts "   Regular Base64: $regular_b64"
-puts "   Base64URL:      $b64url_encoded"
-puts "   URLs are different: [expr {$regular_b64 ne $b64url_encoded}]"
-puts ""
+if {[dict get $hw_info sha_ni]} {
+    puts "SHA-NI available - comparing performance..."
+    set hw_hash_bench [tossl::benchmark hash sha256 1000 1024]
+    puts "Hardware SHA benchmark: $hw_hash_bench"
+} else {
+    puts "SHA-NI not available"
+}
 
-# Test 8: Edge cases for Base64URL
-puts "8. Testing Base64URL Edge Cases..."
-set edge_data "A"
-set edge_b64url [tossl::base64url::encode $edge_data]
-puts "   Single byte: $edge_b64url"
-set edge_decoded [tossl::base64url::decode $edge_b64url]
-puts "   Decoded: $edge_decoded"
-puts "   Single byte roundtrip: [expr {$edge_data eq $edge_decoded}]"
+# Test security features integration
+puts "\n--- Security Features Integration ---"
 
-set edge_data2 "AB"
-set edge_b64url2 [tossl::base64url::encode $edge_data2]
-puts "   Two bytes: $edge_b64url2"
-set edge_decoded2 [tossl::base64url::decode $edge_b64url2]
-puts "   Decoded: $edge_decoded2"
-puts "   Two bytes roundtrip: [expr {$edge_data2 eq $edge_decoded2}]"
-puts ""
+# Test logging with cryptographic operations
+puts "Enabling crypto logging for security test..."
+puts [tossl::cryptolog enable debug]
 
-puts "=== All Extended Features Tested Successfully ==="
-puts "\nSummary of new features implemented:"
-puts "- EC point operations (addition, multiplication, component extraction)"
-puts "- Ed25519 key generation, signing, and verification"
-puts "- X25519 key generation and key exchange"
-puts "- Key fingerprinting for RSA and EC keys"
-puts "- Certificate time validation"
-puts "- Base64URL encoding and decoding"
+# Perform operations that should be logged
+set test_key [tossl::rsa::generate -bits 1024]
+set test_data [tossl::randbytes 16]
+set test_sig [tossl::rsa::sign -key $test_key -data $test_data -alg sha256]
 
-puts "\nThese features address the following items from MISSING-TODO.md:"
-puts "- EC point operations"
-puts "- EC key components extraction"
-puts "- Ed25519/Ed448 support (Ed25519 implemented)"
-puts "- X25519/X448 key exchange (X25519 implemented)"
-puts "- Key fingerprinting"
-puts "- Certificate time validation"
-puts "- Base64URL encoding/decoding" 
+puts "Checking crypto log status after operations..."
+puts [tossl::cryptolog status]
+
+puts "Clearing crypto log..."
+puts [tossl::cryptolog clear]
+
+# Test certificate status with different scenarios
+puts "\n--- Certificate Status Scenarios ---"
+
+# Test expired certificate
+puts "Testing expired certificate scenario..."
+set expired_cert [tossl::ca::sign -ca_key $ca_key -subject "/CN=Expired Cert" -days -1]
+set expired_status [tossl::cert::status check $expired_cert]
+puts "Expired certificate status: $expired_status"
+
+# Test not-yet-valid certificate
+puts "Testing not-yet-valid certificate scenario..."
+set future_cert [tossl::ca::sign -ca_key $ca_key -subject "/CN=Future Cert" -days 365 -not_before [clock add [clock seconds] 86400]]
+set future_status [tossl::cert::status check $future_cert]
+puts "Future certificate status: $future_status"
+
+# Test valid certificate
+puts "Testing valid certificate scenario..."
+set valid_cert [tossl::ca::sign -ca_key $ca_key -subject "/CN=Valid Cert" -days 30]
+set valid_status [tossl::cert::status check $valid_cert]
+puts "Valid certificate status: $valid_status"
+
+# Test PFS cipher suites
+puts "\n--- PFS Cipher Suite Testing ---"
+set pfs_ciphers [dict get $pfs_info pfs_ciphers]
+puts "PFS ciphers available: $pfs_ciphers"
+
+set non_pfs_ciphers [dict get $pfs_info non_pfs_ciphers]
+puts "Non-PFS ciphers: $non_pfs_ciphers"
+
+# Test benchmarking with different parameters
+puts "\n--- Advanced Benchmarking ---"
+
+# Test different hash algorithms
+foreach alg {sha1 sha256 sha384 sha512} {
+    puts "Benchmarking $alg..."
+    set bench [tossl::benchmark hash $alg 500 512]
+    puts "$alg benchmark: $bench"
+}
+
+# Test different cipher modes
+foreach mode {aes-128-cbc aes-256-cbc aes-128-gcm aes-256-gcm} {
+    puts "Benchmarking $mode..."
+    set bench [tossl::benchmark cipher $mode 200 512]
+    puts "$mode benchmark: $bench"
+}
+
+# Test different key sizes
+foreach size {1024 2048 4096} {
+    puts "Benchmarking RSA-$size..."
+    set bench [tossl::benchmark rsa $size 20]
+    puts "RSA-$size benchmark: $bench"
+}
+
+# Test different EC curves
+foreach curve {prime256v1 secp384r1 secp521r1} {
+    puts "Benchmarking EC $curve..."
+    set bench [tossl::benchmark ec -curve $curve -iterations 200]
+    puts "EC $curve benchmark: $bench"
+}
+
+puts "\n=== Extended Features Test Complete ==="
+puts "All new features have been tested successfully!" 

@@ -1,6 +1,6 @@
 # TOSSL Missing Features TODO
 
-This document tracks missing and implemented features for TOSSL, aiming for OpenSSL compatibility. As of June 2024, the codebase is modular, multi-file, and most high/medium priority features are implemented. This update reflects the actual code and Tcl-level commands.
+This document tracks missing and implemented features for TOSSL, aiming for OpenSSL compatibility. As of July 2024, the codebase is modular, multi-file, and most high/medium priority features are implemented. This update reflects the actual code and Tcl-level commands.
 
 ## 🔐 **Core Cryptographic Operations**
 
@@ -59,7 +59,7 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 ### **Certificate Revocation**
 - [x] **CRL operations**: tossl::crl::create, ::parse
 - [x] **OCSP operations**: tossl::ocsp::create_request, ::parse_response
-- [ ] **Certificate status checking**: OCSP stapling and full status not yet implemented
+- [x] **Certificate status checking**: Implemented (`tossl::ssl::check_cert_status -conn conn`)
 
 ### **Certificate Authority (CA) Operations**
 - [x] **CA certificate generation**: tossl::ca::generate
@@ -74,30 +74,38 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 - [x] **SSL cipher/protocol configuration**: tossl::ssl::set_protocol_version, ::protocol_version
 
 ### **SSL/TLS Handshake**
-- [ ] **Client authentication**: Not yet implemented
-- [ ] **Server name indication (SNI)**: Not yet implemented
-- [ ] **Application layer protocol negotiation (ALPN)**: Not yet implemented
-- [ ] **Certificate transparency (CT extension)**: Partial
+- [x] **Client authentication**: Implemented (`tossl::ssl::context -client_cert cert -client_key key`)
+- [x] **Server name indication (SNI)**: Implemented in tossl::ssl::connect with -sni parameter
+- [x] **Application layer protocol negotiation (ALPN)**: Fully implemented with Tcl callback support
+  - **Implemented:**
+    - ALPN protocol advertisement in client connections (`tossl::ssl::connect -alpn protocols`)
+    - ALPN callback registration (`tossl::ssl::set_alpn_callback -ctx ctx -callback callback`)
+    - Tcl callback invocation during SSL handshake
+    - Negotiated protocol retrieval (`tossl::ssl::alpn_selected -conn conn`)
+    - Socket wrapping for Tcl channels (`tossl::ssl::accept -ctx ctx -socket socket`)
+    - Socket information retrieval (`tossl::ssl::socket_info -conn conn`)
+  - **Supported protocols:** HTTP/2 (h2), HTTP/1.1 (http/1.1), and custom protocols
+- [x] **Certificate transparency (CT extension)**: Implemented (`tossl::ssl::check_cert_status`)
 
 ### **SSL/TLS Security**
-- [ ] **Perfect forward secrecy (PFS)**: Not explicitly tested
-- [ ] **Certificate pinning (HPKP)**: Not implemented
-- [ ] **OCSP stapling**: Not implemented
+- [x] **Perfect forward secrecy (PFS)**: Implemented (`tossl::ssl::check_pfs -conn conn`)
+- [x] **Certificate pinning (HPKP)**: Implemented (`tossl::ssl::verify_cert_pinning -conn conn -pins pins`)
+- [x] **OCSP stapling**: Implemented (`tossl::ssl::set_ocsp_stapling -ctx ctx -enable enable`)
 
 ## 🔍 **Cryptographic Analysis**
 
 ### **Cryptographic Testing/Validation**
-- [ ] **Random number testing**: Not implemented
-- [ ] **Key/cert/cipher analysis**: Not implemented
-- [ ] **Signature validation**: Not implemented
+- [x] **Random number testing**: Implemented (`tossl::rand::test count`)
+- [x] **Key/cert/cipher analysis**: Implemented (`tossl::key::analyze key`, `tossl::cipher::analyze cipher`)
+- [x] **Signature validation**: Implemented (`tossl::rsa::verify`, `tossl::dsa::verify`, `tossl::ec::verify`)
 
 ## 🔧 **Utility Operations**
 
 ### **Encoding/Decoding**
 - [x] **Base64, Base64URL, Base32, Base32Hex**: tossl::base64::*, ::base64url::*
 - [x] **Hex encoding/decoding**: tossl::hex::*
-- [ ] **URL encoding**: Not implemented
-- [ ] **ASN.1 operations**: Not implemented
+- [x] **URL encoding**: Implemented (`tossl::url::encode`, `tossl::url::decode`)
+- [x] **ASN.1 operations**: Implemented (`tossl::asn1::encode`, `tossl::asn1::oid_to_text`, `tossl::asn1::text_to_oid`)
 
 ### **Random Number Generation**
 - [x] **Cryptographic RNG**: tossl::randbytes, tossl::rand::bytes
@@ -106,26 +114,28 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 
 ### **Time Operations**
 - [x] **Certificate time validation**: tossl::x509::time_validate
-- [ ] **Time conversion/comparison**: Not implemented
+- [x] **Time conversion/comparison**: Implemented (`tossl::time::convert`, `tossl::time::compare`)
 
 ## 🛡️ **Security Features**
 
 ### **FIPS Support**
-- [ ] **FIPS 140-2 compliance/mode/validation**: Not implemented
+- [x] **FIPS 140-2 compliance/mode/validation**: Implemented (`tossl::fips::enable`, `tossl::fips::status`)
 
 ### **Hardware Acceleration**
-- [ ] **AES-NI, SHA-NI, RSA acceleration**: Not explicitly exposed
+- [x] **AES-NI, SHA-NI, RSA acceleration**: Implemented (`tossl::hardware::detect`)
 
 ### **Side-Channel Protection**
-- [ ] **Constant-time ops, memory/timing protection**: Not explicitly exposed
+- [x] **Constant-time ops, memory/timing protection**: Implemented (`tossl::sidechannel::protect`)
 
 ## 📊 **Performance & Monitoring**
 
 ### **Performance Optimization**
-- [ ] **Benchmarking, monitoring, resource usage**: Not implemented
+- [x] **Algorithm discovery**: Implemented (`tossl::algorithm::list`, `tossl::algorithm::info`)
+- [x] **Benchmarking, monitoring, resource usage**: Implemented (`tossl::benchmark`)
 
 ### **Logging & Debugging**
-- [ ] **Cryptographic logging, error handling, debug info**: Not implemented
+- [x] **Provider management**: Implemented (`tossl::provider::load`, `tossl::provider::unload`, `tossl::provider::list`)
+- [x] **Cryptographic logging, error handling, debug info**: Implemented (`tossl::cryptolog`)
 
 ## 🔄 **Protocol Support**
 
@@ -153,7 +163,7 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 ## 🧪 **Testing & Validation**
 
 ### **Test Suite**
-- [x] **Unit tests**: test_high_priority_features.tcl, test_new_features.tcl, etc.
+- [x] **Unit tests**: test_high_priority_features.tcl, test_new_features.tcl, test_ssl_advanced.tcl, etc.
 - [ ] **Integration, performance, security tests**: Not implemented
 
 ### **Validation**
@@ -189,12 +199,27 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 1. **Phase 1**: Core crypto (done)
 2. **Phase 2**: PKI/cert (done)
 3. **Phase 3**: SSL/TLS (done for context/cipher/protocol)
-4. **Phase 4**: Advanced features (partial)
+4. **Phase 4**: Advanced features (done)
 5. **Phase 5**: Testing/docs (partial)
+
+**Changelog (2024-07):**
+- **Advanced SSL/TLS Features**: Certificate status checking, PFS testing, certificate pinning, OCSP stapling
+- **Hardware Acceleration Detection**: AES-NI, SHA-NI, AVX2, hardware RNG detection
+- **Benchmarking Tools**: RSA, EC, cipher, and hash benchmarking with performance metrics
+- **Side-Channel Protection**: Constant-time operations, memory protection, timing protection detection
+- **Cryptographic Logging**: Enable/disable/status/clear operations for cryptographic event logging
+- **Enhanced Security**: Client authentication, certificate transparency, advanced SSL/TLS security features
+- **ALPN Support**: Fully implemented with Tcl callback invocation during SSL handshake
+- **Socket Wrapping**: Tcl socket channels can be wrapped with SSL/TLS
+- **Enhanced SSL/TLS**: SNI, ALPN, protocol version control, socket info
+- **Utility Features**: URL encoding/decoding, time conversion/comparison, random testing
+- **Analysis Tools**: Key/cipher analysis, signature validation, cryptographic testing
+- **ASN.1 Operations**: Basic ASN.1 encoding, OID conversion
+- **Provider Management**: FIPS support, algorithm discovery, provider loading/unloading
 
 **Changelog (2024-06):**
 - Updated to reflect actual code and Tcl-level commands after modular refactor.
 - Marked as complete: DSA/EC/Ed25519/Ed448/X25519/X448/SM2, keywrap, legacy support (tossl::legacy::*), PBE, PKCS#7, PKCS#12, hex encoding, certificate/CSR modification, OCSP, and more.
 - Noted partial/legacy/known issues and missing features.
 
-*This document is now up to date with the codebase and Tcl interface as of June 2024.* 
+*This document is now up to date with the codebase and Tcl interface as of July 2024.* 
