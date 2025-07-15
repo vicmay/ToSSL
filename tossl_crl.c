@@ -7,7 +7,7 @@ int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    const char *key_pem = NULL, *cert_pem = NULL, *revoked_certs = NULL;
+    const char *key_pem = NULL, *cert_pem = NULL;
     int key_len = 0, cert_len = 0, days = 30;
     
     for (int i = 1; i < objc; i += 2) {
@@ -16,8 +16,6 @@ int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
             key_pem = Tcl_GetStringFromObj(objv[i+1], &key_len);
         } else if (strcmp(opt, "-cert") == 0 || strcmp(opt, "-ca_cert") == 0) {
             cert_pem = Tcl_GetStringFromObj(objv[i+1], &cert_len);
-        } else if (strcmp(opt, "-revoked_certs") == 0 || strcmp(opt, "-revoked") == 0) {
-            revoked_certs = Tcl_GetString(objv[i+1]);
         } else if (strcmp(opt, "-days") == 0) {
             if (Tcl_GetIntFromObj(interp, objv[i+1], &days) != TCL_OK) {
                 return TCL_ERROR;

@@ -416,14 +416,12 @@ int CsrModifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     }
     
     const char *csr_pem = Tcl_GetString(objv[1]);
-    const char *new_subject = NULL, *extensions = NULL, *key_pem = NULL;
+    const char *new_subject = NULL, *key_pem = NULL;
     int key_len = 0;
     for (int i = 2; i < objc; i += 2) {
         const char *opt = Tcl_GetString(objv[i]);
         if (strcmp(opt, "-subject") == 0) {
             new_subject = Tcl_GetString(objv[i+1]);
-        } else if (strcmp(opt, "-extensions") == 0) {
-            extensions = Tcl_GetString(objv[i+1]);
         } else if (strcmp(opt, "-key") == 0) {
             key_pem = Tcl_GetStringFromObj(objv[i+1], &key_len);
         } else {

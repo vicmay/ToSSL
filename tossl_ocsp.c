@@ -140,29 +140,20 @@ int OcspParseResponseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(status_str, -1));
     
     if (status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
-        // Get certificate status
-        STACK_OF(OCSP_SINGLERESP) *responses = OCSP_resp_get0(basic, 0);
-        if (responses) {
-            int num_responses = sk_OCSP_SINGLERESP_num(responses);
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("num_responses", -1));
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewIntObj(num_responses));
-            
-            for (int i = 0; i < num_responses; i++) {
-                OCSP_SINGLERESP *single = sk_OCSP_SINGLERESP_value(responses, i);
-                if (single) {
-                    int cert_status = OCSP_single_get0_status(single, NULL, NULL, NULL, NULL);
-                    const char *cert_status_str = NULL;
-                    switch (cert_status) {
-                        case V_OCSP_CERTSTATUS_GOOD: cert_status_str = "good"; break;
-                        case V_OCSP_CERTSTATUS_REVOKED: cert_status_str = "revoked"; break;
-                        case V_OCSP_CERTSTATUS_UNKNOWN: cert_status_str = "unknown"; break;
-                        default: cert_status_str = "unknown"; break;
-                    }
-                    
-                    Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("cert_status", -1));
-                    Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(cert_status_str, -1));
-                }
+        // Get certificate status - OCSP_resp_get0 returns a single response, not a stack
+        OCSP_SINGLERESP *single = OCSP_resp_get0(basic, 0);
+        if (single) {
+            int cert_status = OCSP_single_get0_status(single, NULL, NULL, NULL, NULL);
+            const char *cert_status_str = NULL;
+            switch (cert_status) {
+                case V_OCSP_CERTSTATUS_GOOD: cert_status_str = "good"; break;
+                case V_OCSP_CERTSTATUS_REVOKED: cert_status_str = "revoked"; break;
+                case V_OCSP_CERTSTATUS_UNKNOWN: cert_status_str = "unknown"; break;
+                default: cert_status_str = "unknown"; break;
             }
+            
+            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("cert_status", -1));
+            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(cert_status_str, -1));
         }
     }
     

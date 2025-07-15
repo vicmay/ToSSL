@@ -149,39 +149,6 @@ void modern_unload_provider(OSSL_PROVIDER *provider) {
     }
 }
 
-// Callback structure for provider listing
-typedef struct {
-    char *names;
-    size_t capacity;
-    size_t length;
-} provider_list_data_t;
-
-static int provider_list_callback(OSSL_PROVIDER *provider, void *arg) {
-    provider_list_data_t *data = (provider_list_data_t *)arg;
-    const char *name = OSSL_PROVIDER_get0_name(provider);
-    if (!name) return 1;
-    
-    size_t name_len = strlen(name);
-    size_t needed = data->length + name_len + 2; // +2 for comma and space
-    
-    if (needed > data->capacity) {
-        size_t new_capacity = data->capacity * 2 + 100;
-        char *new_names = realloc(data->names, new_capacity);
-        if (!new_names) return 1;
-        data->names = new_names;
-        data->capacity = new_capacity;
-    }
-    
-    if (data->length > 0) {
-        strncat(data->names, ", ", data->capacity - data->length - 1);
-        data->length += 2;
-    }
-    
-    strncat(data->names, name, data->capacity - data->length - 1);
-    data->length += name_len;
-    return 1;
-}
-
 int modern_list_providers(char **provider_names) {
     // For now, return known default providers
     // TODO: Implement proper provider enumeration when callback issues are resolved
@@ -193,53 +160,6 @@ int modern_list_providers(char **provider_names) {
 }
 
 // Algorithm discovery functions
-typedef struct {
-    char *names;
-    size_t capacity;
-    size_t length;
-    int operation;
-} algorithm_list_data_t;
-
-static int algorithm_list_callback(const OSSL_ALGORITHM *algorithm, void *arg) {
-    algorithm_list_data_t *data = (algorithm_list_data_t *)arg;
-    const char *name = algorithm->algorithm_names;
-    if (!name) return 1;
-    
-    size_t name_len = strlen(name);
-    size_t needed = data->length + name_len + 2; // +2 for comma and space
-    
-    if (needed > data->capacity) {
-        size_t new_capacity = data->capacity * 2 + 100;
-        char *new_names = realloc(data->names, new_capacity);
-        if (!new_names) return 1;
-        data->names = new_names;
-        data->capacity = new_capacity;
-    }
-    
-    if (data->length > 0) {
-        strncat(data->names, ", ", data->capacity - data->length - 1);
-        data->length += 2;
-    }
-    
-    strncat(data->names, name, data->capacity - data->length - 1);
-    data->length += name_len;
-    return 1;
-}
-
-static int provider_algorithm_callback(OSSL_PROVIDER *provider, void *arg) {
-    algorithm_list_data_t *data = (algorithm_list_data_t *)arg;
-    OSSL_ALGORITHM *algorithms = OSSL_PROVIDER_query_operation(provider, data->operation, NULL);
-    if (!algorithms) return 1;
-    
-    // Process each algorithm
-    for (int i = 0; algorithms[i].algorithm_names != NULL; i++) {
-        algorithm_list_callback(&algorithms[i], data);
-    }
-    
-    OSSL_PROVIDER_unquery_operation(provider, data->operation, algorithms);
-    return 1;
-}
-
 int modern_list_algorithms(const char *type, char **algorithm_names) {
     // For now, return common algorithms based on type
     // TODO: Implement proper algorithm enumeration when callback issues are resolved

@@ -7,7 +7,7 @@ int CaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    const char *key_pem = NULL, *subject = NULL, *extensions = NULL;
+    const char *key_pem = NULL, *subject = NULL;
     int key_len = 0, days = 365;
     
     for (int i = 1; i < objc; i += 2) {
@@ -18,8 +18,6 @@ int CaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
             subject = Tcl_GetString(objv[i+1]);
         } else if (strcmp(opt, "-days") == 0) {
             days = atoi(Tcl_GetString(objv[i+1]));
-        } else if (strcmp(opt, "-extensions") == 0) {
-            extensions = Tcl_GetString(objv[i+1]);
         } else {
             Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
             return TCL_ERROR;

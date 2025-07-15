@@ -431,7 +431,7 @@ int DigestListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    OSSL_ALGORITHM *algorithms = OSSL_PROVIDER_query_operation(provider, OSSL_OP_DIGEST, NULL);
+    const OSSL_ALGORITHM *algorithms = OSSL_PROVIDER_query_operation(provider, OSSL_OP_DIGEST, NULL);
     if (algorithms) {
         for (int i = 0; algorithms[i].algorithm_names != NULL; i++) {
             const char *name = algorithms[i].algorithm_names;
