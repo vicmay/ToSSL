@@ -103,8 +103,12 @@ set result [tossl::acme::cleanup_dns \
 
 ### HTTP/HTTPS Client Support
 
-#### `tossl::http::get url`
-Performs an HTTP GET request and returns a dict with status_code, body, and headers.
+TOSSL provides a comprehensive HTTP client with both basic and enhanced features for API integration and OAuth2 support.
+
+#### Basic HTTP Commands
+
+##### `tossl::http::get url`
+Performs a basic HTTP GET request and returns a dict with status_code, body, and headers.
 
 ```tcl
 set response [tossl::http::get "https://api.example.com/data"]
@@ -112,12 +116,152 @@ puts "Status: [dict get $response status_code]"
 puts "Body: [dict get $response body]"
 ```
 
-#### `tossl::http::post url data`
-Performs an HTTP POST request with the specified data.
+##### `tossl::http::post url data`
+Performs a basic HTTP POST request with the specified data.
 
 ```tcl
 set response [tossl::http::post "https://api.example.com/submit" "key=value"]
 puts "Status: [dict get $response status_code]"
+```
+
+#### Enhanced HTTP Commands (OAuth2-Ready)
+
+##### `tossl::http::get_enhanced url ?options?`
+Performs an enhanced HTTP GET request with full control over headers, timeouts, authentication, and SSL options.
+
+```tcl
+# OAuth2 Bearer token authentication
+set response [tossl::http::get_enhanced "https://api.example.com/users" \
+    -headers "Authorization: Bearer $access_token\nAccept: application/json" \
+    -timeout 30 \
+    -return_details true]
+
+puts "Status: [dict get $response status_code]"
+puts "Request time: [dict get $response request_time] ms"
+puts "Response size: [dict get $response response_size] bytes"
+```
+
+**Available options:**
+- `-headers {header1 value1}`: Custom HTTP headers
+- `-timeout seconds`: Request timeout in seconds
+- `-user_agent string`: Custom user agent string
+- `-follow_redirects boolean`: Whether to follow redirects (default: true)
+- `-verify_ssl boolean`: Whether to verify SSL certificates (default: true)
+- `-proxy url`: Proxy server URL
+- `-auth {username:password}`: Basic authentication
+- `-return_details boolean`: Include detailed response info (timing, size, etc.)
+
+##### `tossl::http::post_enhanced url data ?options?`
+Performs an enhanced HTTP POST request with full control over content-type, headers, and other options.
+
+```tcl
+# JSON API call with OAuth2 authentication
+set json_data "{\"name\": \"John Doe\", \"email\": \"john@example.com\"}"
+set response [tossl::http::post_enhanced "https://api.example.com/users" $json_data \
+    -headers "Authorization: Bearer $access_token\nContent-Type: application/json" \
+    -content_type "application/json" \
+    -timeout 30 \
+    -return_details true]
+```
+
+**Available options:** Same as `get_enhanced` plus:
+- `-content_type type`: Content-Type header value
+
+##### `tossl::http::request -method METHOD -url url ?options?`
+Universal HTTP request command supporting all HTTP methods (GET, POST, PUT, DELETE, PATCH).
+
+```tcl
+# OAuth2 API calls with different methods
+set access_token "your-access-token"
+
+# GET request
+set response [tossl::http::request \
+    -method GET \
+    -url "https://api.example.com/users" \
+    -headers "Authorization: Bearer $access_token" \
+    -return_details true]
+
+# PUT request
+set response [tossl::http::request \
+    -method PUT \
+    -url "https://api.example.com/users/123" \
+    -data "{\"status\": \"active\"}" \
+    -headers "Authorization: Bearer $access_token\nContent-Type: application/json" \
+    -content_type "application/json"]
+
+# DELETE request
+set response [tossl::http::request \
+    -method DELETE \
+    -url "https://api.example.com/users/123" \
+    -headers "Authorization: Bearer $access_token"]
+```
+
+#### Session Management
+
+##### `tossl::http::session::create session_id ?options?`
+Creates a persistent HTTP session for connection reuse and better performance.
+
+```tcl
+set session_id [tossl::http::session::create "api_session" \
+    -timeout 30 \
+    -user_agent "MyApp/1.0"]
+```
+
+##### `tossl::http::session::get session_id url ?-headers {header1 value1}?`
+Performs a GET request using a session.
+
+```tcl
+set response [tossl::http::session::get $session_id "https://api.example.com/users" \
+    -headers "Authorization: Bearer $access_token"]
+```
+
+##### `tossl::http::session::post session_id url data ?-headers {header1 value1}? ?-content_type type?`
+Performs a POST request using a session.
+
+```tcl
+set response [tossl::http::session::post $session_id "https://api.example.com/users" $json_data \
+    -headers "Authorization: Bearer $access_token" \
+    -content_type "application/json"]
+```
+
+##### `tossl::http::session::destroy session_id`
+Destroys a session and frees resources.
+
+```tcl
+tossl::http::session::destroy $session_id
+```
+
+#### File Upload
+
+##### `tossl::http::upload url file_path ?options?`
+Uploads a file using multipart form data.
+
+```tcl
+set response [tossl::http::upload "https://api.example.com/upload" "/path/to/file.txt" \
+    -field_name "file" \
+    -additional_fields "description: My file\ncategory: documents" \
+    -headers "Authorization: Bearer $access_token"]
+```
+
+#### Debug and Metrics
+
+##### `tossl::http::debug enable|disable ?-level verbose|info|warning|error?`
+Enables or disables debug logging.
+
+```tcl
+tossl::http::debug enable -level info
+# Make requests...
+tossl::http::debug disable
+```
+
+##### `tossl::http::metrics`
+Returns performance metrics for all HTTP requests.
+
+```tcl
+set metrics [tossl::http::metrics]
+puts "Total requests: [dict get $metrics total_requests]"
+puts "Average response time: [dict get $metrics avg_response_time] ms"
+puts "Total request time: [dict get $metrics total_request_time] ms"
 ```
 
 ### JSON Support

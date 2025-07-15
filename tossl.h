@@ -94,6 +94,18 @@ int Tossl_HttpGetCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 int Tossl_HttpPostCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int Tossl_HttpInit(Tcl_Interp *interp);
 
+// Enhanced HTTP client functions
+int Tossl_HttpGetEnhancedCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpPostEnhancedCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpRequestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpUploadCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpSessionCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpSessionGetCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpSessionPostCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpSessionDestroyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpDebugCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpMetricsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
 // JSON utilities (json-c)
 int Tossl_JsonParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int Tossl_JsonGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
