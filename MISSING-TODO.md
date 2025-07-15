@@ -143,13 +143,19 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
   - **Status**: C implementation with libcurl integration
   - **Implemented**: `tossl::acme::directory`, `tossl::acme::create_account`, `tossl::acme::create_order`
   - **DNS-01 Challenge**: `tossl::acme::dns01_challenge`, `tossl::acme::cleanup_dns`
-  - **Dependencies**: libcurl, jsoncpp
+  - **Dependencies**: libcurl, json-c
 
 ### **HTTP/HTTPS Client**
 - [x] **HTTP client functionality**: Implemented with libcurl integration
   - **Implemented**: `tossl::http::get`, `tossl::http::post`
-  - **Dependencies**: libcurl, jsoncpp
+  - **Dependencies**: libcurl, json-c
   - **Features**: SSL/TLS support, custom headers, timeouts, redirects
+
+### **JSON Operations**
+- [x] **JSON parsing and generation**: Implemented with json-c integration
+  - **Implemented**: `tossl::json::parse`, `tossl::json::generate`
+  - **Dependencies**: json-c
+  - **Features**: Full type support (strings, numbers, booleans, arrays, objects), error handling
 
 ### **Other Protocols**
 - [x] **PKCS#7**: tossl::pkcs7::* (sign, verify, encrypt, decrypt, info)
