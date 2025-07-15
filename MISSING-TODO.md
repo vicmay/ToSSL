@@ -1,6 +1,6 @@
 # TOSSL Missing Features TODO
 
-This document tracks missing and implemented features for TOSSL, aiming for OpenSSL compatibility. As of July 2024, the codebase is modular, multi-file, and most high/medium priority features are implemented. This update reflects the actual code and Tcl-level commands.
+This document tracks missing and implemented features for TOSSL, aiming for OpenSSL compatibility. As of December 2024, the codebase is modular, multi-file, and most high/medium priority features are implemented. This update reflects the actual code and Tcl-level commands.
 
 ## 🔐 **Core Cryptographic Operations**
 
@@ -22,8 +22,7 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 - [x] **Key derivation**: PBKDF2, scrypt, Argon2 (if supported) (tossl::kdf::pbkdf2, ::scrypt, ::argon2)
 - [x] **Random key/IV generation**: tossl::rand::key, tossl::rand::iv, tossl::randbytes
 - [x] **Cipher info/listing**: tossl::cipher::info, tossl::cipher::list
-- [ ] **Legacy ciphers**: DES, 3DES, Blowfish, CAST5, RC4, RC5  
-  _Supported via tossl::legacy::* commands, but not recommended or enabled by default._
+- [x] **Legacy ciphers**: DES, 3DES, Blowfish, CAST5, RC4, RC5 (tossl::legacy::*)
 - [x] **Password-based encryption**: tossl::pbe::* (keyderive, encrypt, decrypt, algorithms, saltgen)
 
 ### **Asymmetric Cryptography**
@@ -140,24 +139,23 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 ## 🔄 **Protocol Support**
 
 ### **ACME Protocol**
-- [ ] **ACME v2, challenges, account/order management, automation**: Not implemented
+- [ ] **ACME v2, challenges, account/order management, automation**: Not implemented in C
+  - **Status**: Currently implemented in pure Tcl (acme_client.tcl)
+  - **Planned**: Move to C implementation with libcurl integration
+  - **Missing**: HTTP/HTTPS client functionality in TOSSL
+
+### **HTTP/HTTPS Client**
+- [ ] **HTTP client functionality**: Not implemented
+  - **Planned**: Integrate libcurl for HTTP/HTTPS support
+  - **Commands needed**: `tossl::http::get`, `tossl::http::post`
+  - **Dependencies**: libcurl, json-c
 
 ### **Other Protocols**
 - [x] **PKCS#7**: tossl::pkcs7::* (sign, verify, encrypt, decrypt, info)
 - [x] **PKCS#12**: tossl::pkcs12::* (create, parse)
-- [ ] **OpenPGP (partial)**: tossl::pgp::* (basic RSA keygen, parse, import/export, demo hybrid encryption)
-  - **Implemented:**
-    - RSA OpenPGP key generation (with self-signature)
-    - Key parsing, import, export (with roundtrip tests)
-    - PGP-style hybrid encryption/decryption (AES+RSA, demo only)
-  - **Missing for full RFC 4880 compliance:**
-    - DSA/ElGamal, ECC, and subkey support
-    - Multiple user IDs, subpackets, revocation, key expiration
-    - OpenPGP message formats (literal data, compressed data, signature packets, etc.)
-    - Signature creation/verification, detached signatures, message signing
-    - GnuPG and OpenPGP interoperability
-    - S2K password-protected secret key export/import (beyond basic stub)
-    - Advanced features: armor CRC, trust packets, etc.
+- [ ] **OpenPGP**: Not implemented
+  - **Status**: Removed from TOSSL (license conflicts with GPGME)
+  - **Alternative**: Separate GPL-licensed extension if needed
 - [ ] **S/MIME, SSH, Kerberos**: Not implemented
 
 ## 🧪 **Testing & Validation**
@@ -189,18 +187,32 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 ### **High Priority** (Essential for basic functionality)
 - All checked off above (see code and Tcl commands)
 
-### **Medium/Low Priority**
-- See unchecked boxes above
+### **Medium Priority** (Important for completeness)
+- [ ] **HTTP/HTTPS client** (libcurl integration)
+- [ ] **ACME protocol** (C implementation)
+- [ ] **DNS-01 challenge** support for ACME
+
+### **Low Priority** (Nice to have)
+- [ ] **OpenPGP support** (separate extension)
+- [ ] **S/MIME support**
+- [ ] **Advanced SSL/TLS features**
 
 ---
 
 ## 🎯 **Implementation Strategy**
 
-1. **Phase 1**: Core crypto (done)
-2. **Phase 2**: PKI/cert (done)
-3. **Phase 3**: SSL/TLS (done for context/cipher/protocol)
-4. **Phase 4**: Advanced features (done)
-5. **Phase 5**: Testing/docs (partial)
+1. **Phase 1**: Core crypto (✅ **COMPLETED**)
+2. **Phase 2**: PKI/cert (✅ **COMPLETED**)
+3. **Phase 3**: SSL/TLS (✅ **COMPLETED**)
+4. **Phase 4**: Advanced features (✅ **COMPLETED**)
+5. **Phase 5**: HTTP/ACME integration (🔄 **IN PROGRESS**)
+
+**Changelog (2024-12):**
+- **Removed PGP references**: PGP functionality not implemented in C code
+- **Updated ACME status**: Currently Tcl-only, planned for C implementation
+- **Added HTTP/HTTPS client**: Planned with libcurl integration
+- **Corrected legacy cipher status**: Actually implemented via tossl::legacy::*
+- **Updated implementation strategy**: Core features complete, focusing on HTTP/ACME
 
 **Changelog (2024-07):**
 - **Advanced SSL/TLS Features**: Certificate status checking, PFS testing, certificate pinning, OCSP stapling
@@ -217,9 +229,4 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 - **ASN.1 Operations**: Basic ASN.1 encoding, OID conversion
 - **Provider Management**: FIPS support, algorithm discovery, provider loading/unloading
 
-**Changelog (2024-06):**
-- Updated to reflect actual code and Tcl-level commands after modular refactor.
-- Marked as complete: DSA/EC/Ed25519/Ed448/X25519/X448/SM2, keywrap, legacy support (tossl::legacy::*), PBE, PKCS#7, PKCS#12, hex encoding, certificate/CSR modification, OCSP, and more.
-- Noted partial/legacy/known issues and missing features.
-
-*This document is now up to date with the codebase and Tcl interface as of July 2024.* 
+*This document is now up to date with the codebase and Tcl interface as of December 2024.* 
