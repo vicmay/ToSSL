@@ -27,6 +27,181 @@ TOSSL is a Tcl extension for Linux that provides access to OpenSSL cryptographic
   - Protocol version management and configuration
   - Detailed session/cipher/peer info retrieval
   - Robust error handling for all SSL/TLS commands
+- **ACME protocol support:**
+  - ACME v2 protocol with full RFC 8555 compliance
+  - DNS-01 challenge support for domain validation
+  - HTTP/HTTPS client functionality using libcurl
+  - JSON parsing and generation using json-c
+  - Multiple DNS provider support (Cloudflare, Route53, generic)
+  - Certificate lifecycle management (issuance, renewal, revocation)
+
+---
+
+## ACME Protocol Support
+
+TOSSL provides comprehensive ACME (Automated Certificate Management Environment) protocol support for automated SSL/TLS certificate issuance and management using Let's Encrypt and other ACME-compliant certificate authorities.
+
+### ACME Commands
+
+#### `tossl::acme::directory directory_url`
+Fetches and parses the ACME directory from the specified URL.
+
+```tcl
+set directory [tossl::acme::directory "https://acme-staging-v02.api.letsencrypt.org/directory"]
+puts "New account URL: [dict get $directory newAccount]"
+puts "New order URL: [dict get $directory newOrder]"
+```
+
+#### `tossl::acme::create_account directory_url account_key email ?contact?`
+Creates a new ACME account with the specified email address.
+
+```tcl
+set account_key [tossl::key::generate -type rsa -bits 2048]
+set result [tossl::acme::create_account \
+    "https://acme-staging-v02.api.letsencrypt.org/directory" \
+    [dict get $account_key private] \
+    "admin@example.com"]
+```
+
+#### `tossl::acme::create_order directory_url account_key domains`
+Creates a new certificate order for the specified domains.
+
+```tcl
+set result [tossl::acme::create_order \
+    "https://acme-staging-v02.api.letsencrypt.org/directory" \
+    $account_key \
+    "example.com www.example.com"]
+```
+
+#### `tossl::acme::dns01_challenge domain token account_key provider api_key ?zone_id?`
+Prepares a DNS-01 challenge by creating the required DNS TXT record.
+
+```tcl
+set challenge [tossl::acme::dns01_challenge \
+    "example.com" \
+    "challenge-token-12345" \
+    $account_key \
+    "cloudflare" \
+    "your-cloudflare-api-key" \
+    "your-zone-id"]
+
+puts "DNS record name: [dict get $challenge dns_record_name]"
+puts "DNS record value: [dict get $challenge dns_record_value]"
+```
+
+#### `tossl::acme::cleanup_dns domain record_name provider api_key ?zone_id?`
+Removes the DNS TXT record created for the challenge.
+
+```tcl
+set result [tossl::acme::cleanup_dns \
+    "example.com" \
+    "_acme-challenge.example.com" \
+    "cloudflare" \
+    "your-cloudflare-api-key" \
+    "your-zone-id"]
+```
+
+### HTTP/HTTPS Client Support
+
+#### `tossl::http::get url`
+Performs an HTTP GET request and returns a dict with status_code, body, and headers.
+
+```tcl
+set response [tossl::http::get "https://api.example.com/data"]
+puts "Status: [dict get $response status_code]"
+puts "Body: [dict get $response body]"
+```
+
+#### `tossl::http::post url data`
+Performs an HTTP POST request with the specified data.
+
+```tcl
+set response [tossl::http::post "https://api.example.com/submit" "key=value"]
+puts "Status: [dict get $response status_code]"
+```
+
+### JSON Support
+
+#### `tossl::json::parse json_string`
+Parses a JSON string and returns a Tcl dict.
+
+```tcl
+set json '{"name": "test", "value": 123, "active": true}'
+set data [tossl::json::parse $json]
+puts "Name: [dict get $data name]"
+puts "Value: [dict get $data value]"
+puts "Active: [dict get $data active]"
+```
+
+#### `tossl::json::generate tcl_dict`
+Generates a JSON string from a Tcl dict.
+
+```tcl
+set data [dict create name "test" value 123 active true]
+set json [tossl::json::generate $data]
+puts "JSON: $json"
+```
+
+### Complete Certificate Issuance Example
+
+```tcl
+#!/usr/bin/env tclsh
+
+# Load TOSSL
+if {[catch {package require tossl}]} {
+    load ./libtossl.so
+}
+
+# Configuration
+set acme_server "https://acme-staging-v02.api.letsencrypt.org/directory"
+set domain "example.com"
+set email "admin@example.com"
+set dns_provider "cloudflare"
+set dns_api_key "your-cloudflare-api-key"
+set dns_zone_id "your-zone-id"
+
+# Step 1: Generate account key
+puts "Generating account key..."
+set account_keys [tossl::key::generate -type rsa -bits 2048]
+set account_private [dict get $account_keys private]
+
+# Step 2: Create ACME account
+puts "Creating ACME account..."
+set account_result [tossl::acme::create_account $acme_server $account_private $email]
+puts "Account creation: $account_result"
+
+# Step 3: Create certificate order
+puts "Creating certificate order..."
+set order_result [tossl::acme::create_order $acme_server $account_private $domain]
+puts "Order creation: $order_result"
+
+# Step 4: Prepare DNS-01 challenge
+puts "Preparing DNS-01 challenge..."
+set token "challenge-token-12345"
+set challenge [tossl::acme::dns01_challenge \
+    $domain $token $account_private $dns_provider $dns_api_key $dns_zone_id]
+
+puts "DNS record name: [dict get $challenge dns_record_name]"
+puts "DNS record value: [dict get $challenge dns_record_value]"
+
+# Step 5: Wait for DNS propagation (in real usage)
+puts "Waiting for DNS propagation..."
+after 30000  ; # Wait 30 seconds
+
+# Step 6: Clean up DNS record
+puts "Cleaning up DNS record..."
+set cleanup_result [tossl::acme::cleanup_dns \
+    $domain \
+    [dict get $challenge dns_record_name] \
+    $dns_provider \
+    $dns_api_key \
+    $dns_zone_id]
+puts "Cleanup: $cleanup_result"
+
+puts "Certificate issuance process completed!"
+```
+
+For detailed ACME documentation, see [ACME-README.md](ACME-README.md).
 
 ---
 
@@ -726,6 +901,66 @@ Computes the HMAC of `<data>` using the specified digest algorithm and key.
 - `-key <key>`: Key as a Tcl byte array
 - `<data>`: Data to HMAC (byte array or string)
 - Returns: HMAC as a hex string.
+
+### `tossl::http::get url`
+Performs an HTTP GET request to the specified URL.
+- `<url>`: The URL to request
+- Returns: Dict with keys `status_code`, `body`, and `headers`
+
+### `tossl::http::post url data`
+Performs an HTTP POST request to the specified URL with the given data.
+- `<url>`: The URL to request
+- `<data>`: The data to post
+- Returns: Dict with keys `status_code`, `body`, and `headers`
+
+### `tossl::json::parse json_string`
+Parses a JSON string and returns a Tcl dict.
+- `<json_string>`: JSON string to parse
+- Returns: Tcl dict representation of the JSON data
+
+### `tossl::json::generate tcl_dict`
+Generates a JSON string from a Tcl dict.
+- `<tcl_dict>`: Tcl dict to convert
+- Returns: JSON string representation of the dict
+
+### `tossl::acme::directory directory_url`
+Fetches and parses the ACME directory from the specified URL.
+- `<directory_url>`: ACME server directory URL
+- Returns: Tcl dict containing ACME endpoints
+
+### `tossl::acme::create_account directory_url account_key email ?contact?`
+Creates a new ACME account with the specified email address.
+- `<directory_url>`: ACME server directory URL
+- `<account_key>`: PEM-encoded private key for account
+- `<email>`: Email address for account
+- `<contact>`: Additional contact information (optional)
+- Returns: Account creation status
+
+### `tossl::acme::create_order directory_url account_key domains`
+Creates a new certificate order for the specified domains.
+- `<directory_url>`: ACME server directory URL
+- `<account_key>`: PEM-encoded private key for account
+- `<domains>`: Space-separated list of domain names
+- Returns: Order creation status
+
+### `tossl::acme::dns01_challenge domain token account_key provider api_key ?zone_id?`
+Prepares a DNS-01 challenge by creating the required DNS TXT record.
+- `<domain>`: Domain name for certificate
+- `<token>`: ACME challenge token
+- `<account_key>`: PEM-encoded private key for account
+- `<provider>`: DNS provider ("cloudflare", "route53", "generic")
+- `<api_key>`: DNS provider API key
+- `<zone_id>`: DNS zone ID (required for Cloudflare)
+- Returns: Challenge information dict
+
+### `tossl::acme::cleanup_dns domain record_name provider api_key ?zone_id?`
+Removes the DNS TXT record created for the challenge.
+- `<domain>`: Domain name
+- `<record_name>`: DNS record name to delete
+- `<provider>`: DNS provider
+- `<api_key>`: DNS provider API key
+- `<zone_id>`: DNS zone ID (required for Cloudflare)
+- Returns: Cleanup status
 
 ### `tossl::pkcs12::parse <data>`
 Parses a PKCS#12 (PFX) bundle and returns a Tcl dict with PEM-encoded certificate, private key, and CA chain.
