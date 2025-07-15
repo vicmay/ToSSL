@@ -331,13 +331,12 @@ int KeyGetPubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_set1_RSA(pubkey, EVP_PKEY_get0_RSA(pkey)) <= 0 &&
-        EVP_PKEY_set1_DSA(pubkey, EVP_PKEY_get0_DSA(pkey)) <= 0 &&
-        EVP_PKEY_set1_EC_KEY(pubkey, EVP_PKEY_get0_EC_KEY(pkey)) <= 0) {
+    // Use modern API to copy key parameters
+    if (EVP_PKEY_copy_parameters(pubkey, pkey) <= 0) {
         EVP_PKEY_free(pubkey);
         EVP_PKEY_free(pkey);
         BIO_free(bio);
-        Tcl_SetResult(interp, "OpenSSL: failed to set public key", TCL_STATIC);
+        Tcl_SetResult(interp, "OpenSSL: failed to copy parameters", TCL_STATIC);
         return TCL_ERROR;
     }
     

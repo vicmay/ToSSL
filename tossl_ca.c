@@ -129,8 +129,8 @@ int CaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     ASN1_TIME_set(not_before, time(NULL));
     ASN1_TIME_set(not_after, time(NULL) + days * 24 * 60 * 60);
     
-    X509_set_notBefore(cert, not_before);
-    X509_set_notAfter(cert, not_after);
+    X509_set1_notBefore(cert, not_before);
+    X509_set1_notAfter(cert, not_after);
     
     ASN1_TIME_free(not_before);
     ASN1_TIME_free(not_after);
@@ -401,8 +401,8 @@ int CaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
     ASN1_TIME_set(not_before, time(NULL));
     ASN1_TIME_set(not_after, time(NULL) + days * 24 * 60 * 60);
     
-    X509_set_notBefore(cert, not_before);
-    X509_set_notAfter(cert, not_after);
+    X509_set1_notBefore(cert, not_before);
+    X509_set1_notAfter(cert, not_after);
     
     ASN1_TIME_free(not_before);
     ASN1_TIME_free(not_after);

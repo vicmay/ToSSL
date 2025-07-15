@@ -48,6 +48,9 @@
 #include <openssl/asn1.h>
 #include <openssl/ssl.h>
 
+// Include modern OpenSSL 3.x API wrappers
+#include "tossl_modern.h"
+
 // KeyUsage bitmask values (OpenSSL defines these in x509v3.h, but for clarity):
 #ifndef KU_DIGITAL_SIGNATURE
 #define KU_DIGITAL_SIGNATURE    0x80

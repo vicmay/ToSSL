@@ -69,18 +69,9 @@ int EcValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         Tcl_SetResult(interp, "Not an EC key", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    // For OpenSSL 3.0, we use EVP_PKEY_check with a context
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
-    if (!ctx) {
-        EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Failed to create key context", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    int result = EVP_PKEY_check(ctx);
-    EVP_PKEY_CTX_free(ctx);
+
+    int result = modern_ec_validate_key(pkey);
     EVP_PKEY_free(pkey);
-    
     Tcl_SetObjResult(interp, Tcl_NewBooleanObj(result == 1));
     return TCL_OK;
 }
@@ -118,7 +109,7 @@ int EcSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
         return TCL_ERROR;
     }
     
-    const EVP_MD *md = EVP_get_digestbyname(digest_name);
+    EVP_MD *md = modern_digest_fetch(digest_name);
     if (!md) {
         EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "Invalid digest algorithm", TCL_STATIC);
@@ -206,7 +197,7 @@ int EcVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
         return TCL_ERROR;
     }
     
-    const EVP_MD *md = EVP_get_digestbyname(digest_name);
+    EVP_MD *md = modern_digest_fetch(digest_name);
     if (!md) {
         EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "Invalid digest algorithm", TCL_STATIC);
@@ -422,31 +413,36 @@ int EcComponentsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     
     // For OpenSSL 3.0, we need to use EVP_PKEY_get_bn_param
     BIGNUM *x = NULL, *y = NULL, *d = NULL;
-    
     Tcl_Obj *result = Tcl_NewListObj(0, NULL);
-    
-    // Extract public key coordinates
-    if (EVP_PKEY_get_bn_param(pkey, "pub", &x) > 0) {
-        char *x_hex = BN_bn2hex(x);
-        if (x_hex) {
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("x", -1));
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(x_hex, -1));
-            OPENSSL_free(x_hex);
+    if (modern_ec_get_key_params(pkey, &x, &y, &d) > 0) {
+        if (x) {
+            char *x_hex = BN_bn2hex(x);
+            if (x_hex) {
+                Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("x", -1));
+                Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(x_hex, -1));
+                OPENSSL_free(x_hex);
+            }
+            BN_free(x);
         }
-        BN_free(x);
-    }
-    
-    // Extract private key
-    if (EVP_PKEY_get_bn_param(pkey, "priv", &d) > 0) {
-        char *d_hex = BN_bn2hex(d);
-        if (d_hex) {
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("d", -1));
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(d_hex, -1));
-            OPENSSL_free(d_hex);
+        if (y) {
+            char *y_hex = BN_bn2hex(y);
+            if (y_hex) {
+                Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("y", -1));
+                Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(y_hex, -1));
+                OPENSSL_free(y_hex);
+            }
+            BN_free(y);
         }
-        BN_free(d);
+        if (d) {
+            char *d_hex = BN_bn2hex(d);
+            if (d_hex) {
+                Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("d", -1));
+                Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(d_hex, -1));
+                OPENSSL_free(d_hex);
+            }
+            BN_free(d);
+        }
     }
-    
     EVP_PKEY_free(pkey);
     Tcl_SetObjResult(interp, result);
     return TCL_OK;

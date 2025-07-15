@@ -15,7 +15,7 @@ int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         }
     }
     
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+    EVP_PKEY_CTX *ctx = modern_keygen_ctx_new("RSA");
     if (!ctx) {
         Tcl_SetResult(interp, "OpenSSL: failed to create RSA context", TCL_STATIC);
         return TCL_ERROR;
@@ -27,7 +27,7 @@ int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) <= 0) {
+    if (modern_keygen_set_bits(ctx, bits) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         Tcl_SetResult(interp, "OpenSSL: RSA bits setting failed", TCL_STATIC);
         return TCL_ERROR;
@@ -494,15 +494,7 @@ int RsaValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         return TCL_ERROR;
     }
     
-    RSA *rsa = EVP_PKEY_get0_RSA(pkey);
-    if (!rsa) {
-        EVP_PKEY_free(pkey);
-        BIO_free(bio);
-        Tcl_SetResult(interp, "Not an RSA key", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    int result = RSA_check_key(rsa);
+    int result = modern_rsa_validate_key(pkey);
     Tcl_SetResult(interp, (result == 1) ? "1" : "0", TCL_STATIC);
     
     EVP_PKEY_free(pkey);
@@ -527,22 +519,20 @@ int RsaComponentsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         return TCL_ERROR;
     }
     
-    RSA *rsa = EVP_PKEY_get0_RSA(pkey);
-    if (!rsa) {
+    Tcl_Obj *dict = Tcl_NewDictObj();
+    
+    BIGNUM *n = NULL, *e = NULL, *d = NULL, *p = NULL, *q = NULL;
+    BIGNUM *dmp1 = NULL, *dmq1 = NULL, *iqmp = NULL;
+    
+    if (modern_rsa_get_key_params(pkey, &n, &e, &d) <= 0) {
         EVP_PKEY_free(pkey);
         BIO_free(bio);
-        Tcl_SetResult(interp, "Not an RSA key", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to get RSA key parameters", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    Tcl_Obj *dict = Tcl_NewDictObj();
-    
-    const BIGNUM *n = NULL, *e = NULL, *d = NULL, *p = NULL, *q = NULL;
-    const BIGNUM *dmp1 = NULL, *dmq1 = NULL, *iqmp = NULL;
-    
-    RSA_get0_key(rsa, &n, &e, &d);
-    RSA_get0_factors(rsa, &p, &q);
-    RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
+    modern_rsa_get_factors(pkey, &p, &q);
+    modern_rsa_get_crt_params(pkey, &dmp1, &dmq1, &iqmp);
     
     if (n) {
         char *n_hex = BN_bn2hex(n);

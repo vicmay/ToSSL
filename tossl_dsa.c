@@ -47,7 +47,7 @@ int DsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         return TCL_ERROR;
     }
     
-    const EVP_MD *md = EVP_get_digestbyname(alg);
+    EVP_MD *md = modern_digest_fetch(alg);
     if (!md) {
         EVP_MD_CTX_free(mdctx);
         EVP_PKEY_free(pkey);
@@ -148,7 +148,7 @@ int DsaVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    const EVP_MD *md = EVP_get_digestbyname(alg);
+    EVP_MD *md = modern_digest_fetch(alg);
     if (!md) {
         EVP_MD_CTX_free(mdctx);
         EVP_PKEY_free(pkey);
@@ -189,7 +189,7 @@ int DsaGenerateParamsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
         }
     }
     
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL);
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(NULL, "DSA", NULL);
     if (!ctx) {
         Tcl_SetResult(interp, "OpenSSL: failed to create DSA context", TCL_STATIC);
         return TCL_ERROR;
@@ -249,19 +249,10 @@ int DsaValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         Tcl_SetResult(interp, "Failed to parse private key", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
-    if (!ctx) {
-        EVP_PKEY_free(pkey);
-        BIO_free(bio);
-        Tcl_SetResult(interp, "Failed to create key context", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    int result = EVP_PKEY_check(ctx);
+
+    int result = modern_dsa_validate_key(pkey);
     Tcl_SetResult(interp, (result == 1) ? "1" : "0", TCL_STATIC);
-    
-    EVP_PKEY_CTX_free(ctx);
+
     EVP_PKEY_free(pkey);
     BIO_free(bio);
     return TCL_OK;

@@ -103,8 +103,8 @@ int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     ASN1_TIME_set(last_update, time(NULL));
     ASN1_TIME_set(next_update, time(NULL) + days*24*60*60); // days from now
     
-    X509_CRL_set_lastUpdate(crl, last_update);
-    X509_CRL_set_nextUpdate(crl, next_update);
+    X509_CRL_set1_lastUpdate(crl, last_update);
+    X509_CRL_set1_nextUpdate(crl, next_update);
     
     ASN1_TIME_free(last_update);
     ASN1_TIME_free(next_update);
@@ -191,25 +191,29 @@ int CrlParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
     }
     
     // Get last update
-    const ASN1_TIME *last_update = X509_CRL_get_lastUpdate(crl);
+    const ASN1_TIME *last_update = modern_crl_get_last_update(crl);
     if (last_update) {
-        char *last_update_str = ASN1_TIME_print(NULL, last_update);
-        if (last_update_str) {
+        BIO *bio = BIO_new(BIO_s_mem());
+        if (ASN1_TIME_print(bio, last_update)) {
+            BUF_MEM *bptr;
+            BIO_get_mem_ptr(bio, &bptr);
             Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("last_update", -1));
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(last_update_str, -1));
-            OPENSSL_free(last_update_str);
+            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(bptr->data, bptr->length));
         }
+        BIO_free(bio);
     }
     
     // Get next update
-    const ASN1_TIME *next_update = X509_CRL_get_nextUpdate(crl);
+    const ASN1_TIME *next_update = modern_crl_get_next_update(crl);
     if (next_update) {
-        char *next_update_str = ASN1_TIME_print(NULL, next_update);
-        if (next_update_str) {
+        BIO *bio = BIO_new(BIO_s_mem());
+        if (ASN1_TIME_print(bio, next_update)) {
+            BUF_MEM *bptr;
+            BIO_get_mem_ptr(bio, &bptr);
             Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("next_update", -1));
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(next_update_str, -1));
-            OPENSSL_free(next_update_str);
+            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(bptr->data, bptr->length));
         }
+        BIO_free(bio);
     }
     
     // Get number of revoked certificates

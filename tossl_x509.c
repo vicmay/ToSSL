@@ -60,8 +60,8 @@ int X509ParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     }
     
     // Extract validity dates
-    ASN1_TIME *not_before = X509_get_notBefore(cert);
-    ASN1_TIME *not_after = X509_get_notAfter(cert);
+    ASN1_TIME *not_before = X509_getm_notBefore(cert);
+    ASN1_TIME *not_after = X509_getm_notAfter(cert);
     
     if (not_before) {
         Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("not_before", -1));
@@ -211,8 +211,8 @@ int X509CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     X509_NAME_free(name);
     
     // Set validity
-    X509_gmtime_adj(X509_get_notBefore(cert), 0);
-    X509_gmtime_adj(X509_get_notAfter(cert), days * 24 * 60 * 60);
+    X509_gmtime_adj(X509_getm_notBefore(cert), 0);
+    X509_gmtime_adj(X509_getm_notAfter(cert), days * 24 * 60 * 60);
     
     // Set public key
     X509_set_pubkey(cert, pkey);
@@ -280,7 +280,7 @@ int X509ValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     }
     
     // Check if certificate is expired
-    int result = X509_cmp_time(X509_get_notAfter(cert), NULL);
+    int result = X509_cmp_time(X509_getm_notAfter(cert), NULL);
     if (result < 0) {
         X509_free(cert);
         Tcl_SetResult(interp, "Certificate is expired", TCL_STATIC);
@@ -288,7 +288,7 @@ int X509ValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     }
     
     // Check if certificate is not yet valid
-    result = X509_cmp_time(X509_get_notBefore(cert), NULL);
+    result = X509_cmp_time(X509_getm_notBefore(cert), NULL);
     if (result > 0) {
         X509_free(cert);
         Tcl_SetResult(interp, "Certificate is not yet valid", TCL_STATIC);
@@ -464,12 +464,12 @@ int X509TimeValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     Tcl_Obj *result = Tcl_NewListObj(0, NULL);
     
     // Check not before
-    int not_before_result = X509_cmp_time(X509_get_notBefore(cert), NULL);
+    int not_before_result = X509_cmp_time(X509_getm_notBefore(cert), NULL);
     Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("not_before_valid", -1));
     Tcl_ListObjAppendElement(interp, result, Tcl_NewBooleanObj(not_before_result <= 0));
     
     // Check not after
-    int not_after_result = X509_cmp_time(X509_get_notAfter(cert), NULL);
+    int not_after_result = X509_cmp_time(X509_getm_notAfter(cert), NULL);
     Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("not_after_valid", -1));
     Tcl_ListObjAppendElement(interp, result, Tcl_NewBooleanObj(not_after_result >= 0));
     
