@@ -52,12 +52,14 @@ if {[catch {
 # Test 5: Complex JSON structure
 puts "\n5. Testing complex JSON structure..."
 if {[catch {
-    set complex_json "{\"users\": [{\"name\": \"alice\", \"age\": 25}, {\"name\": \"bob\", \"age\": 30}], \"total\": 2}"
+    #set complex_json {{\"users\": [{\"name\": \"alice\", \"age\": 25}, {\"name\": \"bob\", \"age\": 30}], \"total\": 2}}
+    set complex_json {{"users": [{"name": "alice", "age": 25}, {"name": "bob", "age": 30}], "total": 2}}
     set parsed [tossl::json::parse $complex_json]
     puts "   ✓ Complex JSON parsing successful"
     puts "   Parsed: $parsed"
 } err]} {
     puts "   ✗ Complex JSON test failed: $err"
+    puts $complex_json
 }
 
 puts "\n=== JSON Test Complete ==="

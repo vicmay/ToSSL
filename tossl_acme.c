@@ -13,7 +13,7 @@
  */
 
 #include "tossl.h"
-#include <jsoncpp/json/json.h>
+#include <json-c/json.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -76,17 +76,18 @@ static char* GenerateDns01Value(const char *key_authorization) {
 
 // Create DNS TXT record via Cloudflare API
 static int CreateCloudflareRecord(const DnsProvider *provider, const char *name, const char *value) {
-    Json::Value record;
-    record["type"] = "TXT";
-    record["name"] = name;
-    record["content"] = value;
-    record["ttl"] = 60;
+    json_object *record = json_object_new_object();
+    json_object_object_add(record, "type", json_object_new_string("TXT"));
+    json_object_object_add(record, "name", json_object_new_string(name));
+    json_object_object_add(record, "content", json_object_new_string(value));
+    json_object_object_add(record, "ttl", json_object_new_int(60));
     
-    Json::Value request;
-    request["records"][0] = record;
+    json_object *request = json_object_new_object();
+    json_object *records = json_object_new_array();
+    json_object_array_add(records, record);
+    json_object_object_add(request, "records", records);
     
-    Json::FastWriter writer;
-    std::string json_data = writer.write(request);
+    const char *json_data = json_object_to_json_string(request);
     
     // Make API request to Cloudflare
     char url[512];
@@ -97,6 +98,7 @@ static int CreateCloudflareRecord(const DnsProvider *provider, const char *name,
     
     // This would use the HTTP module we just created
     // For now, return success
+    json_object_put(request);
     return 0;
 }
 
@@ -154,26 +156,31 @@ int AcmeDirectoryCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         return TCL_ERROR;
     }
     
-    // Parse JSON response
+    // Parse JSON response - extract body from HTTP response dict
     Tcl_Obj *response = Tcl_GetObjResult(interp);
-    char *body = Tcl_GetString(response);
+    Tcl_Obj *body_obj;
+    if (Tcl_DictObjGet(interp, response, Tcl_NewStringObj("body", -1), &body_obj) != TCL_OK) {
+        Tcl_SetResult(interp, "Failed to get response body", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    char *body = Tcl_GetString(body_obj);
     
-    Json::Value root;
-    Json::Reader reader;
-    if (!reader.parse(body, root)) {
+    json_object *root = json_tokener_parse(body);
+    if (!root) {
         Tcl_SetResult(interp, "Failed to parse directory JSON", TCL_STATIC);
         return TCL_ERROR;
     }
     
     // Return directory as Tcl dict
     Tcl_Obj *directory = Tcl_NewDictObj();
-    for (Json::Value::iterator it = root.begin(); it != root.end(); ++it) {
-        std::string key = it.key().asString();
-        std::string value = (*it).asString();
+    json_object_object_foreach(root, key, val) {
+        const char *value_str = json_object_get_string(val);
         Tcl_DictObjPut(interp, directory, 
-                       Tcl_NewStringObj(key.c_str(), -1),
-                       Tcl_NewStringObj(value.c_str(), -1));
+                       Tcl_NewStringObj(key, -1),
+                       Tcl_NewStringObj(value_str, -1));
     }
+    
+    json_object_put(root);
     
     Tcl_SetObjResult(interp, directory);
     return TCL_OK;
@@ -192,18 +199,19 @@ int AcmeCreateAccountCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     char *contact = (objc > 4) ? Tcl_GetString(objv[4]) : NULL;
     
     // Create account payload
-    Json::Value payload;
-    payload["termsOfServiceAgreed"] = true;
+    json_object *payload = json_object_new_object();
+    json_object_object_add(payload, "termsOfServiceAgreed", json_object_new_boolean(1));
     
-    Json::Value contacts;
-    contacts.append(Json::Value(std::string("mailto:") + email));
+    json_object *contacts = json_object_new_array();
+    char *mailto_email = malloc(strlen(email) + 8);
+    snprintf(mailto_email, strlen(email) + 8, "mailto:%s", email);
+    json_object_array_add(contacts, json_object_new_string(mailto_email));
     if (contact) {
-        contacts.append(Json::Value(contact));
+        json_object_array_add(contacts, json_object_new_string(contact));
     }
-    payload["contact"] = contacts;
+    json_object_object_add(payload, "contact", contacts);
     
-    Json::FastWriter writer;
-    std::string json_data = writer.write(payload);
+    const char *json_data = json_object_to_json_string(payload);
     
     // Get new account URL from directory
     Tcl_Obj *directory_cmd = Tcl_NewStringObj("tossl::acme::directory", -1);
@@ -228,6 +236,8 @@ int AcmeCreateAccountCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     // Make authenticated request
     // This would create JWS and make POST request
     // For now, return success
+    json_object_put(payload);
+    free(mailto_email);
     Tcl_SetResult(interp, "Account created successfully", TCL_STATIC);
     return TCL_OK;
 }
@@ -244,35 +254,27 @@ int AcmeCreateOrderCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     char *domains = Tcl_GetString(objv[3]);
     
     // Parse domains list
-    Tcl_Obj *domains_list;
-    if (Tcl_ListObj(interp, Tcl_NewStringObj(domains, -1), NULL, &domains_list) != TCL_OK) {
+    int domains_count;
+    char **domain_array;
+    if (Tcl_SplitList(interp, domains, &domains_count, (const char ***)&domain_array) != TCL_OK) {
         return TCL_ERROR;
     }
-    
     // Create order payload
-    Json::Value payload;
-    Json::Value identifiers;
-    
-    int domains_count;
-    Tcl_ListObj(interp, domains_list, &domains_count, NULL);
+    json_object *payload = json_object_new_object();
+    json_object *identifiers = json_object_new_array();
     for (int i = 0; i < domains_count; i++) {
-        Tcl_Obj *domain_obj;
-        Tcl_ListObjIndex(interp, domains_list, i, &domain_obj);
-        char *domain = Tcl_GetString(domain_obj);
-        
-        Json::Value identifier;
-        identifier["type"] = "dns";
-        identifier["value"] = domain;
-        identifiers.append(identifier);
+        const char *domain = domain_array[i];
+        json_object *identifier = json_object_new_object();
+        json_object_object_add(identifier, "type", json_object_new_string("dns"));
+        json_object_object_add(identifier, "value", json_object_new_string(domain));
+        json_object_array_add(identifiers, identifier);
     }
-    
-    payload["identifiers"] = identifiers;
-    
-    Json::FastWriter writer;
-    std::string json_data = writer.write(payload);
-    
+    json_object_object_add(payload, "identifiers", identifiers);
+    const char *json_data = json_object_to_json_string(payload);
     // Make authenticated request
     // This would create JWS and make POST request
+    json_object_put(payload);
+    Tcl_Free((char *)domain_array);
     Tcl_SetResult(interp, "Order created successfully", TCL_STATIC);
     return TCL_OK;
 }

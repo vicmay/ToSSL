@@ -21,6 +21,9 @@
 struct HttpResponse {
     char *data;
     size_t size;
+    long status_code;
+    char *headers;
+    size_t headers_size;
 };
 
 static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -35,6 +38,18 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
     return realsize;
 }
 
+static size_t HeaderCallback(char *buffer, size_t size, size_t nitems, void *userdata) {
+    size_t realsize = size * nitems;
+    struct HttpResponse *mem = (struct HttpResponse *)userdata;
+    char *ptr = realloc(mem->headers, mem->headers_size + realsize + 1);
+    if(ptr == NULL) return 0; // out of memory
+    mem->headers = ptr;
+    memcpy(&(mem->headers[mem->headers_size]), buffer, realsize);
+    mem->headers_size += realsize;
+    mem->headers[mem->headers_size] = 0;
+    return realsize;
+}
+
 int Tossl_HttpGetCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 2) {
         Tcl_WrongNumArgs(interp, 1, objv, "url");
@@ -46,20 +61,44 @@ int Tossl_HttpGetCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         Tcl_SetResult(interp, "Failed to init curl", TCL_STATIC);
         return TCL_ERROR;
     }
-    struct HttpResponse chunk = {malloc(1), 0};
+    struct HttpResponse chunk = {malloc(1), 0, 0, malloc(1), 0};
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         Tcl_SetResult(interp, (char *)curl_easy_strerror(res), TCL_VOLATILE);
         curl_easy_cleanup(curl);
         free(chunk.data);
+        free(chunk.headers);
         return TCL_ERROR;
     }
-    Tcl_SetObjResult(interp, Tcl_NewStringObj(chunk.data, chunk.size));
+    
+    // Get status code
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &chunk.status_code);
+    
+    // Create response dict
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_Obj *status_key = Tcl_NewStringObj("status_code", -1);
+    Tcl_Obj *status_value = Tcl_NewIntObj(chunk.status_code);
+    Tcl_DictObjPut(interp, result, status_key, status_value);
+    
+    Tcl_Obj *body_key = Tcl_NewStringObj("body", -1);
+    Tcl_Obj *body_value = Tcl_NewStringObj(chunk.data, chunk.size);
+    Tcl_DictObjPut(interp, result, body_key, body_value);
+    
+    Tcl_Obj *headers_key = Tcl_NewStringObj("headers", -1);
+    Tcl_Obj *headers_value = Tcl_NewStringObj(chunk.headers, chunk.headers_size);
+    Tcl_DictObjPut(interp, result, headers_key, headers_value);
+    
+    Tcl_SetObjResult(interp, result);
     curl_easy_cleanup(curl);
     free(chunk.data);
+    free(chunk.headers);
     return TCL_OK;
 }
 
@@ -75,21 +114,45 @@ int Tossl_HttpPostCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
         Tcl_SetResult(interp, "Failed to init curl", TCL_STATIC);
         return TCL_ERROR;
     }
-    struct HttpResponse chunk = {malloc(1), 0};
+    struct HttpResponse chunk = {malloc(1), 0, 0, malloc(1), 0};
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postfields);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&chunk);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         Tcl_SetResult(interp, (char *)curl_easy_strerror(res), TCL_VOLATILE);
         curl_easy_cleanup(curl);
         free(chunk.data);
+        free(chunk.headers);
         return TCL_ERROR;
     }
-    Tcl_SetObjResult(interp, Tcl_NewStringObj(chunk.data, chunk.size));
+    
+    // Get status code
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &chunk.status_code);
+    
+    // Create response dict
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_Obj *status_key = Tcl_NewStringObj("status_code", -1);
+    Tcl_Obj *status_value = Tcl_NewIntObj(chunk.status_code);
+    Tcl_DictObjPut(interp, result, status_key, status_value);
+    
+    Tcl_Obj *body_key = Tcl_NewStringObj("body", -1);
+    Tcl_Obj *body_value = Tcl_NewStringObj(chunk.data, chunk.size);
+    Tcl_DictObjPut(interp, result, body_key, body_value);
+    
+    Tcl_Obj *headers_key = Tcl_NewStringObj("headers", -1);
+    Tcl_Obj *headers_value = Tcl_NewStringObj(chunk.headers, chunk.headers_size);
+    Tcl_DictObjPut(interp, result, headers_key, headers_value);
+    
+    Tcl_SetObjResult(interp, result);
     curl_easy_cleanup(curl);
     free(chunk.data);
+    free(chunk.headers);
     return TCL_OK;
 }
 
