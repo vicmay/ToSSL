@@ -68,6 +68,20 @@ int Tossl_Init(Tcl_Interp *interp) {
     if (!ns) {
         return TCL_ERROR;
     }
+    // Register HTTP client commands
+    if (Tossl_HttpInit(interp) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
+    // Register JSON utilities
+    if (Tossl_JsonInit(interp) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
+    // Register ACME commands (stub for now)
+    // if (Tossl_AcmeInit(interp) != TCL_OK) {
+    //     return TCL_ERROR;
+    // }
     
     // Register implemented commands only
     Tcl_CreateObjCommand(interp, "tossl::hmac", HmacCmd, NULL, NULL);
@@ -219,6 +233,16 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_PkgProvide(interp, "tossl", "0.1");
     TosslRegisterSslCommands(interp);
     
+    // Initialize HTTP module
+    if (Tossl_HttpInit(interp) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
+    // Initialize ACME module
+    // if (Tossl_AcmeInit(interp) != TCL_OK) {
+    //     return TCL_ERROR;
+    // }
+    
     // Provider management commands
     Tcl_CreateObjCommand(interp, "tossl::provider::load", ProviderLoadCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::provider::unload", ProviderUnloadCmd, NULL, NULL);
@@ -276,7 +300,38 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::pfs::test", Tossl_PfsTestCmd, NULL, NULL);
     
     return TCL_OK;
-} 
+}
+
+// Stub implementation for ACME functions
+int Tossl_AcmeInit(Tcl_Interp *interp) {
+    // TODO: Implement ACME functionality
+    return TCL_OK;
+}
+
+int AcmeDirectoryCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    Tcl_SetResult(interp, "ACME not implemented yet", TCL_STATIC);
+    return TCL_ERROR;
+}
+
+int AcmeCreateAccountCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    Tcl_SetResult(interp, "ACME not implemented yet", TCL_STATIC);
+    return TCL_ERROR;
+}
+
+int AcmeCreateOrderCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    Tcl_SetResult(interp, "ACME not implemented yet", TCL_STATIC);
+    return TCL_ERROR;
+}
+
+int AcmeDns01ChallengeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    Tcl_SetResult(interp, "ACME not implemented yet", TCL_STATIC);
+    return TCL_ERROR;
+}
+
+int AcmeCleanupDnsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    Tcl_SetResult(interp, "ACME not implemented yet", TCL_STATIC);
+    return TCL_ERROR;
+}
 
 int ProviderLoadCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 2) {

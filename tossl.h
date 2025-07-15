@@ -88,6 +88,24 @@ typedef struct SslSessionHandle {
 // Function prototypes for all command functions
 // Core crypto functions
 int HmacCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+
+// HTTP client (libcurl)
+int Tossl_HttpGetCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpPostCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_HttpInit(Tcl_Interp *interp);
+
+// JSON utilities (json-c)
+int Tossl_JsonParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_JsonGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_JsonInit(Tcl_Interp *interp);
+
+// ACME functions
+int AcmeDirectoryCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int AcmeCreateAccountCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int AcmeCreateOrderCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int AcmeDns01ChallengeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int AcmeCleanupDnsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int Tossl_AcmeInit(Tcl_Interp *interp);
 int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int Base64UrlEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);

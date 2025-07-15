@@ -139,16 +139,17 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 ## 🔄 **Protocol Support**
 
 ### **ACME Protocol**
-- [ ] **ACME v2, challenges, account/order management, automation**: Not implemented in C
-  - **Status**: Currently implemented in pure Tcl (acme_client.tcl)
-  - **Planned**: Move to C implementation with libcurl integration
-  - **Missing**: HTTP/HTTPS client functionality in TOSSL
+- [x] **ACME v2, challenges, account/order management, automation**: Implemented in C
+  - **Status**: C implementation with libcurl integration
+  - **Implemented**: `tossl::acme::directory`, `tossl::acme::create_account`, `tossl::acme::create_order`
+  - **DNS-01 Challenge**: `tossl::acme::dns01_challenge`, `tossl::acme::cleanup_dns`
+  - **Dependencies**: libcurl, jsoncpp
 
 ### **HTTP/HTTPS Client**
-- [ ] **HTTP client functionality**: Not implemented
-  - **Planned**: Integrate libcurl for HTTP/HTTPS support
-  - **Commands needed**: `tossl::http::get`, `tossl::http::post`
-  - **Dependencies**: libcurl, json-c
+- [x] **HTTP client functionality**: Implemented with libcurl integration
+  - **Implemented**: `tossl::http::get`, `tossl::http::post`
+  - **Dependencies**: libcurl, jsoncpp
+  - **Features**: SSL/TLS support, custom headers, timeouts, redirects
 
 ### **Other Protocols**
 - [x] **PKCS#7**: tossl::pkcs7::* (sign, verify, encrypt, decrypt, info)
@@ -188,9 +189,9 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 - All checked off above (see code and Tcl commands)
 
 ### **Medium Priority** (Important for completeness)
-- [ ] **HTTP/HTTPS client** (libcurl integration)
-- [ ] **ACME protocol** (C implementation)
-- [ ] **DNS-01 challenge** support for ACME
+- [x] **HTTP/HTTPS client** (libcurl integration)
+- [x] **ACME protocol** (C implementation)
+- [x] **DNS-01 challenge** support for ACME
 
 ### **Low Priority** (Nice to have)
 - [ ] **OpenPGP support** (separate extension)
@@ -205,7 +206,7 @@ This document tracks missing and implemented features for TOSSL, aiming for Open
 2. **Phase 2**: PKI/cert (✅ **COMPLETED**)
 3. **Phase 3**: SSL/TLS (✅ **COMPLETED**)
 4. **Phase 4**: Advanced features (✅ **COMPLETED**)
-5. **Phase 5**: HTTP/ACME integration (🔄 **IN PROGRESS**)
+5. **Phase 5**: HTTP/ACME integration (✅ **COMPLETED**)
 
 **Changelog (2024-12):**
 - **Removed PGP references**: PGP functionality not implemented in C code
