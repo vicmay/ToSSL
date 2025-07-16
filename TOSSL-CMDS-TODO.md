@@ -60,4 +60,38 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ec::point_add` | ✅ | tests/test_ec_point_add.tcl | ✅ | doc/ec_point_add.md | |
 | `::tossl::ec::validate` | ✅ | tests/test_ec_validate.tcl | ✅ | doc/ec_validate.md | |
 | `::tossl::ec::list_curves` | ✅ | tests/test_ec_list_curves.tcl | ✅ | doc/ec_list_curves.md | |
-| `::tossl::dsa::verify`
+| `::tossl::dsa::verify` | ❌ | | ❌ | | |
+| `::tossl::dsa::sign` | ❌ | | ❌ | | |
+| `::tossl::dsa::validate` | ❌ | | ❌ | | |
+| `::tossl::dsa::generate_params` | ❌ | | ❌ | | |
+| `::tossl::http::get` | ❌ | | ❌ | | |
+| `::tossl::http::upload` | ❌ | | ❌ | | |
+| `::tossl::http::request` | ❌ | | ❌ | | |
+| `::tossl::http::get_enhanced` | ❌ | | ❌ | | |
+| `::tossl::http::post` | ❌ | | ❌ | | |
+| `::tossl::http::metrics` | ❌ | | ❌ | | |
+| `::tossl::http::debug` | ❌ | | ❌ | | |
+| `::tossl::http::post_enhanced` | ❌ | | ❌ | | |
+| `::tossl::digest::list` | ❌ | | ❌ | | |
+| `::tossl::digest::stream` | ❌ | | ❌ | | |
+| `::tossl::digest::compare` | ❌ | | ❌ | | |
+| `::tossl::crl::create` | ❌ | | ❌ | | |
+| `::tossl::crl::parse` | ❌ | | ❌ | | |
+| `::tossl::key::analyze` | ❌ | | ❌ | | |
+| `::tossl::key::fingerprint` | ❌ | | ❌ | | |
+| `::tossl::key::convert` | ❌ | | ❌ | | |
+| `::tossl::key::getpub` | ❌ | | ❌ | | |
+| `::tossl::key::generate` | ❌ | | ❌ | | |
+| `::tossl::key::write` | ❌ | | ❌ | | |
+| `::tossl::key::parse` | ❌ | | ❌ | | |
+| `::tossl::fips::status` | ❌ | | ❌ | | |
+| `::tossl::fips::enable` | ❌ | | ❌ | | |
+| `::tossl::json::generate` | ❌ | | ❌ | | |
+| `::tossl::json::parse` | ❌ | | ❌ | | |
+| `::tossl::url::decode` | ❌ | | ❌ | | |
+| `::tossl::url::encode` | ❌ | | ❌ | | |
+| `::tossl::provider::list` | ❌ | | ❌ | | |
+| `::tossl::provider::load` | ❌ | | ❌ | | |
+| `::tossl::provider::unload` | ❌ | | ❌ | | |
+| `::tossl::oauth2::load_token` | ❌ | | ❌ | | |
+| `::tossl::oauth2::device_authorization` | ❌ | | ❌ | | |
