@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 15/190 (7.9%)
-- **Documentation Created**: 15/190 (7.9%)
+- **Tests Created**: 16/190 (8.4%)
+- **Documentation Created**: 16/190 (8.4%)
 
 ## Command Status Tracking
 
@@ -56,7 +56,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ec::point_multiply` | ✅ | tests/test_ec_point_multiply.tcl | ✅ | doc/ec_point_multiply.md | |
 | `::tossl::ec::verify` | ✅ | tests/test_ec_verify.tcl | ✅ | doc/ec_verify.md | |
 | `::tossl::ec::sign` | ✅ | tests/test_ec_sign.tcl | ✅ | doc/ec_sign.md | |
-| `::tossl::ec::components` | ❌ | | ❌ | | |
+| `::tossl::ec::components` | ✅ | tests/test_ec_components.tcl | ✅ | doc/ec_components.md | |
 | `::tossl::ec::point_add` | ❌ | | ❌ | | |
 | `::tossl::ec::validate` | ❌ | | ❌ | | |
 | `::tossl::ec::list_curves` | ❌ | | ❌ | | |
