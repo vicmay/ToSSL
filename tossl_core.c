@@ -926,55 +926,73 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             tag_len = 16;
     }
     
+    // Allocate output buffer with enough space for the encrypted data and tag
+    unsigned char *out = malloc(data_len + (is_aead ? tag_len : EVP_CIPHER_get_block_size(cipher_obj)));
+    if (!out) {
+        modern_cipher_free(cipher_obj);
+        Tcl_SetResult(interp, "OpenSSL: memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    int out_len = 0;
+    
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         modern_cipher_free(cipher_obj);
+        free(out);
         Tcl_SetResult(interp, "OpenSSL: failed to create cipher context", TCL_STATIC);
         return TCL_ERROR;
     }
     
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
-        // Step 1: Init with NULL key/IV
+        // For CCM mode, follow the exact sequence from OpenSSL documentation:
+        // 1. Initialize with cipher, NULL key and IV first
         if (!EVP_EncryptInit_ex2(ctx, cipher_obj, NULL, NULL, NULL)) {
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
-            Tcl_SetResult(interp, "OpenSSL: CCM pre-init failed", TCL_STATIC);
+            free(out);
+            Tcl_SetResult(interp, "OpenSSL: CCM init failed", TCL_STATIC);
             return TCL_ERROR;
         }
-        // Step 2: Set IV length
-        if (iv_len > 0) {
-            if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, iv_len, NULL)) {
-                EVP_CIPHER_CTX_free(ctx);
-                modern_cipher_free(cipher_obj);
-                Tcl_SetResult(interp, "OpenSSL: failed to set CCM IV length", TCL_STATIC);
-                return TCL_ERROR;
-            }
-        }
-        // Step 3: Set tag length
-        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_len, NULL)) {
+        
+        // 2. Set the IV length (must be called before setting the key/IV)
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, iv_len, NULL)) {
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
+            free(out);
+            Tcl_SetResult(interp, "OpenSSL: failed to set CCM IV length", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        
+        // 3. Set the tag length (must be called before setting the key/IV)
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, tag_len, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            free(out);
             Tcl_SetResult(interp, "OpenSSL: failed to set CCM tag length", TCL_STATIC);
             return TCL_ERROR;
         }
-        // Step 4: Init with real key/IV
-        if (!EVP_EncryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
+        
+        // 4. Initialize with the actual key and IV
+        if (!EVP_EncryptInit_ex2(ctx, NULL, key, iv, NULL)) {
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
-            Tcl_SetResult(interp, "OpenSSL: encryption init failed", TCL_STATIC);
+            free(out);
+            Tcl_SetResult(interp, "OpenSSL: failed to init CCM with key/IV", TCL_STATIC);
             return TCL_ERROR;
         }
-        // Step 5: Set plaintext length before AAD/data
+        
+        // 5. Set the total plaintext length before processing any data
         int dummy_len = 0;
-        fprintf(stderr, "[DEBUG] CCM data_len: %d\n", data_len);
-        int ccm_len_result = EVP_EncryptUpdate(ctx, NULL, &dummy_len, NULL, data_len);
-        fprintf(stderr, "[DEBUG] CCM EVP_EncryptUpdate(NULL, NULL, NULL, data_len) result: %d\n", ccm_len_result);
-        if (!ccm_len_result) {
+        if (!EVP_EncryptUpdate(ctx, NULL, &dummy_len, NULL, data_len)) {
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
-            Tcl_SetResult(interp, "OpenSSL: failed to set CCM plaintext length", TCL_STATIC);
+            free(out);
+            Tcl_SetResult(interp, "OpenSSL: failed to set CCM data length", TCL_STATIC);
             return TCL_ERROR;
         }
+        
+        fprintf(stderr, "[DEBUG] CCM cipher: %s, tag_len: %d, iv_len: %d\n", 
+               EVP_CIPHER_get0_name(cipher_obj), tag_len, iv_len);
     } else {
         if (!EVP_EncryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
             EVP_CIPHER_CTX_free(ctx);
@@ -984,22 +1002,22 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         }
     }
     
-    // AEAD: Add AAD if provided
+    // AEAD: Add AAD if provided (must be done before encryption for CCM)
     if (aad && aad_len > 0) {
         int aad_out_len = 0;
         if (!EVP_EncryptUpdate(ctx, NULL, &aad_out_len, aad, aad_len)) {
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
+            free(out);
             Tcl_SetResult(interp, "OpenSSL: encryption AAD update failed", TCL_STATIC);
             return TCL_ERROR;
         }
     }
     
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
-        fprintf(stderr, "[DEBUG] CCM cipher: %s, tag_len: %d, iv_len: %d\n", EVP_CIPHER_get0_name(cipher_obj), tag_len, iv_len);
+        fprintf(stderr, "[DEBUG] CCM cipher: %s, tag_len: %d, iv_len: %d\n", 
+               EVP_CIPHER_get0_name(cipher_obj), tag_len, iv_len);
     }
-    unsigned char *out = malloc(data_len + (is_aead ? tag_len : EVP_CIPHER_get_block_size(cipher_obj)));
-    int out_len = 0;
     fprintf(stderr, "[DEBUG] EncryptCmd data hex: ");
     for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
     fprintf(stderr, "\n");
@@ -1016,6 +1034,44 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     }
     
     int final_len = 0;
+    int total_len = out_len;
+    unsigned char tag[16];
+    
+    // For CCM, we need to get the tag after encryption but before finalization
+    if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+        fprintf(stderr, "[DEBUG] Getting CCM tag before finalization\n");
+        
+        // For CCM, finalize the encryption first
+        int final_len = 0;
+        if (!EVP_EncryptFinal_ex(ctx, out + out_len, &final_len)) {
+            unsigned long err = ERR_get_error();
+            char err_buf[256];
+            ERR_error_string_n(err, err_buf, sizeof(err_buf));
+            fprintf(stderr, "[DEBUG] OpenSSL error in finalize: %s\n", err_buf);
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            free(out);
+            Tcl_SetResult(interp, "OpenSSL: encryption finalize failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        total_len += final_len;
+        
+        // Get the tag using the AEAD control command
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, tag_len, tag)) {
+            unsigned long err = ERR_get_error();
+            char err_buf[256];
+            ERR_error_string_n(err, err_buf, sizeof(err_buf));
+            fprintf(stderr, "[DEBUG] OpenSSL error getting CCM tag: %s\n", err_buf);
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            free(out);
+            Tcl_SetResult(interp, "OpenSSL: failed to get CCM tag (EVP_CTRL_AEAD_GET_TAG)", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        fprintf(stderr, "[DEBUG] Successfully retrieved CCM tag using EVP_CTRL_CCM_GET_TAG\n");
+    }
+    
+    // Finalize the encryption
     int final_result = EVP_EncryptFinal_ex(ctx, out + out_len, &final_len);
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
         fprintf(stderr, "[DEBUG] CCM EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
@@ -1027,8 +1083,9 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         Tcl_SetResult(interp, "OpenSSL: encryption final failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    int total_len = out_len + final_len;
-    unsigned char tag[16];
+    total_len += final_len;
+    
+    // Handle GCM and Poly1305 tag retrieval after finalization
     if (is_aead) {
         if (strstr(EVP_CIPHER_get0_name(cipher_obj), "GCM")) {
             if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag_len, tag)) {
@@ -1038,23 +1095,8 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
                 Tcl_SetResult(interp, "OpenSSL: failed to get GCM tag", TCL_STATIC);
                 return TCL_ERROR;
             }
-        } else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
-            if (out_len != data_len) {
-                fprintf(stderr, "[DEBUG] CCM out_len (%d) != data_len (%d)\n", out_len, data_len);
-            }
-            int tag_result = EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_GET_TAG, tag_len, tag);
-            fprintf(stderr, "[DEBUG] CCM tag retrieval result: %d\n", tag_result);
-            if (!tag_result) {
-                unsigned long err = ERR_get_error();
-                char err_buf[256];
-                ERR_error_string_n(err, err_buf, sizeof(err_buf));
-                fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", err_buf);
-                EVP_CIPHER_CTX_free(ctx);
-                modern_cipher_free(cipher_obj);
-                free(out);
-                Tcl_SetResult(interp, "OpenSSL: failed to get CCM tag", TCL_STATIC);
-                return TCL_ERROR;
-            }
+            memcpy(out + total_len, tag, tag_len);
+            total_len += tag_len;
         } else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "Poly1305")) {
             if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, tag_len, tag)) {
                 EVP_CIPHER_CTX_free(ctx);
@@ -1063,9 +1105,14 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
                 Tcl_SetResult(interp, "OpenSSL: failed to get Poly1305 tag", TCL_STATIC);
                 return TCL_ERROR;
             }
+            memcpy(out + total_len, tag, tag_len);
+            total_len += tag_len;
+        } else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+            // For CCM, we already got the tag before finalization, just append it
+            memcpy(out + total_len, tag, tag_len);
+            total_len += tag_len;
+            fprintf(stderr, "[DEBUG] Appended CCM tag to output, total_len: %d\n", total_len);
         }
-        memcpy(out + total_len, tag, tag_len);
-        total_len += tag_len;
     }
     
     // Format output based on requested format
