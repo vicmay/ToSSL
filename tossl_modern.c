@@ -138,6 +138,16 @@ int modern_ec_validate_key(EVP_PKEY *pkey) {
     return result;
 }
 
+int modern_ec_public_check(EVP_PKEY *pkey) {
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!ctx) {
+        return 0;
+    }
+    int result = EVP_PKEY_public_check(ctx);
+    EVP_PKEY_CTX_free(ctx);
+    return result;
+}
+
 // Provider management functions
 OSSL_PROVIDER *modern_load_provider(const char *name) {
     return OSSL_PROVIDER_load(NULL, name);

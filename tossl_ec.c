@@ -72,9 +72,11 @@ int EcValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     }
     
     pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    int is_private = 1;
     if (!pkey) {
         BIO_reset(bio);
         pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+        is_private = 0;
     }
     
     BIO_free(bio);
@@ -90,7 +92,12 @@ int EcValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
 
-    int result = modern_ec_validate_key(pkey);
+    int result;
+    if (is_private) {
+        result = modern_ec_validate_key(pkey);
+    } else {
+        result = modern_ec_public_check(pkey);
+    }
     EVP_PKEY_free(pkey);
     Tcl_SetObjResult(interp, Tcl_NewBooleanObj(result == 1));
     return TCL_OK;

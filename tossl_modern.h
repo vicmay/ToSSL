@@ -39,6 +39,7 @@ int modern_dsa_validate_key(EVP_PKEY *pkey);
 // EC-specific modern functions
 int modern_ec_get_key_params(EVP_PKEY *pkey, BIGNUM **x, BIGNUM **y, BIGNUM **d);
 int modern_ec_validate_key(EVP_PKEY *pkey);
+int modern_ec_public_check(EVP_PKEY *pkey);
 
 // Provider management functions
 OSSL_PROVIDER *modern_load_provider(const char *name);
