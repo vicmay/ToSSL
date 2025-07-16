@@ -11,6 +11,13 @@
 #include <stdio.h>
 #include <openssl/err.h>
 
+// Debug flag - set to 0 to disable debug output, 1 to enable
+#define TOSSL_DEBUG 0
+
+// Debug print macro
+#define DEBUG_PRINTF(fmt, ...) \
+    do { if (TOSSL_DEBUG) fprintf(stderr, "[DEBUG] " fmt, ##__VA_ARGS__); } while (0)
+
 // Forward declarations for benchmarking functions
 static int Tossl_BenchmarkHash(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]);
 static int Tossl_BenchmarkCipher(Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]);
@@ -913,7 +920,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
         return TCL_ERROR;
     }
-    fprintf(stderr, "[DEBUG] EncryptCmd cipher: %s, block_size=%d, key_len=%d, iv_len=%d\n", 
+    DEBUG_PRINTF("EncryptCmd cipher: %s, block_size=%d, key_len=%d, iv_len=%d\n", 
             EVP_CIPHER_get0_name(cipher_obj), EVP_CIPHER_get_block_size(cipher_obj),
             EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
     
@@ -956,18 +963,18 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     ERR_clear_error();
     
     // Debug print cipher information using cipher_obj directly
-    fprintf(stderr, "[DEBUG] Cipher details: %s, block_size=%d, key_len=%d, iv_len=%d, flags=0x%lX\n",
+    DEBUG_PRINTF("Cipher details: %s, block_size=%d, key_len=%d, iv_len=%d, flags=0x%lX\n",
            EVP_CIPHER_get0_name(cipher_obj),
            EVP_CIPHER_get_block_size(cipher_obj),
            EVP_CIPHER_get_key_length(cipher_obj),
            EVP_CIPHER_get_iv_length(cipher_obj),
            (unsigned long)EVP_CIPHER_get_flags(cipher_obj));
-    fprintf(stderr, "[DEBUG] Initializing cipher: %s, block_size: %d, key_len: %d, iv_len: %d\n",
+    DEBUG_PRINTF("Initializing cipher: %s, block_size: %d, key_len: %d, iv_len: %d\n",
            EVP_CIPHER_get0_name(cipher_obj), EVP_CIPHER_get_block_size(cipher_obj),
            EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
     
     cipher_name = EVP_CIPHER_get0_name(cipher_obj);
-    fprintf(stderr, "[DEBUG] Initializing cipher: %s, block_size: %d, key_len: %d, iv_len: %d\n",
+    DEBUG_PRINTF("Initializing cipher: %s, block_size: %d, key_len: %d, iv_len: %d\n",
            cipher_name, EVP_CIPHER_get_block_size(cipher_obj),
            EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
     
@@ -978,7 +985,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             unsigned long err = ERR_get_error();
             char err_buf[256];
             ERR_error_string_n(err, err_buf, sizeof(err_buf));
-            fprintf(stderr, "[DEBUG] OpenSSL error in CCM init: %s\n", err_buf);
+            DEBUG_PRINTF("OpenSSL error in CCM init: %s\n", err_buf);
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
             free(out);
@@ -1023,22 +1030,22 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             return TCL_ERROR;
         }
         
-        fprintf(stderr, "[DEBUG] CCM cipher: %s, tag_len: %d, iv_len: %d\n", 
+        DEBUG_PRINTF("CCM cipher: %s, tag_len: %d, iv_len: %d\n", 
                EVP_CIPHER_get0_name(cipher_obj), tag_len, iv_len);
     } else {
         // Clear any previous errors before initialization
         ERR_clear_error();
         
         // Initialize with cipher, key, and IV in a single call
-        fprintf(stderr, "[DEBUG] Initializing cipher context with cipher, key, and IV\n");
+        DEBUG_PRINTF("Initializing cipher context with cipher, key, and IV\n");
         ERR_clear_error();
         int init_result = EVP_EncryptInit_ex(ctx, cipher_obj, NULL, key, iv);
-        fprintf(stderr, "[DEBUG] EVP_EncryptInit_ex result: %d\n", init_result);
+        DEBUG_PRINTF("EVP_EncryptInit_ex result: %d\n", init_result);
         if (!init_result) {
             unsigned long err = ERR_get_error();
             char err_buf[256];
             ERR_error_string_n(err, err_buf, sizeof(err_buf));
-            fprintf(stderr, "[DEBUG] OpenSSL error in cipher init: %s\n", err_buf);
+            DEBUG_PRINTF("OpenSSL error in cipher init: %s\n", err_buf);
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
             free(out);
@@ -1060,31 +1067,33 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     }
     
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
-        fprintf(stderr, "[DEBUG] CCM cipher: %s, tag_len: %d, iv_len: %d\n", 
+        DEBUG_PRINTF("CCM cipher: %s, tag_len: %d, iv_len: %d\n", 
                EVP_CIPHER_get0_name(cipher_obj), tag_len, iv_len);
     }
-    fprintf(stderr, "[DEBUG] EncryptCmd data hex: ");
-    for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
-    fprintf(stderr, "\n");
+    if (TOSSL_DEBUG) {
+        fprintf(stderr, "[DEBUG] EncryptCmd data hex: ");
+        for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
+        fprintf(stderr, "\n");
+    }
     // Perform the encryption
-    fprintf(stderr, "[DEBUG] Starting encryption update, data_len: %d\n", data_len);
+    DEBUG_PRINTF("Starting encryption update, data_len: %d\n", data_len);
     ERR_clear_error();
     int update_result = EVP_EncryptUpdate(ctx, out, &out_len, data, data_len);
-    fprintf(stderr, "[DEBUG] EVP_EncryptUpdate result: %d, out_len: %d\n", update_result, out_len);
+    DEBUG_PRINTF("EVP_EncryptUpdate result: %d, out_len: %d\n", update_result, out_len);
     if (!update_result) {
         unsigned long err = ERR_get_error();
         char err_buf[256];
         ERR_error_string_n(err, err_buf, sizeof(err_buf));
-        fprintf(stderr, "[DEBUG] OpenSSL error in encryption update: %s\n", err_buf);
+        DEBUG_PRINTF("OpenSSL error in encryption update: %s\n", err_buf);
     }
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
-        fprintf(stderr, "[DEBUG] CCM EVP_EncryptUpdate(data) result: %d, out_len: %d\n", update_result, out_len);
+        DEBUG_PRINTF("CCM EVP_EncryptUpdate(data) result: %d, out_len: %d\n", update_result, out_len);
     }
     if (!update_result) {
         unsigned long err = ERR_get_error();
         char err_buf[256];
         ERR_error_string_n(err, err_buf, sizeof(err_buf));
-        fprintf(stderr, "[DEBUG] OpenSSL error in encryption update: %s\n", err_buf);
+        DEBUG_PRINTF("OpenSSL error in encryption update: %s\n", err_buf);
         EVP_CIPHER_CTX_free(ctx);
         modern_cipher_free(cipher_obj);
         free(out);
@@ -1098,7 +1107,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     
     // For CCM, we need to get the tag after encryption but before finalization
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
-        fprintf(stderr, "[DEBUG] Getting CCM tag before finalization\n");
+        DEBUG_PRINTF("Getting CCM tag before finalization\n");
         
         // For CCM, finalize the encryption first
         int final_len = 0;
@@ -1106,7 +1115,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             unsigned long err = ERR_get_error();
             char err_buf[256];
             ERR_error_string_n(err, err_buf, sizeof(err_buf));
-            fprintf(stderr, "[DEBUG] OpenSSL error in finalize: %s\n", err_buf);
+            DEBUG_PRINTF("OpenSSL error in finalize: %s\n", err_buf);
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
             free(out);
@@ -1120,40 +1129,40 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             unsigned long err = ERR_get_error();
             char err_buf[256];
             ERR_error_string_n(err, err_buf, sizeof(err_buf));
-            fprintf(stderr, "[DEBUG] OpenSSL error getting CCM tag: %s\n", err_buf);
+            DEBUG_PRINTF("OpenSSL error getting CCM tag: %s\n", err_buf);
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
             free(out);
             Tcl_SetResult(interp, "OpenSSL: failed to get CCM tag (EVP_CTRL_AEAD_GET_TAG)", TCL_STATIC);
             return TCL_ERROR;
         }
-        fprintf(stderr, "[DEBUG] Successfully retrieved CCM tag using EVP_CTRL_CCM_GET_TAG\n");
+        DEBUG_PRINTF("Successfully retrieved CCM tag using EVP_CTRL_CCM_GET_TAG\n");
     }
     
     // Finalize the encryption
-    fprintf(stderr, "[DEBUG] Finalizing encryption, current out_len: %d\n", out_len);
+    DEBUG_PRINTF("Finalizing encryption, current out_len: %d\n", out_len);
     ERR_clear_error();
     int final_result = EVP_EncryptFinal_ex(ctx, out + out_len, &final_len);
-    fprintf(stderr, "[DEBUG] EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
+    DEBUG_PRINTF("EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
     if (!final_result) {
         unsigned long err = ERR_get_error();
         if (err != 0) {  // Only print if there's an actual error
             char err_buf[256];
             ERR_error_string_n(err, err_buf, sizeof(err_buf));
-            fprintf(stderr, "[DEBUG] OpenSSL error in encryption final: %s\n", err_buf);
+            DEBUG_PRINTF("OpenSSL error in encryption final: %s\n", err_buf);
         }
     }
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
-        fprintf(stderr, "[DEBUG] CCM EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
+        DEBUG_PRINTF("CCM EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
     }
     if (!final_result) {
         unsigned long err = ERR_get_error();
         char err_buf[256];
         ERR_error_string_n(err, err_buf, sizeof(err_buf));
-        fprintf(stderr, "[DEBUG] OpenSSL error in final: %s\n", err_buf);
-        fprintf(stderr, "[DEBUG] Cipher: %s, Key len: %d, IV len: %d, Data len: %d\n", 
+        DEBUG_PRINTF("OpenSSL error in final: %s\n", err_buf);
+        DEBUG_PRINTF("Cipher: %s, Key len: %d, IV len: %d, Data len: %d\n", 
                EVP_CIPHER_get0_name(cipher_obj), key_len, iv_len, data_len);
-        fprintf(stderr, "[DEBUG] Is AEAD: %d, Tag len: %d\n", is_aead, tag_len);
+        DEBUG_PRINTF("Is AEAD: %d, Tag len: %d\n", is_aead, tag_len);
         
         // Get more detailed error information
         while ((err = ERR_get_error()) != 0) {
@@ -1166,7 +1175,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             snprintf(func_buf, sizeof(func_buf), "%s", func ? func : "(null)");
             snprintf(reason_buf, sizeof(reason_buf), "%s", reason ? reason : "(null)");
             
-            fprintf(stderr, "[DEBUG] OpenSSL error details - Library: %s, Function: %s, Reason: %s\n",
+            DEBUG_PRINTF("OpenSSL error details - Library: %s, Function: %s, Reason: %s\n",
                    lib_buf, func_buf, reason_buf);
         }
         
@@ -1208,7 +1217,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             // For CCM, we already got the tag before finalization, just append it
             memcpy(out + total_len, tag, tag_len);
             total_len += tag_len;
-            fprintf(stderr, "[DEBUG] Appended CCM tag to output, total_len: %d\n", total_len);
+            DEBUG_PRINTF("Appended CCM tag to output, total_len: %d\n", total_len);
         }
     }
     
