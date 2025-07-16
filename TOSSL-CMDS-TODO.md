@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 7/190 (3.7%)
-- **Documentation Created**: 7/190 (3.7%)
+- **Tests Created**: 8/190 (4.2%)
+- **Documentation Created**: 8/190 (4.2%)
 
 ## Command Status Tracking
 
@@ -45,7 +45,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::scrypt` | ✅ | tests/test_scrypt.tcl | ✅ | doc/scrypt.md | |
 | `::tossl::pbkdf2` | ✅ | tests/test_pbkdf2.tcl | ✅ | doc/pbkdf2.md | |
 | `::tossl::hmac` | ✅ | tests/test_hmac.tcl | ✅ | doc/hmac.md | |
-| `::tossl::cryptolog` | ❌ | | ❌ | | |
+| `::tossl::cryptolog` | ✅ | tests/test_cryptolog.tcl | ✅ | doc/cryptolog.md | |
 | `::tossl::benchmark` | ❌ | | ❌ | | |
 | `::tossl::decrypt` | ❌ | | ❌ | | |
 | `::tossl::csr::modify` | ❌ | | ❌ | | |
@@ -165,79 +165,4 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pfs::test` | ❌ | | ❌ | | |
 | `::tossl::ed448::verify` | ❌ | | ❌ | | |
 | `::tossl::ed448::sign` | ❌ | | ❌ | | |
-| `::tossl::ed448::generate` | ❌ | | ❌ | | |
-| `::tossl::signature::validate` | ❌ | | ❌ | | |
-| `::tossl::ssl::verify_peer` | ❌ | | ❌ | | |
-| `::tossl::ssl::accept` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_protocol_version` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_alpn_callback` | ❌ | | ❌ | | |
-| `::tossl::ssl::verify_cert_pinning` | ❌ | | ❌ | | |
-| `::tossl::ssl::read` | ❌ | | ❌ | | |
-| `::tossl::ssl::check_pfs` | ❌ | | ❌ | | |
-| `::tossl::ssl::cipher_info` | ❌ | | ❌ | | |
-| `::tossl::ssl::get_peer_cert` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_ocsp_stapling` | ❌ | | ❌ | | |
-| `::tossl::ssl::connect` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_cert_pinning` | ❌ | | ❌ | | |
-| `::tossl::ssl::write` | ❌ | | ❌ | | |
-| `::tossl::ssl::alpn_selected` | ❌ | | ❌ | | |
-| `::tossl::ssl::socket_info` | ❌ | | ❌ | | |
-| `::tossl::ssl::context` | ❌ | | ❌ | | |
-| `::tossl::ssl::check_cert_status` | ❌ | | ❌ | | |
-| `::tossl::ssl::close` | ❌ | | ❌ | | |
-| `::tossl::ssl::protocol_version` | ❌ | | ❌ | | |
-| `::tossl::sm2::encrypt` | ❌ | | ❌ | | |
-| `::tossl::sm2::verify` | ❌ | | ❌ | | |
-| `::tossl::sm2::sign` | ❌ | | ❌ | | |
-| `::tossl::sm2::decrypt` | ❌ | | ❌ | | |
-| `::tossl::sm2::generate` | ❌ | | ❌ | | |
-| `::tossl::asn1::sequence_create` | ❌ | | ❌ | | |
-| `::tossl::asn1::text_to_oid` | ❌ | | ❌ | | |
-| `::tossl::asn1::oid_to_text` | ❌ | | ❌ | | |
-| `::tossl::asn1::encode` | ❌ | | ❌ | | |
-| `::tossl::asn1::set_create` | ❌ | | ❌ | | |
-| `::tossl::asn1::parse` | ❌ | | ❌ | | |
-| `::tossl::keywrap::info` | ❌ | | ❌ | | |
-| `::tossl::keywrap::kekgen` | ❌ | | ❌ | | |
-| `::tossl::keywrap::unwrap` | ❌ | | ❌ | | |
-| `::tossl::keywrap::algorithms` | ❌ | | ❌ | | |
-| `::tossl::keywrap::wrap` | ❌ | | ❌ | | |
-| `::tossl::cipher::analyze` | ❌ | | ❌ | | |
-| `::tossl::cipher::list` | ❌ | | ❌ | | |
-| `::tossl::cipher::info` | ❌ | | ❌ | | |
-| `::tossl::ca::sign` | ❌ | | ❌ | | |
-| `::tossl::ca::generate` | ❌ | | ❌ | | |
-| `::tossl::jwt::decode` | ❌ | | ❌ | | |
-| `::tossl::jwt::create` | ❌ | | ❌ | | |
-| `::tossl::jwt::verify` | ❌ | | ❌ | | |
-| `::tossl::jwt::validate` | ❌ | | ❌ | | |
-| `::tossl::jwt::extract_claims` | ❌ | | ❌ | | |
-| `::tossl::base64::decode` | ❌ | | ❌ | | |
-| `::tossl::base64::encode` | ❌ | | ❌ | | |
-| `::tossl::hex::decode` | ❌ | | ❌ | | |
-| `::tossl::hex::encode` | ❌ | | ❌ | | |
-| `::tossl::x25519::derive` | ❌ | | ❌ | | |
-| `::tossl::x25519::generate` | ❌ | | ❌ | | |
-| `::tossl::rsa::verify` | ❌ | | ❌ | | |
-| `::tossl::rsa::sign` | ❌ | | ❌ | | |
-| `::tossl::rsa::encrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::components` | ❌ | | ❌ | | |
-| `::tossl::rsa::validate` | ❌ | | ❌ | | |
-| `::tossl::rsa::decrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::generate` | ❌ | | ❌ | | |
-| `::tossl::ed25519::verify` | ❌ | | ❌ | | |
-| `::tossl::ed25519::sign` | ❌ | | ❌ | | |
-| `::tossl::ed25519::generate` | ❌ | | ❌ | | |
-
-## Legend
-- ❌ = Not started
-- 🔄 = In progress  
-- ✅ = Completed
-- ⚠️ = Issues/Problems
-
-## Notes
-- Test files should be created in the `tests/` directory
-- Documentation files should be created in the `doc/` directory
-- Each command should have both a test file and a documentation file
-- Test files should follow the naming convention: `test_<command_name>.tcl`
-- Documentation files should follow the naming convention: `<command_name>.md`
+| `
