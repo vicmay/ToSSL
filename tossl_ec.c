@@ -319,7 +319,8 @@ int EcPointAddCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    Tcl_SetResult(interp, result_hex, TCL_DYNAMIC);
+    Tcl_SetResult(interp, result_hex, TCL_VOLATILE); // Tcl will copy, we can free
+    OPENSSL_free(result_hex);
     return TCL_OK;
 }
 

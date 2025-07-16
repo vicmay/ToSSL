@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 16/190 (8.4%)
-- **Documentation Created**: 16/190 (8.4%)
+- **Tests Created**: 17/190 (8.9%)
+- **Documentation Created**: 17/190 (8.9%)
 
 ## Command Status Tracking
 
@@ -57,7 +57,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ec::verify` | ✅ | tests/test_ec_verify.tcl | ✅ | doc/ec_verify.md | |
 | `::tossl::ec::sign` | ✅ | tests/test_ec_sign.tcl | ✅ | doc/ec_sign.md | |
 | `::tossl::ec::components` | ✅ | tests/test_ec_components.tcl | ✅ | doc/ec_components.md | |
-| `::tossl::ec::point_add` | ❌ | | ❌ | | |
+| `::tossl::ec::point_add` | ✅ | tests/test_ec_point_add.tcl | ✅ | doc/ec_point_add.md | |
 | `::tossl::ec::validate` | ❌ | | ❌ | | |
 | `::tossl::ec::list_curves` | ❌ | | ❌ | | |
 | `::tossl::dsa::verify` | ❌ | | ❌ | | |
@@ -95,4 +95,3 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::provider::unload` | ❌ | | ❌ | | |
 | `::tossl::oauth2::load_token` | ❌ | | ❌ | | |
 | `::tossl::oauth2::device_authorization` | ❌ | | ❌ | | |
-| `
