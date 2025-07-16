@@ -6,6 +6,9 @@ This document tracks the progress of creating tests and documentation for all TO
 
 For each TOSSL command, the following tasks must be completed:
 
+**After each implementation, always run:**
+    git add .; git commit -m "Update tests/docs for <command>"
+
 1. **Create Test File**: Create a comprehensive test file in the `tests/` directory
    - Naming convention: `test_<command_name>.tcl`
    - Test basic functionality, error handling, edge cases, and performance
@@ -28,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 3/190 (1.6%)
-- **Documentation Created**: 3/190 (1.6%)
+- **Tests Created**: 6/190 (3.2%)
+- **Documentation Created**: 6/190 (3.2%)
 
 ## Command Status Tracking
 
@@ -38,9 +41,9 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::randbytes` | ✅ | tests/test_randbytes.tcl | ✅ | doc/randbytes.md | |
 | `::tossl::digest` | ✅ | tests/test_digest.tcl | ✅ | doc/digest.md | |
 | `::tossl::encrypt` | ✅ | tests/test_encrypt.tcl | ✅ | doc/encrypt.md | |
-| `::tossl::argon2` | ❌ | | ❌ | | |
-| `::tossl::scrypt` | ❌ | | ❌ | | |
-| `::tossl::pbkdf2` | ❌ | | ❌ | | |
+| `::tossl::argon2` | ✅ | tests/test_argon2.tcl | ✅ | doc/argon2.md | |
+| `::tossl::scrypt` | ✅ | tests/test_scrypt.tcl | ✅ | doc/scrypt.md | |
+| `::tossl::pbkdf2` | ✅ | tests/test_pbkdf2.tcl | ✅ | doc/pbkdf2.md | |
 | `::tossl::hmac` | ❌ | | ❌ | | |
 | `::tossl::cryptolog` | ❌ | | ❌ | | |
 | `::tossl::benchmark` | ❌ | | ❌ | | |
