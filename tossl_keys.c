@@ -222,22 +222,45 @@ int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
             return TCL_ERROR;
         }
     } else if (strcmp(type, "dsa") == 0) {
-        ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL);
+        // Step 1: Generate DSA parameters
+        EVP_PKEY_CTX *param_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL);
+        if (!param_ctx) {
+            Tcl_SetResult(interp, "OpenSSL: failed to create DSA param context", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        if (EVP_PKEY_paramgen_init(param_ctx) <= 0) {
+            EVP_PKEY_CTX_free(param_ctx);
+            Tcl_SetResult(interp, "OpenSSL: DSA paramgen init failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        if (EVP_PKEY_CTX_set_dsa_paramgen_bits(param_ctx, bits) <= 0) {
+            EVP_PKEY_CTX_free(param_ctx);
+            Tcl_SetResult(interp, "OpenSSL: DSA bits setting failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        EVP_PKEY *params = NULL;
+        if (EVP_PKEY_paramgen(param_ctx, &params) <= 0) {
+            EVP_PKEY_CTX_free(param_ctx);
+            Tcl_SetResult(interp, "OpenSSL: DSA parameter generation failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        EVP_PKEY_CTX_free(param_ctx);
+        // Step 2: Generate DSA key from parameters
+        ctx = EVP_PKEY_CTX_new(params, NULL);
         if (!ctx) {
-            Tcl_SetResult(interp, "OpenSSL: failed to create DSA context", TCL_STATIC);
+            EVP_PKEY_free(params);
+            Tcl_SetResult(interp, "OpenSSL: failed to create DSA keygen context", TCL_STATIC);
             return TCL_ERROR;
         }
         if (EVP_PKEY_keygen_init(ctx) <= 0) {
+            EVP_PKEY_free(params);
             EVP_PKEY_CTX_free(ctx);
             Tcl_SetResult(interp, "OpenSSL: DSA keygen init failed", TCL_STATIC);
             return TCL_ERROR;
         }
-        if (EVP_PKEY_CTX_set_dsa_paramgen_bits(ctx, bits) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            Tcl_SetResult(interp, "OpenSSL: DSA bits setting failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-    } else if (strcmp(type, "ec") == 0) {
+        EVP_PKEY_free(params);
+    }
+    else if (strcmp(type, "ec") == 0) {
         ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
         if (!ctx) {
             Tcl_SetResult(interp, "OpenSSL: failed to create EC context", TCL_STATIC);
@@ -253,9 +276,6 @@ int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
             Tcl_SetResult(interp, "OpenSSL: EC curve setting failed", TCL_STATIC);
             return TCL_ERROR;
         }
-    } else {
-        Tcl_SetResult(interp, "Type must be 'rsa', 'dsa', or 'ec'", TCL_STATIC);
-        return TCL_ERROR;
     }
     
     if (EVP_PKEY_keygen(ctx, &pkey) <= 0) {
