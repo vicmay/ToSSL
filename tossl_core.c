@@ -856,7 +856,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         return TCL_ERROR;
     }
     
-    const char *cipher = NULL;
+    const char *cipher_name = NULL;
     unsigned char *key = NULL, *iv = NULL, *data = NULL, *aad = NULL;
     int key_len = 0, iv_len = 0, data_len = 0, aad_len = 0;
     const char *format = "base64";
@@ -869,7 +869,7 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
                 Tcl_SetResult(interp, "Missing algorithm name", TCL_STATIC);
                 return TCL_ERROR;
             }
-            cipher = Tcl_GetString(objv[i]);
+            cipher_name = Tcl_GetString(objv[i]);
         } else if (strcmp(opt, "-key") == 0) {
             if (++i >= objc) {
                 Tcl_SetResult(interp, "Missing key", TCL_STATIC);
@@ -903,12 +903,12 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         }
     }
     
-    if (!cipher || !key || !iv || !data) {
+    if (!cipher_name || !key || !iv || !data) {
         Tcl_SetResult(interp, "Missing required arguments", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    EVP_CIPHER *cipher_obj = modern_cipher_fetch(cipher);
+    EVP_CIPHER *cipher_obj = modern_cipher_fetch(cipher_name);
     if (!cipher_obj) {
         Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
         return TCL_ERROR;
@@ -927,13 +927,17 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     }
     
     // Allocate output buffer with enough space for the encrypted data and tag
-    unsigned char *out = malloc(data_len + (is_aead ? tag_len : EVP_CIPHER_get_block_size(cipher_obj)));
+    size_t out_buf_size = data_len + EVP_CIPHER_get_block_size(cipher_obj) + (is_aead ? tag_len : 0);
+    unsigned char *out = malloc(out_buf_size);
     if (!out) {
         modern_cipher_free(cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: memory allocation failed", TCL_STATIC);
         return TCL_ERROR;
     }
     int out_len = 0;
+    
+    // Clear any previous errors
+    ERR_clear_error();
     
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
@@ -943,10 +947,38 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         return TCL_ERROR;
     }
     
-    if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+    // Clear any previous errors
+    ERR_clear_error();
+    
+    // No need to reset a newly created context
+    
+    // Clear any previous errors before initialization
+    ERR_clear_error();
+    
+    // Debug print cipher information using cipher_obj directly
+    fprintf(stderr, "[DEBUG] Cipher details: %s, block_size=%d, key_len=%d, iv_len=%d, flags=0x%lX\n",
+           EVP_CIPHER_get0_name(cipher_obj),
+           EVP_CIPHER_get_block_size(cipher_obj),
+           EVP_CIPHER_get_key_length(cipher_obj),
+           EVP_CIPHER_get_iv_length(cipher_obj),
+           (unsigned long)EVP_CIPHER_get_flags(cipher_obj));
+    fprintf(stderr, "[DEBUG] Initializing cipher: %s, block_size: %d, key_len: %d, iv_len: %d\n",
+           EVP_CIPHER_get0_name(cipher_obj), EVP_CIPHER_get_block_size(cipher_obj),
+           EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
+    
+    cipher_name = EVP_CIPHER_get0_name(cipher_obj);
+    fprintf(stderr, "[DEBUG] Initializing cipher: %s, block_size: %d, key_len: %d, iv_len: %d\n",
+           cipher_name, EVP_CIPHER_get_block_size(cipher_obj),
+           EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
+    
+    if (is_aead && strstr(cipher_name, "CCM")) {
         // For CCM mode, follow the exact sequence from OpenSSL documentation:
         // 1. Initialize with cipher, NULL key and IV first
         if (!EVP_EncryptInit_ex2(ctx, cipher_obj, NULL, NULL, NULL)) {
+            unsigned long err = ERR_get_error();
+            char err_buf[256];
+            ERR_error_string_n(err, err_buf, sizeof(err_buf));
+            fprintf(stderr, "[DEBUG] OpenSSL error in CCM init: %s\n", err_buf);
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
             free(out);
@@ -994,10 +1026,23 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         fprintf(stderr, "[DEBUG] CCM cipher: %s, tag_len: %d, iv_len: %d\n", 
                EVP_CIPHER_get0_name(cipher_obj), tag_len, iv_len);
     } else {
-        if (!EVP_EncryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
+        // Clear any previous errors before initialization
+        ERR_clear_error();
+        
+        // Initialize with cipher, key, and IV in a single call
+        fprintf(stderr, "[DEBUG] Initializing cipher context with cipher, key, and IV\n");
+        ERR_clear_error();
+        int init_result = EVP_EncryptInit_ex(ctx, cipher_obj, NULL, key, iv);
+        fprintf(stderr, "[DEBUG] EVP_EncryptInit_ex result: %d\n", init_result);
+        if (!init_result) {
+            unsigned long err = ERR_get_error();
+            char err_buf[256];
+            ERR_error_string_n(err, err_buf, sizeof(err_buf));
+            fprintf(stderr, "[DEBUG] OpenSSL error in cipher init: %s\n", err_buf);
             EVP_CIPHER_CTX_free(ctx);
             modern_cipher_free(cipher_obj);
-            Tcl_SetResult(interp, "OpenSSL: encryption init failed", TCL_STATIC);
+            free(out);
+            Tcl_SetResult(interp, "OpenSSL: failed to initialize cipher context", TCL_STATIC);
             return TCL_ERROR;
         }
     }
@@ -1021,11 +1066,25 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     fprintf(stderr, "[DEBUG] EncryptCmd data hex: ");
     for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
     fprintf(stderr, "\n");
+    // Perform the encryption
+    fprintf(stderr, "[DEBUG] Starting encryption update, data_len: %d\n", data_len);
+    ERR_clear_error();
     int update_result = EVP_EncryptUpdate(ctx, out, &out_len, data, data_len);
+    fprintf(stderr, "[DEBUG] EVP_EncryptUpdate result: %d, out_len: %d\n", update_result, out_len);
+    if (!update_result) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        fprintf(stderr, "[DEBUG] OpenSSL error in encryption update: %s\n", err_buf);
+    }
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
         fprintf(stderr, "[DEBUG] CCM EVP_EncryptUpdate(data) result: %d, out_len: %d\n", update_result, out_len);
     }
     if (!update_result) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        fprintf(stderr, "[DEBUG] OpenSSL error in encryption update: %s\n", err_buf);
         EVP_CIPHER_CTX_free(ctx);
         modern_cipher_free(cipher_obj);
         free(out);
@@ -1072,15 +1131,53 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     }
     
     // Finalize the encryption
+    fprintf(stderr, "[DEBUG] Finalizing encryption, current out_len: %d\n", out_len);
+    ERR_clear_error();
     int final_result = EVP_EncryptFinal_ex(ctx, out + out_len, &final_len);
+    fprintf(stderr, "[DEBUG] EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
+    if (!final_result) {
+        unsigned long err = ERR_get_error();
+        if (err != 0) {  // Only print if there's an actual error
+            char err_buf[256];
+            ERR_error_string_n(err, err_buf, sizeof(err_buf));
+            fprintf(stderr, "[DEBUG] OpenSSL error in encryption final: %s\n", err_buf);
+        }
+    }
     if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
         fprintf(stderr, "[DEBUG] CCM EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
     }
     if (!final_result) {
+        unsigned long err = ERR_get_error();
+        char err_buf[256];
+        ERR_error_string_n(err, err_buf, sizeof(err_buf));
+        fprintf(stderr, "[DEBUG] OpenSSL error in final: %s\n", err_buf);
+        fprintf(stderr, "[DEBUG] Cipher: %s, Key len: %d, IV len: %d, Data len: %d\n", 
+               EVP_CIPHER_get0_name(cipher_obj), key_len, iv_len, data_len);
+        fprintf(stderr, "[DEBUG] Is AEAD: %d, Tag len: %d\n", is_aead, tag_len);
+        
+        // Get more detailed error information
+        while ((err = ERR_get_error()) != 0) {
+            char lib_buf[256], func_buf[256], reason_buf[256];
+            const char *lib = ERR_lib_error_string(err);
+            const char *func = ERR_func_error_string(err);
+            const char *reason = ERR_reason_error_string(err);
+            
+            snprintf(lib_buf, sizeof(lib_buf), "%s", lib ? lib : "(null)");
+            snprintf(func_buf, sizeof(func_buf), "%s", func ? func : "(null)");
+            snprintf(reason_buf, sizeof(reason_buf), "%s", reason ? reason : "(null)");
+            
+            fprintf(stderr, "[DEBUG] OpenSSL error details - Library: %s, Function: %s, Reason: %s\n",
+                   lib_buf, func_buf, reason_buf);
+        }
+        
         EVP_CIPHER_CTX_free(ctx);
         modern_cipher_free(cipher_obj);
         free(out);
-        Tcl_SetResult(interp, "OpenSSL: encryption final failed", TCL_STATIC);
+        char error_msg[1024];
+        snprintf(error_msg, sizeof(error_msg), 
+                "OpenSSL: encryption final failed: %s\nCipher: %s, Key len: %d, IV len: %d, Data len: %d, Is AEAD: %d, Tag len: %d",
+                err_buf, EVP_CIPHER_get0_name(cipher_obj), key_len, iv_len, data_len, is_aead, tag_len);
+        Tcl_SetResult(interp, error_msg, TCL_VOLATILE);
         return TCL_ERROR;
     }
     total_len += final_len;
@@ -1131,7 +1228,13 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         BIO_flush(b64);
         BUF_MEM *bptr;
         BIO_get_mem_ptr(bio, &bptr);
-        Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+        
+        // Create a copy of the base64 data that Tcl will own
+        char *base64_copy = (char *)ckalloc(bptr->length + 1);
+        memcpy(base64_copy, bptr->data, bptr->length);
+        base64_copy[bptr->length] = '\0';
+        
+        Tcl_SetResult(interp, base64_copy, TCL_DYNAMIC);
         BIO_free_all(b64);
     } else {
         Tcl_SetResult(interp, "Invalid format. Use hex, binary, or base64", TCL_STATIC);
@@ -1141,9 +1244,14 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         return TCL_ERROR;
     }
     
-    free(out);
-    EVP_CIPHER_CTX_free(ctx);
-    modern_cipher_free(cipher_obj);
+    if (out) free(out);
+    if (ctx) {
+        // Free the context - this also cleans up internal state
+        EVP_CIPHER_CTX_free(ctx);
+    }
+    if (cipher_obj) {
+        modern_cipher_free(cipher_obj);
+    }
     return TCL_OK;
 }
 
@@ -1155,7 +1263,7 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         return TCL_ERROR;
     }
     
-    const char *cipher = NULL;
+    const char *cipher_name = NULL;
     unsigned char *key = NULL, *iv = NULL, *data = NULL;
     int key_len = 0, iv_len = 0, data_len = 0;
     const char *format = "binary";
@@ -1168,7 +1276,7 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
                 Tcl_SetResult(interp, "Missing algorithm name", TCL_STATIC);
                 return TCL_ERROR;
             }
-            cipher = Tcl_GetString(objv[i]);
+            cipher_name = Tcl_GetString(objv[i]);
         } else if (strcmp(opt, "-key") == 0) {
             if (++i >= objc) {
                 Tcl_SetResult(interp, "Missing key", TCL_STATIC);
@@ -1196,12 +1304,12 @@ int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         }
     }
     
-    if (!cipher || !key || !iv || !data) {
+    if (!cipher_name || !key || !iv || !data) {
         Tcl_SetResult(interp, "Missing required arguments", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    EVP_CIPHER *cipher_obj = modern_cipher_fetch(cipher);
+    EVP_CIPHER *cipher_obj = modern_cipher_fetch(cipher_name);
     if (!cipher_obj) {
         Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
         return TCL_ERROR;

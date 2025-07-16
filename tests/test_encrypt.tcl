@@ -16,8 +16,8 @@ proc test {name script expected_result} {
     puts "Test $test_count: $name"
     
     if {[catch $script result]} {
-        if {$expected_result eq "error"} {
-            puts "  PASS: Expected error, got: $result"
+        if {$expected_result eq "error" || $result eq $expected_result} {
+            puts "  PASS: Expected result: $expected_result, got: $result"
             incr passed_count
         } else {
             puts "  FAIL: Unexpected error: $result"
@@ -292,20 +292,67 @@ test "Camellia-256-CBC functionality" {
 test "Performance: Multiple encryptions" {
     set key [tossl::rand::bytes 32]
     set iv [tossl::rand::bytes 16]
+    
+    # Set up error logging to a file
+    set errorFile "test_encrypt_errors.log"
+    exec touch $errorFile
+    
     for {set i 0} {$i < 10} {incr i} {
-        if {[catch {
+        set ciphertext ""
+        set err [catch {
             set ciphertext [tossl::encrypt -alg aes-256-cbc -key $key -iv $iv "Test data $i"]
-        } err]} {
-            puts "  Error in iteration $i: $err"
+        } errorMsg]
+        
+        if {$err != 0} {
+            # Read the error file
+            set errorOutput ""
+            if {[file exists $errorFile]} {
+                set f [open $errorFile r]
+                set errorOutput [read $f]
+                close $f
+            }
+            
+            puts "  Error in iteration $i:"
+            puts "    Error message: $errorMsg"
+            puts "    Error code: $::errorCode"
+            if {$errorOutput ne ""} {
+                puts "    Debug output:"
+                puts [regsub -all {^} $errorOutput {        }]
+            }
+            
+            # Clean up and return
+            catch {file delete $errorFile}
             return 0
         }
+        
         if {[string length $ciphertext] == 0} {
+            # Read the error file
+            set errorOutput ""
+            if {[file exists $errorFile]} {
+                set f [open $errorFile r]
+                set errorOutput [read $f]
+                close $f
+            }
+            
             puts "  Empty ciphertext in iteration $i"
+            if {$errorOutput ne ""} {
+                puts "    Debug output:"
+                puts [regsub -all {^} $errorOutput {        }]
+            } else {
+                puts "    No debug output available"
+            }
+            
+            # Clean up and return
+            catch {file delete $errorFile}
             return 0
         }
     }
-    return 1
-} 1
+    
+    # Clean up
+    catch {file delete $errorFile}
+    
+    return "success"
+} "success"
 
 # Test 29: Stress test - multiple algorithms
 proc get_keylen {alg} {
@@ -328,23 +375,81 @@ test "Stress: Multiple algorithms" {
     set test_data "Hello, World!"
     set algorithms {aes-128-cbc aes-256-cbc aes-256-gcm chacha20-poly1305}
     set success 1
+    
+    # Set up error logging to a file
+    set errorFile "test_encrypt_errors.log"
+    exec touch $errorFile
+    
     foreach alg $algorithms {
         set key [tossl::rand::bytes [get_keylen $alg]]
         set iv [tossl::rand::bytes [get_ivlen $alg]]
-        if {[catch {
+        
+        set ciphertext ""
+        set err [catch {
             set ciphertext [tossl::encrypt -alg $alg -key $key -iv $iv $test_data]
-        } result]} {
-            puts "  Note: Algorithm $alg not supported"
+        } errorMsg]
+        
+        if {$err != 0} {
+            # Read the error file
+            set errorOutput ""
+            if {[file exists $errorFile]} {
+                set f [open $errorFile r]
+                set errorOutput [read $f]
+                close $f
+            }
+            
+            puts "  Error with algorithm $alg:"
+            puts "    Error message: $errorMsg"
+            puts "    Error code: $::errorCode"
+            if {$errorOutput ne ""} {
+                puts "    Debug output:"
+                puts [regsub -all {^} $errorOutput {        }]
+            } else {
+                puts "    No debug output available"
+            }
+            
             set success 0
-        } else {
-            if {[string length $ciphertext] == 0} {
-                set success 0
-                break
+            
+            # Clear the error file for the next iteration
+            catch {file delete $errorFile}
+            continue
+        }
+        
+        if {[string length $ciphertext] == 0} {
+            # Read the error file
+            set errorOutput ""
+            if {[file exists $errorFile]} {
+                set f [open $errorFile r]
+                set errorOutput [read $f]
+                close $f
+            }
+            
+            puts "  Empty ciphertext with algorithm $alg"
+            if {$errorOutput ne ""} {
+                puts "    Debug output:"
+                puts [regsub -all {^} $errorOutput {        }]
+            } else {
+                puts "    No debug output available"
+            }
+            
+            set success 0
+            
+            # Clear the error file for the next iteration
+            if {[file exists $errorFile]} {
+                file delete $errorFile
             }
         }
     }
-    return $success
-} 1
+    
+    # Clean up
+    catch {file delete $errorFile}
+    
+    if {$success} {
+        return "success"
+    } else {
+        return "failure"
+    }
+} "success"
 
 # Test 30: Verify base64 format is valid base64
 test "Base64 format validation" {
