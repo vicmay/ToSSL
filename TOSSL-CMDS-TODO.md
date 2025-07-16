@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 8/190 (4.2%)
-- **Documentation Created**: 8/190 (4.2%)
+- **Tests Created**: 9/190 (4.7%)
+- **Documentation Created**: 9/190 (4.7%)
 
 ## Command Status Tracking
 
@@ -46,7 +46,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pbkdf2` | ✅ | tests/test_pbkdf2.tcl | ✅ | doc/pbkdf2.md | |
 | `::tossl::hmac` | ✅ | tests/test_hmac.tcl | ✅ | doc/hmac.md | |
 | `::tossl::cryptolog` | ✅ | tests/test_cryptolog.tcl | ✅ | doc/cryptolog.md | |
-| `::tossl::benchmark` | ❌ | | ❌ | | |
+| `::tossl::benchmark` | ✅ | tests/test_benchmark.tcl | ✅ | doc/benchmark.md | |
 | `::tossl::decrypt` | ❌ | | ❌ | | |
 | `::tossl::csr::modify` | ❌ | | ❌ | | |
 | `::tossl::csr::fingerprint` | ❌ | | ❌ | | |
