@@ -2,18 +2,42 @@
 
 This document tracks the progress of creating tests and documentation for all TOSSL commands.
 
+## Task Instructions
+
+For each TOSSL command, the following tasks must be completed:
+
+1. **Create Test File**: Create a comprehensive test file in the `tests/` directory
+   - Naming convention: `test_<command_name>.tcl`
+   - Test basic functionality, error handling, edge cases, and performance
+   - Include security validation where applicable
+
+2. **Create Documentation**: Create comprehensive documentation in the `doc/` directory
+   - Naming convention: `<command_name>.md`
+   - Include overview, syntax, examples, error handling, and security considerations
+   - Provide best practices and usage guidelines
+
+3. **Run and Fix Tests**: Execute each test file and fix any errors
+   - Run: `tclsh tests/test_<command_name>.tcl`
+   - Debug and fix any failing tests
+   - Ensure all tests pass before marking as complete
+
+4. **Update Progress**: Mark completed commands in this tracking table
+   - Update test status to ✅ when test file is created and passes
+   - Update documentation status to ✅ when documentation is complete
+   - Update progress summary counts
+
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 0/190 (0%)
-- **Documentation Created**: 0/190 (0%)
+- **Tests Created**: 3/190 (1.6%)
+- **Documentation Created**: 3/190 (1.6%)
 
 ## Command Status Tracking
 
 | Command | Test Status | Test File | Doc Status | Doc File | Notes |
 |---------|-------------|-----------|------------|----------|-------|
-| `::tossl::randbytes` | ❌ | | ❌ | | |
-| `::tossl::digest` | ❌ | | ❌ | | |
-| `::tossl::encrypt` | ❌ | | ❌ | | |
+| `::tossl::randbytes` | ✅ | tests/test_randbytes.tcl | ✅ | doc/randbytes.md | |
+| `::tossl::digest` | ✅ | tests/test_digest.tcl | ✅ | doc/digest.md | |
+| `::tossl::encrypt` | ✅ | tests/test_encrypt.tcl | ✅ | doc/encrypt.md | |
 | `::tossl::argon2` | ❌ | | ❌ | | |
 | `::tossl::scrypt` | ❌ | | ❌ | | |
 | `::tossl::pbkdf2` | ❌ | | ❌ | | |

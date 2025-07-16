@@ -244,16 +244,47 @@ int HexDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     return TCL_OK;
 }
 
-// tossl::digest -alg <name> <data>
+// tossl::digest -alg <name> [-format <format>] <data>
 int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 4) {
-        Tcl_WrongNumArgs(interp, 1, objv, "-alg name data");
+    if (objc < 4 || objc > 6) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name ?-format format? data");
         return TCL_ERROR;
     }
-    const char *alg = Tcl_GetString(objv[2]);
-    int data_len;
-    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &data_len);
+    
+    const char *alg = NULL;
+    const char *format = "hex";
+    unsigned char *data = NULL;
+    int data_len = 0;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i++) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-alg") == 0) {
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing algorithm name", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            alg = Tcl_GetString(objv[i]);
+        } else if (strcmp(opt, "-format") == 0) {
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing format specification", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            format = Tcl_GetString(objv[i]);
+        } else if (opt[0] != '-') {
+            // This is the data argument
+            data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &data_len);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!alg || !data) {
+        Tcl_SetResult(interp, "Missing required arguments", TCL_STATIC);
+        return TCL_ERROR;
+    }
     
     const EVP_MD *md = EVP_get_digestbyname(alg);
     if (!md) {
@@ -268,7 +299,7 @@ int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
     }
     
     unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int hash_len = 0;
+    unsigned int hash_len;
     if (!EVP_DigestInit_ex(mdctx, md, NULL) ||
         !EVP_DigestUpdate(mdctx, data, data_len) ||
         !EVP_DigestFinal_ex(mdctx, hash, &hash_len)) {
@@ -277,23 +308,75 @@ int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
         return TCL_ERROR;
     }
     
-    char hex[2*EVP_MAX_MD_SIZE+1];
-    bin2hex(hash, hash_len, hex);
-    Tcl_SetResult(interp, hex, TCL_VOLATILE);
     EVP_MD_CTX_free(mdctx);
+    
+    // Format output based on requested format
+    if (strcmp(format, "hex") == 0) {
+        char hex[2*EVP_MAX_MD_SIZE+1];
+        bin2hex(hash, hash_len, hex);
+        Tcl_SetResult(interp, hex, TCL_VOLATILE);
+    } else if (strcmp(format, "binary") == 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(hash, hash_len));
+    } else if (strcmp(format, "base64") == 0) {
+        BIO *bio = BIO_new(BIO_s_mem());
+        BIO *b64 = BIO_new(BIO_f_base64());
+        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL); // No newlines
+        BIO_push(b64, bio);
+        BIO_write(b64, hash, hash_len);
+        BIO_flush(b64);
+        BUF_MEM *bptr;
+        BIO_get_mem_ptr(bio, &bptr);
+        Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+        BIO_free_all(b64);
+    } else {
+        Tcl_SetResult(interp, "Invalid format. Use hex, binary, or base64", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
     return TCL_OK;
 }
 
-// tossl::digest::stream -alg <name> <data>
+// tossl::digest::stream -alg <name> [-format <format>] <data>
 int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 4) {
-        Tcl_WrongNumArgs(interp, 1, objv, "-alg name data");
+    if (objc < 4 || objc > 6) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name ?-format format? data");
         return TCL_ERROR;
     }
-    const char *alg = Tcl_GetString(objv[2]);
-    int data_len;
-    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &data_len);
+    
+    const char *alg = NULL;
+    const char *format = "hex";
+    unsigned char *data = NULL;
+    int data_len = 0;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i++) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-alg") == 0) {
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing algorithm name", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            alg = Tcl_GetString(objv[i]);
+        } else if (strcmp(opt, "-format") == 0) {
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing format specification", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            format = Tcl_GetString(objv[i]);
+        } else if (opt[0] != '-') {
+            // This is the data argument
+            data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &data_len);
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!alg || !data) {
+        Tcl_SetResult(interp, "Missing required arguments", TCL_STATIC);
+        return TCL_ERROR;
+    }
     
     const EVP_MD *md = EVP_get_digestbyname(alg);
     if (!md) {
@@ -331,10 +414,31 @@ int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         return TCL_ERROR;
     }
     
-    char hex[2*EVP_MAX_MD_SIZE+1];
-    bin2hex(hash, hash_len, hex);
-    Tcl_SetResult(interp, hex, TCL_VOLATILE);
     EVP_MD_CTX_free(mdctx);
+    
+    // Format output based on requested format
+    if (strcmp(format, "hex") == 0) {
+        char hex[2*EVP_MAX_MD_SIZE+1];
+        bin2hex(hash, hash_len, hex);
+        Tcl_SetResult(interp, hex, TCL_VOLATILE);
+    } else if (strcmp(format, "binary") == 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(hash, hash_len));
+    } else if (strcmp(format, "base64") == 0) {
+        BIO *bio = BIO_new(BIO_s_mem());
+        BIO *b64 = BIO_new(BIO_f_base64());
+        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL); // No newlines
+        BIO_push(b64, bio);
+        BIO_write(b64, hash, hash_len);
+        BIO_flush(b64);
+        BUF_MEM *bptr;
+        BIO_get_mem_ptr(bio, &bptr);
+        Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+        BIO_free_all(b64);
+    } else {
+        Tcl_SetResult(interp, "Invalid format. Use hex, binary, or base64", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
     return TCL_OK;
 }
 
@@ -361,7 +465,7 @@ int DigestCompareCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 // tossl::rand::bytes <count>
 int RandBytesCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 3) {
+    if (objc != 2) {
         Tcl_WrongNumArgs(interp, 1, objv, "count");
         return TCL_ERROR;
     }
@@ -747,49 +851,62 @@ int CipherListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
 // tossl::encrypt -alg <cipher> -key <key> -iv <iv> <data>
 int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    fprintf(stderr, "[DEBUG] EncryptCmd called: objc=%d\n", objc);
-    for (int i = 0; i < objc; ++i) {
-        int arglen = 0;
-        const unsigned char *argstr = (const unsigned char *)Tcl_GetStringFromObj(objv[i], &arglen);
-        fprintf(stderr, "[DEBUG] arg %d: len=%d, str=\"%.*s\"\n", i, arglen, arglen, argstr);
-        // Print hex dump for binary args
-        fprintf(stderr, "[DEBUG] arg %d hex: ", i);
-        for (int j = 0; j < arglen; ++j) {
-            fprintf(stderr, "%02x", argstr[j]);
-        }
-        fprintf(stderr, "\n");
-    }
-    if (objc != 8) {
-        fprintf(stderr, "[DEBUG] ERROR: wrong # args, expected 8 (including command name), got %d\n", objc);
-        Tcl_WrongNumArgs(interp, 1, objv, "-alg cipher -key key -iv iv data");
+    if (objc < 6) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg cipher -key key -iv iv data ?-format format?");
         return TCL_ERROR;
     }
     
     const char *cipher = NULL;
-    unsigned char *key = NULL, *iv = NULL, *data = NULL;
-    int key_len = 0, iv_len = 0, data_len = 0;
+    unsigned char *key = NULL, *iv = NULL, *data = NULL, *aad = NULL;
+    int key_len = 0, iv_len = 0, data_len = 0, aad_len = 0;
+    const char *format = "base64";
     
-    for (int i = 1; i < 6; i += 2) {
+    // Parse arguments flexibly
+    for (int i = 1; i < objc; i++) {
         const char *opt = Tcl_GetString(objv[i]);
-        fprintf(stderr, "[DEBUG] parsing arg %d: option '%s'\n", i, opt);
         if (strcmp(opt, "-alg") == 0) {
-            cipher = Tcl_GetString(objv[i+1]);
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing algorithm name", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            cipher = Tcl_GetString(objv[i]);
         } else if (strcmp(opt, "-key") == 0) {
-            key = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &key_len);
-            fprintf(stderr, "[DEBUG] key arg %d: len=%d, hex=", i+1, key_len);
-            for (int j = 0; j < key_len; ++j) fprintf(stderr, "%02x", key[j]);
-            fprintf(stderr, "\n");
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing key", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            key = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &key_len);
         } else if (strcmp(opt, "-iv") == 0) {
-            iv = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &iv_len);
-            fprintf(stderr, "[DEBUG] iv arg %d: len=%d, hex=", i+1, iv_len);
-            for (int j = 0; j < iv_len; ++j) fprintf(stderr, "%02x", iv[j]);
-            fprintf(stderr, "\n");
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing IV", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            iv = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &iv_len);
+        } else if (strcmp(opt, "-format") == 0) {
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing format specification", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            format = Tcl_GetString(objv[i]);
+        } else if (strcmp(opt, "-aad") == 0) {
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing AAD data", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            aad = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &aad_len);
+        } else if (opt[0] != '-') {
+            // This is the data argument
+            data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &data_len);
         } else {
             Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
             return TCL_ERROR;
         }
     }
-    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[7], &data_len);
+    
+    if (!cipher || !key || !iv || !data) {
+        Tcl_SetResult(interp, "Missing required arguments", TCL_STATIC);
+        return TCL_ERROR;
+    }
     
     EVP_CIPHER *cipher_obj = modern_cipher_fetch(cipher);
     if (!cipher_obj) {
@@ -800,6 +917,15 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
             EVP_CIPHER_get0_name(cipher_obj), EVP_CIPHER_get_block_size(cipher_obj),
             EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
     
+    int is_aead = 0, tag_len = 0;
+    if (strstr(EVP_CIPHER_get0_name(cipher_obj), "GCM") || strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM") || strstr(EVP_CIPHER_get0_name(cipher_obj), "Poly1305")) {
+        is_aead = 1;
+        if (strstr(EVP_CIPHER_get0_name(cipher_obj), "GCM") || strstr(EVP_CIPHER_get0_name(cipher_obj), "Poly1305"))
+            tag_len = 16;
+        else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM"))
+            tag_len = 16;
+    }
+    
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         modern_cipher_free(cipher_obj);
@@ -807,143 +933,370 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         return TCL_ERROR;
     }
     
-    if (!EVP_EncryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
-        EVP_CIPHER_CTX_free(ctx);
-        modern_cipher_free(cipher_obj);
-        Tcl_SetResult(interp, "OpenSSL: encryption init failed", TCL_STATIC);
-        return TCL_ERROR;
+    if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+        // Step 1: Init with NULL key/IV
+        if (!EVP_EncryptInit_ex2(ctx, cipher_obj, NULL, NULL, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            Tcl_SetResult(interp, "OpenSSL: CCM pre-init failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        // Step 2: Set IV length
+        if (iv_len > 0) {
+            if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, iv_len, NULL)) {
+                EVP_CIPHER_CTX_free(ctx);
+                modern_cipher_free(cipher_obj);
+                Tcl_SetResult(interp, "OpenSSL: failed to set CCM IV length", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        }
+        // Step 3: Set tag length
+        if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_len, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            Tcl_SetResult(interp, "OpenSSL: failed to set CCM tag length", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        // Step 4: Init with real key/IV
+        if (!EVP_EncryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            Tcl_SetResult(interp, "OpenSSL: encryption init failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        // Step 5: Set plaintext length before AAD/data
+        int dummy_len = 0;
+        fprintf(stderr, "[DEBUG] CCM data_len: %d\n", data_len);
+        int ccm_len_result = EVP_EncryptUpdate(ctx, NULL, &dummy_len, NULL, data_len);
+        fprintf(stderr, "[DEBUG] CCM EVP_EncryptUpdate(NULL, NULL, NULL, data_len) result: %d\n", ccm_len_result);
+        if (!ccm_len_result) {
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            Tcl_SetResult(interp, "OpenSSL: failed to set CCM plaintext length", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    } else {
+        if (!EVP_EncryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            Tcl_SetResult(interp, "OpenSSL: encryption init failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
     }
     
-    unsigned char *out = malloc(data_len + EVP_CIPHER_get_block_size(cipher_obj));
+    // AEAD: Add AAD if provided
+    if (aad && aad_len > 0) {
+        int aad_out_len = 0;
+        if (!EVP_EncryptUpdate(ctx, NULL, &aad_out_len, aad, aad_len)) {
+            EVP_CIPHER_CTX_free(ctx);
+            modern_cipher_free(cipher_obj);
+            Tcl_SetResult(interp, "OpenSSL: encryption AAD update failed", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+        fprintf(stderr, "[DEBUG] CCM cipher: %s, tag_len: %d, iv_len: %d\n", EVP_CIPHER_get0_name(cipher_obj), tag_len, iv_len);
+    }
+    unsigned char *out = malloc(data_len + (is_aead ? tag_len : EVP_CIPHER_get_block_size(cipher_obj)));
     int out_len = 0;
     fprintf(stderr, "[DEBUG] EncryptCmd data hex: ");
     for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
     fprintf(stderr, "\n");
-    if (!EVP_EncryptUpdate(ctx, out, &out_len, data, data_len)) {
+    int update_result = EVP_EncryptUpdate(ctx, out, &out_len, data, data_len);
+    if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+        fprintf(stderr, "[DEBUG] CCM EVP_EncryptUpdate(data) result: %d, out_len: %d\n", update_result, out_len);
+    }
+    if (!update_result) {
         EVP_CIPHER_CTX_free(ctx);
         modern_cipher_free(cipher_obj);
+        free(out);
         Tcl_SetResult(interp, "OpenSSL: encryption update failed", TCL_STATIC);
         return TCL_ERROR;
     }
     
     int final_len = 0;
-    if (!EVP_EncryptFinal_ex(ctx, out + out_len, &final_len)) {
+    int final_result = EVP_EncryptFinal_ex(ctx, out + out_len, &final_len);
+    if (is_aead && strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+        fprintf(stderr, "[DEBUG] CCM EVP_EncryptFinal_ex result: %d, final_len: %d\n", final_result, final_len);
+    }
+    if (!final_result) {
         EVP_CIPHER_CTX_free(ctx);
         modern_cipher_free(cipher_obj);
+        free(out);
         Tcl_SetResult(interp, "OpenSSL: encryption final failed", TCL_STATIC);
         return TCL_ERROR;
     }
+    int total_len = out_len + final_len;
+    unsigned char tag[16];
+    if (is_aead) {
+        if (strstr(EVP_CIPHER_get0_name(cipher_obj), "GCM")) {
+            if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag_len, tag)) {
+                EVP_CIPHER_CTX_free(ctx);
+                modern_cipher_free(cipher_obj);
+                free(out);
+                Tcl_SetResult(interp, "OpenSSL: failed to get GCM tag", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+            if (out_len != data_len) {
+                fprintf(stderr, "[DEBUG] CCM out_len (%d) != data_len (%d)\n", out_len, data_len);
+            }
+            int tag_result = EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_GET_TAG, tag_len, tag);
+            fprintf(stderr, "[DEBUG] CCM tag retrieval result: %d\n", tag_result);
+            if (!tag_result) {
+                unsigned long err = ERR_get_error();
+                char err_buf[256];
+                ERR_error_string_n(err, err_buf, sizeof(err_buf));
+                fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", err_buf);
+                EVP_CIPHER_CTX_free(ctx);
+                modern_cipher_free(cipher_obj);
+                free(out);
+                Tcl_SetResult(interp, "OpenSSL: failed to get CCM tag", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "Poly1305")) {
+            if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, tag_len, tag)) {
+                EVP_CIPHER_CTX_free(ctx);
+                modern_cipher_free(cipher_obj);
+                free(out);
+                Tcl_SetResult(interp, "OpenSSL: failed to get Poly1305 tag", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        }
+        memcpy(out + total_len, tag, tag_len);
+        total_len += tag_len;
+    }
     
-    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, out_len + final_len));
+    // Format output based on requested format
+    if (strcmp(format, "hex") == 0) {
+        char *hex = (char *)ckalloc(2*total_len+1);
+        bin2hex(out, total_len, hex);
+        Tcl_SetResult(interp, hex, TCL_DYNAMIC);
+    } else if (strcmp(format, "binary") == 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, total_len));
+    } else if (strcmp(format, "base64") == 0) {
+        BIO *bio = BIO_new(BIO_s_mem());
+        BIO *b64 = BIO_new(BIO_f_base64());
+        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+        BIO_push(b64, bio);
+        BIO_write(b64, out, total_len);
+        BIO_flush(b64);
+        BUF_MEM *bptr;
+        BIO_get_mem_ptr(bio, &bptr);
+        Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+        BIO_free_all(b64);
+    } else {
+        Tcl_SetResult(interp, "Invalid format. Use hex, binary, or base64", TCL_STATIC);
+        free(out);
+        EVP_CIPHER_CTX_free(ctx);
+        modern_cipher_free(cipher_obj);
+        return TCL_ERROR;
+    }
+    
+    free(out);
     EVP_CIPHER_CTX_free(ctx);
     modern_cipher_free(cipher_obj);
     return TCL_OK;
 }
 
-// tossl::decrypt -alg <cipher> -key <key> -iv <iv> <data>
+// tossl::decrypt -alg <cipher> -key <key> -iv <iv> <data> ?-format format?
 int DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    fprintf(stderr, "[DEBUG] DecryptCmd called: objc=%d\n", objc);
-    for (int i = 0; i < objc; ++i) {
-        int arglen = 0;
-        unsigned char *argbytes = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &arglen);
-        fprintf(stderr, "[DEBUG] arg %d: len=%d, hex=", i, arglen);
-        for (int j = 0; j < arglen; ++j) {
-            fprintf(stderr, "%02x", argbytes[j]);
-        }
-        fprintf(stderr, "\n");
-    }
-    if (objc != 8) {
-        fprintf(stderr, "[DEBUG] ERROR: wrong # args, expected 8 (including command name), got %d\n", objc);
-        Tcl_WrongNumArgs(interp, 1, objv, "-alg cipher -key key -iv iv data");
+    if (objc < 8 || objc > 10) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg cipher -key key -iv iv data ?-format format?");
         return TCL_ERROR;
     }
     
     const char *cipher = NULL;
     unsigned char *key = NULL, *iv = NULL, *data = NULL;
     int key_len = 0, iv_len = 0, data_len = 0;
+    const char *format = "binary";
     
-    for (int i = 1; i < 6; i += 2) {
+    // Parse arguments flexibly
+    for (int i = 1; i < objc; i++) {
         const char *opt = Tcl_GetString(objv[i]);
-        fprintf(stderr, "[DEBUG] parsing arg %d: option '%s'\n", i, opt);
         if (strcmp(opt, "-alg") == 0) {
-            cipher = Tcl_GetString(objv[i+1]);
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing algorithm name", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            cipher = Tcl_GetString(objv[i]);
         } else if (strcmp(opt, "-key") == 0) {
-            key = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &key_len);
-            fprintf(stderr, "[DEBUG] key arg %d: len=%d, hex=", i+1, key_len);
-            for (int j = 0; j < key_len; ++j) fprintf(stderr, "%02x", key[j]);
-            fprintf(stderr, "\n");
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing key", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            key = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &key_len);
         } else if (strcmp(opt, "-iv") == 0) {
-            iv = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &iv_len);
-            fprintf(stderr, "[DEBUG] iv arg %d: len=%d, hex=", i+1, iv_len);
-            for (int j = 0; j < iv_len; ++j) fprintf(stderr, "%02x", iv[j]);
-            fprintf(stderr, "\n");
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing IV", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            iv = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &iv_len);
+        } else if (strcmp(opt, "-format") == 0) {
+            if (++i >= objc) {
+                Tcl_SetResult(interp, "Missing format specification", TCL_STATIC);
+                return TCL_ERROR;
+            }
+            format = Tcl_GetString(objv[i]);
+        } else if (opt[0] != '-') {
+            // This is the data argument
+            data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &data_len);
         } else {
             Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
             return TCL_ERROR;
         }
     }
-    // Debug: print key and IV hex
-    fprintf(stderr, "[DEBUG] DecryptCmd key hex: ");
-    for (int i = 0; i < key_len; ++i) fprintf(stderr, "%02x", key[i]);
-    fprintf(stderr, "\n");
-    fprintf(stderr, "[DEBUG] DecryptCmd IV hex: ");
-    for (int i = 0; i < iv_len; ++i) fprintf(stderr, "%02x", iv[i]);
-    fprintf(stderr, "\n");
-    data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[7], &data_len);
+    
+    if (!cipher || !key || !iv || !data) {
+        Tcl_SetResult(interp, "Missing required arguments", TCL_STATIC);
+        return TCL_ERROR;
+    }
     
     EVP_CIPHER *cipher_obj = modern_cipher_fetch(cipher);
     if (!cipher_obj) {
         Tcl_SetResult(interp, "Unknown cipher algorithm", TCL_STATIC);
         return TCL_ERROR;
     }
-    fprintf(stderr, "[DEBUG] DecryptCmd cipher: %s, block_size=%d, key_len=%d, iv_len=%d\n", 
-            EVP_CIPHER_get0_name(cipher_obj), EVP_CIPHER_get_block_size(cipher_obj),
-            EVP_CIPHER_get_key_length(cipher_obj), EVP_CIPHER_get_iv_length(cipher_obj));
+    
+    // Handle input format
+    unsigned char *decoded_data = data;
+    int decoded_len = data_len;
+    
+    if (strcmp(format, "base64") == 0) {
+        BIO *bio = BIO_new_mem_buf(data, data_len);
+        BIO *b64 = BIO_new(BIO_f_base64());
+        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+        BIO_push(b64, bio);
+        decoded_data = malloc(data_len);
+        decoded_len = BIO_read(b64, decoded_data, data_len);
+        BIO_free_all(b64);
+        if (decoded_len <= 0) {
+            free(decoded_data);
+            Tcl_SetResult(interp, "Invalid base64 input", TCL_STATIC);
+            modern_cipher_free(cipher_obj);
+            return TCL_ERROR;
+        }
+    } else if (strcmp(format, "hex") == 0) {
+        if (data_len % 2 != 0) {
+            Tcl_SetResult(interp, "Invalid hex input length", TCL_STATIC);
+            modern_cipher_free(cipher_obj);
+            return TCL_ERROR;
+        }
+        decoded_data = malloc(data_len / 2);
+        decoded_len = data_len / 2;
+        for (int i = 0; i < decoded_len; i++) {
+            char hex[3] = {data[i*2], data[i*2+1], '\0'};
+            int value;
+            if (sscanf(hex, "%x", &value) != 1) {
+                free(decoded_data);
+                Tcl_SetResult(interp, "Invalid hex input", TCL_STATIC);
+                modern_cipher_free(cipher_obj);
+                return TCL_ERROR;
+            }
+            decoded_data[i] = (unsigned char)value;
+        }
+    } else if (strcmp(format, "binary") != 0) {
+        Tcl_SetResult(interp, "Invalid format. Use binary, hex, or base64", TCL_STATIC);
+        modern_cipher_free(cipher_obj);
+        return TCL_ERROR;
+    }
+    
+    int is_aead = 0;
+    int tag_len = 0;
+    if (strstr(EVP_CIPHER_get0_name(cipher_obj), "GCM") || strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM") || strstr(EVP_CIPHER_get0_name(cipher_obj), "Poly1305")) {
+        is_aead = 1;
+        if (strstr(EVP_CIPHER_get0_name(cipher_obj), "GCM") || strstr(EVP_CIPHER_get0_name(cipher_obj), "Poly1305"))
+            tag_len = 16;
+        else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM"))
+            tag_len = 16;
+    }
+    unsigned char tag[16];
+    if (is_aead) {
+        if (decoded_len < tag_len) {
+            if (decoded_data != data) free(decoded_data);
+            Tcl_SetResult(interp, "Input too short for AEAD tag", TCL_STATIC);
+            modern_cipher_free(cipher_obj);
+            return TCL_ERROR;
+        }
+        memcpy(tag, decoded_data + (decoded_len - tag_len), tag_len);
+        decoded_len -= tag_len;
+    }
     
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
+        if (decoded_data != data) free(decoded_data);
         modern_cipher_free(cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: failed to create cipher context", TCL_STATIC);
         return TCL_ERROR;
     }
-    fprintf(stderr, "[DEBUG] Default OpenSSL padding is used (PKCS#7 for block ciphers)\n");
+    
     if (!EVP_DecryptInit_ex2(ctx, cipher_obj, key, iv, NULL)) {
         EVP_CIPHER_CTX_free(ctx);
+        if (decoded_data != data) free(decoded_data);
         modern_cipher_free(cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: decryption init failed", TCL_STATIC);
-        fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return TCL_ERROR;
     }
-    // Allocate output buffer large enough for decrypted data (with padding)
-    unsigned char *out = malloc(data_len + EVP_CIPHER_get_block_size(cipher_obj));
+    if (is_aead) {
+        if (strstr(EVP_CIPHER_get0_name(cipher_obj), "GCM")) {
+            if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, tag_len, tag)) {
+                EVP_CIPHER_CTX_free(ctx);
+                if (decoded_data != data) free(decoded_data);
+                modern_cipher_free(cipher_obj);
+                Tcl_SetResult(interp, "OpenSSL: failed to set GCM tag", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "CCM")) {
+            if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, tag_len, tag)) {
+                EVP_CIPHER_CTX_free(ctx);
+                if (decoded_data != data) free(decoded_data);
+                modern_cipher_free(cipher_obj);
+                Tcl_SetResult(interp, "OpenSSL: failed to set CCM tag", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else if (strstr(EVP_CIPHER_get0_name(cipher_obj), "Poly1305")) {
+            if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, tag_len, tag)) {
+                EVP_CIPHER_CTX_free(ctx);
+                if (decoded_data != data) free(decoded_data);
+                modern_cipher_free(cipher_obj);
+                Tcl_SetResult(interp, "OpenSSL: failed to set Poly1305 tag", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        }
+    }
+    
+    unsigned char *out = malloc(decoded_len + EVP_CIPHER_get_block_size(cipher_obj));
     int out_len = 0;
-    fprintf(stderr, "[DEBUG] DecryptCmd data hex: ");
-    for (int i = 0; i < data_len; ++i) fprintf(stderr, "%02x", data[i]);
-    fprintf(stderr, "\n");
-    if (!EVP_DecryptUpdate(ctx, out, &out_len, data, data_len)) {
+    
+    if (!EVP_DecryptUpdate(ctx, out, &out_len, decoded_data, decoded_len)) {
         EVP_CIPHER_CTX_free(ctx);
-        modern_cipher_free(cipher_obj);
+        if (decoded_data != data) free(decoded_data);
         free(out);
+        modern_cipher_free(cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: decryption update failed", TCL_STATIC);
-        fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return TCL_ERROR;
     }
+    
     int final_len = 0;
     if (!EVP_DecryptFinal_ex(ctx, out + out_len, &final_len)) {
         EVP_CIPHER_CTX_free(ctx);
-        modern_cipher_free(cipher_obj);
+        if (decoded_data != data) free(decoded_data);
         free(out);
+        modern_cipher_free(cipher_obj);
         Tcl_SetResult(interp, "OpenSSL: decryption final failed", TCL_STATIC);
-        fprintf(stderr, "[DEBUG] OpenSSL error: %s\n", ERR_error_string(ERR_get_error(), NULL));
         return TCL_ERROR;
     }
-    fprintf(stderr, "[DEBUG] Decrypt output: out_len=%d, final_len=%d\n", out_len, final_len);
+    
     Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(out, out_len + final_len));
+    
+    if (decoded_data != data) free(decoded_data);
+    free(out);
     EVP_CIPHER_CTX_free(ctx);
     modern_cipher_free(cipher_obj);
     return TCL_OK;
-} 
+}
 
 // URL encoding/decoding functions
 int UrlEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
