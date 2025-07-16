@@ -192,7 +192,8 @@ int EcVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
     
     const char *key_data = Tcl_GetString(objv[1]);
     const char *data = Tcl_GetString(objv[2]);
-    const char *sig_data = Tcl_GetString(objv[3]);
+    int siglen = 0;
+    unsigned char *sig_data = Tcl_GetByteArrayFromObj(objv[3], &siglen);
     const char *digest_name = Tcl_GetString(objv[4]);
     
     EVP_PKEY *pkey = NULL;
@@ -238,7 +239,7 @@ int EcVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
         return TCL_ERROR;
     }
     
-    int result = EVP_DigestVerify(ctx, (const unsigned char*)sig_data, strlen(sig_data),
+    int result = EVP_DigestVerify(ctx, sig_data, siglen,
                                  (const unsigned char*)data, strlen(data));
     
     EVP_MD_CTX_free(ctx);
