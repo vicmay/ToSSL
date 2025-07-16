@@ -55,7 +55,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::csr::parse` | ✅ | tests/test_csr_parse.tcl | ✅ | doc/csr_parse.md | |
 | `::tossl::ec::point_multiply` | ✅ | tests/test_ec_point_multiply.tcl | ✅ | doc/ec_point_multiply.md | |
 | `::tossl::ec::verify` | ✅ | tests/test_ec_verify.tcl | ✅ | doc/ec_verify.md | |
-| `::tossl::ec::sign` | ❌ | | ❌ | | |
+| `::tossl::ec::sign` | ✅ | tests/test_ec_sign.tcl | ✅ | doc/ec_sign.md | |
 | `::tossl::ec::components` | ❌ | | ❌ | | |
 | `::tossl::ec::point_add` | ❌ | | ❌ | | |
 | `::tossl::ec::validate` | ❌ | | ❌ | | |
