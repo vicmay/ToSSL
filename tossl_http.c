@@ -381,44 +381,7 @@ static int PerformHttpRequest(Tcl_Interp *interp, const char *url, const char *m
     return TCL_OK;
 }
 
-// Enhanced GET command
-int Tossl_HttpGetEnhancedCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc < 2) {
-        Tcl_WrongNumArgs(interp, 1, objv, "url ?-headers {header1 value1}? ?-timeout seconds? ?-user_agent string? ?-follow_redirects boolean? ?-verify_ssl boolean? ?-proxy url? ?-auth {username password}? ?-return_details boolean?");
-        return TCL_ERROR;
-    }
-    
-    const char *url = Tcl_GetString(objv[1]);
-    struct HttpOptions options;
-    
-    if (ParseHttpOptions(interp, objc, objv, &options, 2) != TCL_OK) {
-        return TCL_ERROR;
-    }
-    
-    int result = PerformHttpRequest(interp, url, "GET", NULL, &options);
-    FreeHttpOptions(&options);
-    return result;
-}
 
-// Enhanced POST command
-int Tossl_HttpPostEnhancedCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc < 3) {
-        Tcl_WrongNumArgs(interp, 1, objv, "url data ?-headers {header1 value1}? ?-content_type type? ?-timeout seconds? ?-user_agent string? ?-follow_redirects boolean? ?-verify_ssl boolean? ?-proxy url? ?-auth {username password}? ?-return_details boolean?");
-        return TCL_ERROR;
-    }
-    
-    const char *url = Tcl_GetString(objv[1]);
-    const char *data = Tcl_GetString(objv[2]);
-    struct HttpOptions options;
-    
-    if (ParseHttpOptions(interp, objc, objv, &options, 3) != TCL_OK) {
-        return TCL_ERROR;
-    }
-    
-    int result = PerformHttpRequest(interp, url, "POST", data, &options);
-    FreeHttpOptions(&options);
-    return result;
-}
 
 // Universal request command
 int Tossl_HttpRequestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -937,44 +900,51 @@ int Tossl_HttpMetricsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     return TCL_OK;
 }
 
-// Legacy commands for backward compatibility
+// Enhanced GET command (replaces legacy simple version)
 int Tossl_HttpGetCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 2) {
-        Tcl_WrongNumArgs(interp, 1, objv, "url");
+    if (objc < 2) {
+        Tcl_WrongNumArgs(interp, 1, objv, "url ?-headers {header1 value1}? ?-timeout seconds? ?-user_agent string? ?-follow_redirects boolean? ?-verify_ssl boolean? ?-proxy url? ?-auth {username password}? ?-return_details boolean?");
         return TCL_ERROR;
     }
     
     const char *url = Tcl_GetString(objv[1]);
     struct HttpOptions options;
-    InitHttpOptions(&options);
     
-    return PerformHttpRequest(interp, url, "GET", NULL, &options);
+    if (ParseHttpOptions(interp, objc, objv, &options, 2) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
+    int result = PerformHttpRequest(interp, url, "GET", NULL, &options);
+    FreeHttpOptions(&options);
+    return result;
 }
 
+// Enhanced POST command (replaces legacy simple version)
 int Tossl_HttpPostCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 3) {
-        Tcl_WrongNumArgs(interp, 1, objv, "url data");
+    if (objc < 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "url data ?-headers {header1 value1}? ?-content_type type? ?-timeout seconds? ?-user_agent string? ?-follow_redirects boolean? ?-verify_ssl boolean? ?-proxy url? ?-auth {username password}? ?-return_details boolean?");
         return TCL_ERROR;
     }
     
     const char *url = Tcl_GetString(objv[1]);
     const char *data = Tcl_GetString(objv[2]);
     struct HttpOptions options;
-    InitHttpOptions(&options);
     
-    return PerformHttpRequest(interp, url, "POST", data, &options);
+    if (ParseHttpOptions(interp, objc, objv, &options, 3) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
+    int result = PerformHttpRequest(interp, url, "POST", data, &options);
+    FreeHttpOptions(&options);
+    return result;
 }
 
 int Tossl_HttpInit(Tcl_Interp *interp) {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     
-    // Register legacy commands for backward compatibility
+    // Register HTTP commands
     Tcl_CreateObjCommand(interp, "tossl::http::get", Tossl_HttpGetCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::http::post", Tossl_HttpPostCmd, NULL, NULL);
-    
-    // Register enhanced commands
-    Tcl_CreateObjCommand(interp, "tossl::http::get_enhanced", Tossl_HttpGetEnhancedCmd, NULL, NULL);
-    Tcl_CreateObjCommand(interp, "tossl::http::post_enhanced", Tossl_HttpPostEnhancedCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::http::request", Tossl_HttpRequestCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::http::upload", Tossl_HttpUploadCmd, NULL, NULL);
     
