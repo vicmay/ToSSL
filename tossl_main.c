@@ -243,6 +243,16 @@ int Tossl_Init(Tcl_Interp *interp) {
         return TCL_ERROR;
     }
     
+    // Initialize JWT module
+    if (Tossl_JwtInit(interp) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
+    // Initialize OAuth2 module
+    if (Tossl_Oauth2Init(interp) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
     // Provider management commands
     Tcl_CreateObjCommand(interp, "tossl::provider::load", ProviderLoadCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::provider::unload", ProviderUnloadCmd, NULL, NULL);
