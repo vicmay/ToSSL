@@ -143,7 +143,8 @@ int AcmeDirectoryCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         return TCL_ERROR;
     }
     
-    char *directory_url = Tcl_GetString(objv[1]);
+    // directory_url is not currently used but kept for future implementation
+    // char *directory_url = Tcl_GetString(objv[1]);
     
     // Use HTTP module to fetch directory
     Tcl_Obj *response_obj = Tcl_NewStringObj("tossl::http::get", -1);
@@ -195,7 +196,8 @@ int AcmeCreateAccountCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
         return TCL_ERROR;
     }
     
-    char *directory_url = Tcl_GetString(objv[1]);
+    // directory_url is not currently used but kept for future implementation
+    // char *directory_url = Tcl_GetString(objv[1]);
     // account_key is not currently used but kept for future implementation
     // char *account_key = Tcl_GetString(objv[2]);
     char *email = Tcl_GetString(objv[3]);

@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 700
 #include "tossl.h"
 #include <time.h>
 #include <sys/time.h>
@@ -6,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <strings.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -1166,17 +1168,15 @@ int EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         
         // Get more detailed error information
         while ((err = ERR_get_error()) != 0) {
-            char lib_buf[256], func_buf[256], reason_buf[256];
+            char lib_buf[256], reason_buf[256];
             const char *lib = ERR_lib_error_string(err);
-            const char *func = ERR_func_error_string(err);
             const char *reason = ERR_reason_error_string(err);
             
             snprintf(lib_buf, sizeof(lib_buf), "%s", lib ? lib : "(null)");
-            snprintf(func_buf, sizeof(func_buf), "%s", func ? func : "(null)");
             snprintf(reason_buf, sizeof(reason_buf), "%s", reason ? reason : "(null)");
             
-            DEBUG_PRINTF("OpenSSL error details - Library: %s, Function: %s, Reason: %s\n",
-                   lib_buf, func_buf, reason_buf);
+            DEBUG_PRINTF("OpenSSL error details - Library: %s, Reason: %s\n",
+                   lib_buf, reason_buf);
         }
         
         EVP_CIPHER_CTX_free(ctx);
@@ -1878,7 +1878,6 @@ Tossl_HardwareAccelCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_
         return TCL_ERROR;
     }
 
-    Tcl_Obj *result = Tcl_NewObj();
     Tcl_Obj *dict = Tcl_NewDictObj();
     
     /* Check for AES-NI */
@@ -2421,7 +2420,8 @@ Tossl_CryptoLogCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj 
             Tcl_WrongNumArgs(interp, 2, objv, "level");
             return TCL_ERROR;
         }
-        char *level = Tcl_GetString(objv[2]);
+        // Log level parameter is not currently used but kept for future implementation
+        // char *level = Tcl_GetString(objv[2]);
         Tcl_SetResult(interp, "Cryptographic logging enabled", TCL_STATIC);
         return TCL_OK;
     } else if (strcmp(operation, "disable") == 0) {

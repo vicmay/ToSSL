@@ -1,0 +1,12 @@
+[DEBUG] curve: prime256v1
+[DEBUG] clean_point: 044653EDDF6D9C2C51A65E9A297ABB73E29CDEFCD8918BF55F2CA109FD9C9805F3028DB0B1A703126E3C2A019A9EBCA6734F821504D055BA4D08431385A3B9F3E8
+[DEBUG] clean_point length: 130
+[DEBUG] scalar_data: 02
+[DEBUG] scalar_data length: 2
+[DEBUG] after EC_GROUP_new: group=0x577c95a0ffa0
+[DEBUG] after EC_POINT_new: result_point=0x577c95a0fe20
+[DEBUG] after EC_POINT_hex2point: point=0x577c95a53640
+[DEBUG] after BN_hex2bn: scalar=0x577c95a52ed0
+[DEBUG] after EC_POINT_mul: mul_ok=1
+[DEBUG] after EC_POINT_point2hex: result_hex=0x577c95a0fc50
+alloc: invalid block: 0x577c95a0fc40: 0 0

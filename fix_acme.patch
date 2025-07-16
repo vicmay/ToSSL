@@ -1,0 +1,22 @@
+--- tossl_acme.c.orig2025-07-16 11:50:00.000000000 -0700
++++ tossl_acme.c 2025-07-16 11:50:10.000000000 -0700
+@@ -143,8 +143,7 @@
+         return TCL_ERROR;
+     }
+     
+-    // directory_url is not currently used but kept for future implementation
+-    // char *directory_url = Tcl_GetString(objv[1]);
++    char *directory_url = Tcl_GetString(objv[1]);
+     
+     // Use HTTP module to fetch directory
+     Tcl_Obj *response_obj = Tcl_NewStringObj("tossl::http::get", -1);
+@@ -220,8 +219,7 @@
+         return TCL_ERROR;
+     }
+     
+-    // directory_url is not currently used but kept for future implementation
+-    // char *directory_url = Tcl_GetString(objv[1]);
++    char *directory_url = Tcl_GetString(objv[1]);
+     // account_key is not currently used but kept for future implementation
+     // char *account_key = Tcl_GetString(objv[2]);
+     char *email = Tcl_GetString(objv[3]);

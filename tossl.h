@@ -37,6 +37,7 @@
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
+#include <openssl/ec.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/pkcs12.h>

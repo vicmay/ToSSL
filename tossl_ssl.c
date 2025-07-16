@@ -727,7 +727,8 @@ int SslSetCertPinningCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
         return TCL_ERROR;
     }
     const char *ctx_name = Tcl_GetString(objv[2]);
-    const char *pins = Tcl_GetString(objv[3]);
+    // pins parameter is not currently used but kept for future implementation
+    // const char *pins = Tcl_GetString(objv[3]);
     // Find SSL context
     SSL_CTX *ctx = NULL;
     for (int i = 0; i < ssl_context_count; i++) {
