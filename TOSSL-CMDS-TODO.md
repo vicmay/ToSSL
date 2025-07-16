@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 11/190 (5.8%)
-- **Documentation Created**: 11/190 (5.8%)
+- **Tests Created**: 12/190 (6.3%)
+- **Documentation Created**: 12/190 (6.3%)
 
 ## Command Status Tracking
 
@@ -49,7 +49,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::benchmark` | ✅ | tests/test_benchmark.tcl | ✅ | doc/benchmark.md | |
 | `::tossl::decrypt` | ✅ | tests/test_decrypt.tcl | ✅ | doc/decrypt.md | |
 | `::tossl::csr::modify` | ✅ | tests/test_csr_modify.tcl | ✅ | doc/csr_modify.md | |
-| `::tossl::csr::fingerprint` | ❌ | | ❌ | | |
+| `::tossl::csr::fingerprint` | ✅ | tests/test_csr_fingerprint.tcl | ✅ | doc/csr_fingerprint.md | |
 | `::tossl::csr::create` | ❌ | | ❌ | | |
 | `::tossl::csr::validate` | ❌ | | ❌ | | |
 | `::tossl::csr::parse` | ❌ | | ❌ | | |
