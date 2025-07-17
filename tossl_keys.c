@@ -389,13 +389,14 @@ int KeyConvertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    const char *key_data = NULL, *from_format = NULL, *to_format = NULL, *type = NULL;
+    const char *from_format = NULL, *to_format = NULL, *type = NULL;
     int key_len = 0;
-    
+    unsigned char *key_data = NULL;
     for (int i = 1; i < 8; i += 2) {
         const char *opt = Tcl_GetString(objv[i]);
         if (strcmp(opt, "-key") == 0) {
-            key_data = Tcl_GetStringFromObj(objv[i+1], &key_len);
+            // Always get as byte array for binary safety
+            key_data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i+1], &key_len);
         } else if (strcmp(opt, "-from") == 0) {
             from_format = Tcl_GetString(objv[i+1]);
         } else if (strcmp(opt, "-to") == 0) {
@@ -407,42 +408,44 @@ int KeyConvertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
             return TCL_ERROR;
         }
     }
-    
     if (!key_data || !from_format || !to_format || !type) {
         Tcl_SetResult(interp, "All parameters are required", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     BIO *bio = BIO_new_mem_buf((void*)key_data, key_len);
     EVP_PKEY *pkey = NULL;
-    
     if (strcmp(from_format, "pem") == 0) {
         if (strcmp(type, "private") == 0) {
             pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-        } else {
+        } else if (strcmp(type, "public") == 0) {
             pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+        } else {
+            BIO_free(bio);
+            Tcl_SetResult(interp, "Type must be 'private' or 'public'", TCL_STATIC);
+            return TCL_ERROR;
         }
     } else if (strcmp(from_format, "der") == 0) {
         if (strcmp(type, "private") == 0) {
             pkey = d2i_PrivateKey_bio(bio, NULL);
-        } else {
+        } else if (strcmp(type, "public") == 0) {
             pkey = d2i_PUBKEY_bio(bio, NULL);
+        } else {
+            BIO_free(bio);
+            Tcl_SetResult(interp, "Type must be 'private' or 'public'", TCL_STATIC);
+            return TCL_ERROR;
         }
     } else {
         BIO_free(bio);
         Tcl_SetResult(interp, "From format must be 'pem' or 'der'", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     if (!pkey) {
         BIO_free(bio);
         Tcl_SetResult(interp, "Failed to parse key", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     BIO *out_bio = BIO_new(BIO_s_mem());
     int success = 0;
-    
     if (strcmp(to_format, "pem") == 0) {
         if (strcmp(type, "private") == 0) {
             success = PEM_write_bio_PrivateKey(out_bio, pkey, NULL, NULL, 0, NULL, NULL);
@@ -462,7 +465,6 @@ int KeyConvertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         Tcl_SetResult(interp, "To format must be 'pem' or 'der'", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     if (!success) {
         BIO_free(out_bio);
         EVP_PKEY_free(pkey);
@@ -470,11 +472,13 @@ int KeyConvertCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         Tcl_SetResult(interp, "Failed to convert key", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     BUF_MEM *bptr;
     BIO_get_mem_ptr(out_bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
-    
+    if (strcmp(to_format, "der") == 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)bptr->data, bptr->length));
+    } else {
+        Tcl_SetObjResult(interp, Tcl_NewStringObj(bptr->data, bptr->length));
+    }
     BIO_free(out_bio);
     EVP_PKEY_free(pkey);
     BIO_free(bio);

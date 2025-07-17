@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 35/189 (18.5%)
-- **Documentation Created**: 35/189 (18.5%)
+- **Tests Created**: 36/189 (19.0%)
+- **Documentation Created**: 36/189 (19.0%)
 
 ## Command Status Tracking
 
@@ -78,7 +78,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::crl::parse` | ✅ | tests/test_crl_parse.tcl | ✅ | doc/crl_parse.md | |
 | `::tossl::key::analyze` | ✅ | tests/test_key_analyze.tcl | ✅ | doc/key_analyze.md | Command is actually ::tossl::key::parse |
 | `::tossl::key::fingerprint` | ✅ | tests/test_key_fingerprint.tcl | ✅ | doc/key_fingerprint.md | |
-| `::tossl::key::convert` | ❌ | | ❌ | | |
+| `::tossl::key::convert` | ✅ | tests/test_key_convert.tcl | ✅ | doc/key_convert.md | |
 | `::tossl::key::getpub` | ❌ | | ❌ | | |
 | `::tossl::key::generate` | ❌ | | ❌ | | |
 | `::tossl::key::write` | ❌ | | ❌ | | |
