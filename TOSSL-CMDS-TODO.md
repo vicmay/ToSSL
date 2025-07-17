@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 72/189 (38.1%)
-- **Documentation Created**: 72/189 (38.1%)
+- **Tests Created**: 73/189 (38.6%)
+- **Documentation Created**: 73/189 (38.6%)
 
 ## Command Status Tracking
 
@@ -113,7 +113,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::oauth2::exchange_code_pkce` | ✅ | tests/test_oauth2_exchange_code_pkce.tcl | ✅ | doc/oauth2_exchange_code_pkce.md | |
 | `::tossl::pkcs12::create` | ✅ | tests/test_pkcs12_create.tcl | ✅ | doc/pkcs12_create.md | |
 | `::tossl::pkcs12::parse` | ✅ | tests/test_pkcs12_parse.tcl | ✅ | doc/pkcs12_parse.md | |
-| `::tossl::ocsp::create_request` | ❌ | | ❌ | | |
+| `::tossl::ocsp::create_request` | ✅ | tests/test_ocsp_create_request.tcl | ✅ | doc/ocsp_create_request.md | |
 | `::tossl::ocsp::parse_response` | ❌ | | ❌ | | |
 | `::tossl::legacy::info` | ❌ | | ❌ | | |
 | `::tossl::legacy::list` | ❌ | | ❌ | | |
