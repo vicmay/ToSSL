@@ -31,6 +31,11 @@ int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
+    if (days <= 0) {
+        Tcl_SetResult(interp, "Days must be a positive integer", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
     BIO *key_bio = BIO_new_mem_buf((void*)key_pem, key_len);
     EVP_PKEY *pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, NULL);
     if (!pkey) {
@@ -106,6 +111,30 @@ int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     
     ASN1_TIME_free(last_update);
     ASN1_TIME_free(next_update);
+    
+    // Validate that private key matches certificate
+    EVP_PKEY *cert_pubkey = X509_get_pubkey(cert);
+    if (!cert_pubkey) {
+        X509_CRL_free(crl);
+        X509_free(cert);
+        BIO_free(cert_bio);
+        EVP_PKEY_free(pkey);
+        BIO_free(key_bio);
+        Tcl_SetResult(interp, "Failed to extract public key from certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (EVP_PKEY_cmp(cert_pubkey, pkey) != 1) {
+        EVP_PKEY_free(cert_pubkey);
+        X509_CRL_free(crl);
+        X509_free(cert);
+        BIO_free(cert_bio);
+        EVP_PKEY_free(pkey);
+        BIO_free(key_bio);
+        Tcl_SetResult(interp, "Private key does not match certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    EVP_PKEY_free(cert_pubkey);
     
     // Sign the CRL
     if (X509_CRL_sign(crl, pkey, EVP_sha256()) <= 0) {
