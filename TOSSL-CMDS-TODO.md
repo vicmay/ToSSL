@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 51/189 (27.0%)
-- **Documentation Created**: 51/189 (27.0%)
+- **Tests Created**: 52/189 (27.5%)
+- **Documentation Created**: 52/189 (27.5%)
 
 ## Command Status Tracking
 
@@ -94,7 +94,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::provider::unload` | ✅ | tests/test_provider_unload.tcl | ✅ | doc/provider_unload.md | |
 | `::tossl::oauth2::load_token` | ✅ | tests/test_oauth2_load_token.tcl | ✅ | doc/oauth2_load_token.md | |
 | `::tossl::oauth2::device_authorization` | ✅ | tests/test_oauth2_device_authorization.tcl | ✅ | doc/oauth2_device_authorization.md | |
-| `::tossl::oauth2::create_code_challenge` | ❌ | | ❌ | | |
+| `::tossl::oauth2::create_code_challenge` | ✅ | tests/test_oauth2_create_code_challenge.tcl | ✅ | doc/oauth2_create_code_challenge.md | |
 | `::tossl::oauth2::validate_state` | ❌ | | ❌ | | |
 | `::tossl::oauth2::parse_token` | ❌ | | ❌ | | |
 | `::tossl::oauth2::is_token_expired` | ❌ | | ❌ | | |
