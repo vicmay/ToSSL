@@ -335,35 +335,9 @@ int KeyGetPubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    EVP_PKEY *pubkey = EVP_PKEY_new();
-    if (!pubkey) {
-        EVP_PKEY_free(pkey);
-        BIO_free(bio);
-        Tcl_SetResult(interp, "OpenSSL: failed to create public key", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    if (EVP_PKEY_copy_parameters(pubkey, pkey) <= 0) {
-        EVP_PKEY_free(pubkey);
-        EVP_PKEY_free(pkey);
-        BIO_free(bio);
-        Tcl_SetResult(interp, "OpenSSL: failed to copy parameters", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    // Use modern API to copy key parameters
-    if (EVP_PKEY_copy_parameters(pubkey, pkey) <= 0) {
-        EVP_PKEY_free(pubkey);
-        EVP_PKEY_free(pkey);
-        BIO_free(bio);
-        Tcl_SetResult(interp, "OpenSSL: failed to copy parameters", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
     BIO *out_bio = BIO_new(BIO_s_mem());
-    if (!PEM_write_bio_PUBKEY(out_bio, pubkey)) {
+    if (!PEM_write_bio_PUBKEY(out_bio, pkey)) {
         BIO_free(out_bio);
-        EVP_PKEY_free(pubkey);
         EVP_PKEY_free(pkey);
         BIO_free(bio);
         Tcl_SetResult(interp, "OpenSSL: failed to write public key", TCL_STATIC);
@@ -375,7 +349,6 @@ int KeyGetPubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
     
     BIO_free(out_bio);
-    EVP_PKEY_free(pubkey);
     EVP_PKEY_free(pkey);
     BIO_free(bio);
     return TCL_OK;
