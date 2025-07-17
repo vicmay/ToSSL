@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 47/189 (24.9%)
-- **Documentation Created**: 47/189 (24.9%)
+- **Tests Created**: 49/189 (25.9%)
+- **Documentation Created**: 49/189 (25.9%)
 
 ## Command Status Tracking
 
@@ -90,8 +90,8 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::url::decode` | ✅ | tests/test_url_decode.tcl | ✅ | doc/url_decode.md | |
 | `::tossl::url::encode` | ✅ | tests/test_url_encode.tcl | ✅ | doc/url_encode.md | |
 | `::tossl::provider::list` | ✅ | tests/test_provider_list.tcl | ✅ | doc/provider_list.md | |
-| `::tossl::provider::load` | ❌ | | ❌ | | |
-| `::tossl::provider::unload` | ❌ | | ❌ | | |
+| `::tossl::provider::load` | ✅ | tests/test_provider_load.tcl | ✅ | doc/provider_load.md | |
+| `::tossl::provider::unload` | ✅ | tests/test_provider_unload.tcl | ✅ | doc/provider_unload.md | |
 | `::tossl::oauth2::load_token` | ❌ | | ❌ | | |
 | `::tossl::oauth2::device_authorization` | ❌ | | ❌ | | |
 | `::tossl::oauth2::create_code_challenge` | ❌ | | ❌ | | |
