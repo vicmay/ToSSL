@@ -82,7 +82,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::key::getpub` | ❌ | | ❌ | | |
 | `::tossl::key::generate` | ❌ | | ❌ | | |
 | `::tossl::key::write` | ❌ | | ❌ | | |
-| `::tossl::key::parse` | ✅ | tests/test_key_parse.tcl | ✅ | doc/key_parse.md | |
+| `::tossl::key::parse` | ❌ | | ❌ | | |
 | `::tossl::fips::status` | ❌ | | ❌ | | |
 | `::tossl::fips::enable` | ❌ | | ❌ | | |
 | `::tossl::json::generate` | ❌ | | ❌ | | |
