@@ -550,6 +550,20 @@ int RandKeyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     return TCL_OK;
 }
 
+// Helper for EVP_MD_do_all_provided
+struct DigestListCtx {
+    Tcl_Interp *interp;
+    Tcl_Obj *list;
+};
+
+static void digest_list_cb(EVP_MD *md, void *arg) {
+    struct DigestListCtx *ctx = (struct DigestListCtx *)arg;
+    const char *name = EVP_MD_get0_name(md);
+    if (name) {
+        Tcl_ListObjAppendElement(ctx->interp, ctx->list, Tcl_NewStringObj(name, -1));
+    }
+}
+
 // tossl::digest::list
 int DigestListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
@@ -559,22 +573,8 @@ int DigestListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     }
     
     Tcl_Obj *list = Tcl_NewListObj(0, NULL);
-    OSSL_PROVIDER *provider = OSSL_PROVIDER_load(NULL, "default");
-    if (!provider) {
-        Tcl_SetResult(interp, "Failed to load default provider", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    const OSSL_ALGORITHM *algorithms = OSSL_PROVIDER_query_operation(provider, OSSL_OP_DIGEST, NULL);
-    if (algorithms) {
-        for (int i = 0; algorithms[i].algorithm_names != NULL; i++) {
-            const char *name = algorithms[i].algorithm_names;
-            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj(name, -1));
-        }
-        OSSL_PROVIDER_unquery_operation(provider, OSSL_OP_DIGEST, algorithms);
-    }
-    
-    OSSL_PROVIDER_unload(provider);
+    struct DigestListCtx ctx = { interp, list };
+    EVP_MD_do_all_provided(NULL, digest_list_cb, &ctx);
     Tcl_SetObjResult(interp, list);
     return TCL_OK;
 }
