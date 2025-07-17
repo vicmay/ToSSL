@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 56/189 (29.6%)
-- **Documentation Created**: 56/189 (29.6%)
+- **Tests Created**: 57/189 (30.2%)
+- **Documentation Created**: 57/189 (30.2%)
 
 ## Command Status Tracking
 
@@ -99,8 +99,8 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::oauth2::parse_token` | ✅ | tests/test_oauth2_parse_token.tcl | ✅ | doc/oauth2_parse_token.md | |
 | `::tossl::oauth2::is_token_expired` | ✅ | tests/test_oauth2_is_token_expired.tcl | ✅ | doc/oauth2_is_token_expired.md | |
 | `::tossl::oauth2::store_token` | ✅ | tests/test_oauth2_store_token.tcl | ✅ | doc/oauth2_store_token.md | |
-| `::tossl::oauth2::auto_refresh` | ❌ | | ❌ | | |
-| `::tossl::oauth2::refresh_token` | ❌ | | ❌ | | |
+| `::tossl::oauth2::auto_refresh` | ✅ | tests/test_oauth2_auto_refresh.tcl | ✅ | doc/oauth2_auto_refresh.md | |
+| `::tossl::oauth2::refresh_token` | ✅ | tests/test_oauth2_refresh_token.tcl | ✅ | doc/oauth2_refresh_token.md | |
 | `::tossl::oauth2::generate_code_verifier` | ❌ | | ❌ | | |
 | `::tossl::oauth2::validate_introspection` | ❌ | | ❌ | | |
 | `::tossl::oauth2::authorization_url` | ❌ | | ❌ | | |
@@ -217,26 +217,4 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::hex::encode` | ❌ | | ❌ | | |
 | `::tossl::x25519::derive` | ❌ | | ❌ | | |
 | `::tossl::x25519::generate` | ❌ | | ❌ | | |
-| `::tossl::rsa::verify` | ❌ | | ❌ | | |
-| `::tossl::rsa::sign` | ❌ | | ❌ | | |
-| `::tossl::rsa::encrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::components` | ❌ | | ❌ | | |
-| `::tossl::rsa::validate` | ❌ | | ❌ | | |
-| `::tossl::rsa::decrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::generate` | ❌ | | ❌ | | |
-| `::tossl::ed25519::verify` | ❌ | | ❌ | | |
-| `::tossl::ed25519::sign` | ❌ | | ❌ | | |
-| `::tossl::ed25519::generate` | ❌ | | ❌ | | |
-
-## Legend
-- ❌ = Not started
-- 🔄 = In progress  
-- ✅ = Completed
-- ⚠️ = Issues/Problems
-
-## Notes
-- Test files should be created in the `tests/` directory
-- Documentation files should be created in the `doc/` directory
-- Each command should have both a test file and a documentation file
-- Test files should follow the naming convention: `test_<command_name>.tcl`
-- Documentation files should follow the naming convention: `<command_name>.md`
+| `
