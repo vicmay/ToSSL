@@ -104,7 +104,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::oauth2::generate_code_verifier` | ✅ | tests/test_oauth2_generate_code_verifier.tcl | ✅ | doc/oauth2_generate_code_verifier.md | |
 | `::tossl::oauth2::validate_introspection` | ✅ | tests/test_oauth2_validate_introspection.tcl | ✅ | doc/oauth2_validate_introspection.md | |
 | `::tossl::oauth2::authorization_url` | ✅ | tests/test_oauth2_authorization_url.tcl | ✅ | doc/oauth2_authorization_url.md | |
-| `::tossl::oauth2::generate_state` | ❌ | | ❌ | | |
+| `::tossl::oauth2::generate_state` | ✅ | tests/test_oauth2_generate_state.tcl | ✅ | doc/oauth2_generate_state.md | |
 | `::tossl::oauth2::introspect_token` | ❌ | | ❌ | | |
 | `::tossl::oauth2::client_credentials` | ❌ | | ❌ | | |
 | `::tossl::oauth2::exchange_code` | ❌ | | ❌ | | |
