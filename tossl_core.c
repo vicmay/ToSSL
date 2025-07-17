@@ -1532,10 +1532,11 @@ int UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         if (data[i] == '%' && i + 2 < data_len) {
             char hex[3] = {data[i+1], data[i+2], '\0'};
             int value;
-            if (sscanf(hex, "%x", &value) == 1) {
+            if (sscanf(hex, "%2x", &value) == 1) {
                 decoded[j++] = (char)value;
                 i += 2;
             } else {
+                // Invalid hex sequence, copy as-is
                 decoded[j++] = data[i];
             }
         } else {
@@ -1545,6 +1546,7 @@ int UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     decoded[j] = '\0';
     
     Tcl_SetResult(interp, decoded, TCL_VOLATILE);
+    free(decoded);
     return TCL_OK;
 }
 
