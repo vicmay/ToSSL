@@ -46,21 +46,53 @@ Tcl_Obj* json_to_tcl(json_object *json_obj) {
 // Helper function to convert Tcl object to JSON object
 json_object* tcl_to_json(Tcl_Interp *interp, Tcl_Obj *obj) {
     if (!obj) return NULL;
-    
+
+    Tcl_ObjType *typePtr = obj->typePtr;
+    if (typePtr && strcmp(typePtr->name, "dict") == 0) {
+        int dict_size = 0;
+        Tcl_DictObjSize(interp, obj, &dict_size);
+        json_object *json_obj = json_object_new_object();
+        if (dict_size > 0) {
+            Tcl_DictSearch search;
+            Tcl_Obj *key, *value;
+            int done;
+            if (Tcl_DictObjFirst(interp, obj, &search, &key, &value, &done) == TCL_OK) {
+                while (!done) {
+                    const char *key_str = Tcl_GetString(key);
+                    json_object *value_json = tcl_to_json(interp, value);
+                    if (value_json) {
+                        json_object_object_add(json_obj, key_str, value_json);
+                    }
+                    Tcl_DictObjNext(&search, &key, &value, &done);
+                }
+            }
+        }
+        return json_obj;
+    }
+
+    if (typePtr && strcmp(typePtr->name, "list") == 0) {
+        int list_len = 0;
+        Tcl_Obj **list_elems = NULL;
+        Tcl_ListObjLength(interp, obj, &list_len);
+        json_object *array = json_object_new_array();
+        if (list_len > 0 && Tcl_ListObjGetElements(interp, obj, &list_len, &list_elems) == TCL_OK) {
+            for (int i = 0; i < list_len; i++) {
+                json_object *item = tcl_to_json(interp, list_elems[i]);
+                if (item) {
+                    json_object_array_add(array, item);
+                }
+            }
+        }
+        return array;
+    }
+
     const char *str = Tcl_GetString(obj);
-    
-    // Check for boolean strings first
     if (strcmp(str, "true") == 0) {
         return json_object_new_boolean(1);
     } else if (strcmp(str, "false") == 0) {
         return json_object_new_boolean(0);
-    } else if (strcmp(str, "1") == 0) {
-        return json_object_new_boolean(1);
-    } else if (strcmp(str, "0") == 0) {
-        return json_object_new_boolean(0);
     }
-    
-    // Try to get as integer
+
     int int_val;
     if (Tcl_GetIntFromObj(interp, obj, &int_val) == TCL_OK) {
         char buf[64];
@@ -69,8 +101,7 @@ json_object* tcl_to_json(Tcl_Interp *interp, Tcl_Obj *obj) {
             return json_object_new_int(int_val);
         }
     }
-    
-    // Try to get as double
+
     double double_val;
     if (Tcl_GetDoubleFromObj(interp, obj, &double_val) == TCL_OK) {
         char buf[128];
@@ -79,43 +110,7 @@ json_object* tcl_to_json(Tcl_Interp *interp, Tcl_Obj *obj) {
             return json_object_new_double(double_val);
         }
     }
-    
-    // Check if it's a dict (object)
-    int dict_size = 0;
-    if (Tcl_DictObjSize(interp, obj, &dict_size) == TCL_OK && dict_size > 0) {
-        Tcl_DictSearch search;
-        Tcl_Obj *key, *value;
-        int done;
-        json_object *json_obj = json_object_new_object();
-        if (Tcl_DictObjFirst(interp, obj, &search, &key, &value, &done) == TCL_OK) {
-            while (!done) {
-                const char *key_str = Tcl_GetString(key);
-                json_object *value_json = tcl_to_json(interp, value);
-                if (value_json) {
-                    json_object_object_add(json_obj, key_str, value_json);
-                }
-                Tcl_DictObjNext(&search, &key, &value, &done);
-            }
-        }
-        return json_obj;
-    }
-    
-    // Check if it's a list (array): only if list_len > 1 (conservative approach)
-    int list_len = 0;
-    Tcl_Obj **list_elems = NULL;
-    if (Tcl_ListObjLength(interp, obj, &list_len) == TCL_OK && list_len > 1) {
-        if (Tcl_ListObjGetElements(interp, obj, &list_len, &list_elems) == TCL_OK) {
-            json_object *array = json_object_new_array();
-            for (int i = 0; i < list_len; i++) {
-                json_object *item = tcl_to_json(interp, list_elems[i]);
-                if (item) {
-                    json_object_array_add(array, item);
-                }
-            }
-            return array;
-        }
-    }
-    
+
     return json_object_new_string(str);
 }
 
