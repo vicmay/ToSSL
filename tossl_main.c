@@ -346,11 +346,6 @@ int ProviderUnloadCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *cons
     return TCL_OK;
 }
 
-int ProviderListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    Tcl_SetResult(interp, (char *)"default, legacy", TCL_STATIC);
-    return TCL_OK;
-}
-
 int FipsEnableCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 1) {
         Tcl_WrongNumArgs(interp, 1, objv, "");

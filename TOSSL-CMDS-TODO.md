@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 46/189 (24.3%)
-- **Documentation Created**: 46/189 (24.3%)
+- **Tests Created**: 47/189 (24.9%)
+- **Documentation Created**: 47/189 (24.9%)
 
 ## Command Status Tracking
 
@@ -89,7 +89,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::json::parse` | ✅ | tests/test_json_parse.tcl | ✅ | doc/json_parse.md | |
 | `::tossl::url::decode` | ✅ | tests/test_url_decode.tcl | ✅ | doc/url_decode.md | |
 | `::tossl::url::encode` | ✅ | tests/test_url_encode.tcl | ✅ | doc/url_encode.md | |
-| `::tossl::provider::list` | ❌ | | ❌ | | |
+| `::tossl::provider::list` | ✅ | tests/test_provider_list.tcl | ✅ | doc/provider_list.md | |
 | `::tossl::provider::load` | ❌ | | ❌ | | |
 | `::tossl::provider::unload` | ❌ | | ❌ | | |
 | `::tossl::oauth2::load_token` | ❌ | | ❌ | | |

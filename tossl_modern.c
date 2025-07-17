@@ -368,3 +368,18 @@ int modern_check_fips_status(char **status_info) {
     *status_info = info;
     return 1;
 } 
+
+int ProviderListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "");
+        return TCL_ERROR;
+    }
+    char *provider_names = NULL;
+    if (!modern_list_providers(&provider_names)) {
+        Tcl_SetResult(interp, (char *)"Failed to list providers", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_SetResult(interp, provider_names, TCL_VOLATILE);
+    free(provider_names);
+    return TCL_OK;
+} 
