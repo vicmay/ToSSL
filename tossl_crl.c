@@ -208,13 +208,16 @@ int CrlParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
     
     // Get issuer
     X509_NAME *issuer = X509_CRL_get_issuer(crl);
+    char *issuer_str = NULL;
     if (issuer) {
-        char *issuer_str = X509_NAME_oneline(issuer, NULL, 0);
-        if (issuer_str) {
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("issuer", -1));
-            Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(issuer_str, -1));
-            OPENSSL_free(issuer_str);
-        }
+        issuer_str = X509_NAME_oneline(issuer, NULL, 0);
+    }
+    Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("issuer", -1));
+    if (issuer_str) {
+        Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj(issuer_str, -1));
+        OPENSSL_free(issuer_str);
+    } else {
+        Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("", -1));
     }
     
     // Get last update
@@ -245,11 +248,12 @@ int CrlParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
     
     // Get number of revoked certificates
     STACK_OF(X509_REVOKED) *revoked = X509_CRL_get_REVOKED(crl);
+    int num_revoked = 0;
     if (revoked) {
-        int num_revoked = sk_X509_REVOKED_num(revoked);
-        Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("num_revoked", -1));
-        Tcl_ListObjAppendElement(interp, result, Tcl_NewIntObj(num_revoked));
+        num_revoked = sk_X509_REVOKED_num(revoked);
     }
+    Tcl_ListObjAppendElement(interp, result, Tcl_NewStringObj("num_revoked", -1));
+    Tcl_ListObjAppendElement(interp, result, Tcl_NewIntObj(num_revoked));
     
     BIO_free(crl_bio);
     X509_CRL_free(crl);

@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 32/189 (16.9%)
-- **Documentation Created**: 32/189 (16.9%)
+- **Tests Created**: 33/189 (17.5%)
+- **Documentation Created**: 33/189 (17.5%)
 
 ## Command Status Tracking
 
@@ -75,7 +75,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::digest::stream` | ✅ | tests/test_digest_stream.tcl | ✅ | doc/digest_stream.md | |
 | `::tossl::digest::compare` | ✅ | tests/test_digest_compare.tcl | ✅ | doc/digest_compare.md | |
 | `::tossl::crl::create` | ✅ | tests/test_crl_create.tcl | ✅ | doc/crl_create.md | |
-| `::tossl::crl::parse` | ❌ | | ❌ | | |
+| `::tossl::crl::parse` | ✅ | tests/test_crl_parse.tcl | ✅ | doc/crl_parse.md | |
 | `::tossl::key::analyze` | ❌ | | ❌ | | |
 | `::tossl::key::fingerprint` | ❌ | | ❌ | | |
 | `::tossl::key::convert` | ❌ | | ❌ | | |
@@ -132,111 +132,4 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::sidechannel::protect` | ❌ | | ❌ | | |
 | `::tossl::hardware::detect` | ❌ | | ❌ | | |
 | `::tossl::x509::time_validate` | ❌ | | ❌ | | |
-| `::tossl::x509::fingerprint` | ❌ | | ❌ | | |
-| `::tossl::x509::create` | ❌ | | ❌ | | |
-| `::tossl::x509::modify` | ❌ | | ❌ | | |
-| `::tossl::x509::verify` | ❌ | | ❌ | | |
-| `::tossl::x509::validate` | ❌ | | ❌ | | |
-| `::tossl::x509::parse` | ❌ | | ❌ | | |
-| `::tossl::acme::cleanup_dns` | ❌ | | ❌ | | |
-| `::tossl::acme::dns01_challenge` | ❌ | | ❌ | | |
-| `::tossl::acme::create_account` | ❌ | | ❌ | | |
-| `::tossl::acme::directory` | ❌ | | ❌ | | |
-| `::tossl::acme::create_order` | ❌ | | ❌ | | |
-| `::tossl::time::convert` | ❌ | | ❌ | | |
-| `::tossl::time::compare` | ❌ | | ❌ | | |
-| `::tossl::algorithm::info` | ❌ | | ❌ | | |
-| `::tossl::algorithm::list` | ❌ | | ❌ | | |
-| `::tossl::pbe::keyderive` | ❌ | | ❌ | | |
-| `::tossl::pbe::encrypt` | ❌ | | ❌ | | |
-| `::tossl::pbe::algorithms` | ❌ | | ❌ | | |
-| `::tossl::pbe::saltgen` | ❌ | | ❌ | | |
-| `::tossl::pbe::decrypt` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::info` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::verify` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::sign` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::encrypt` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::decrypt` | ❌ | | ❌ | | |
-| `::tossl::x448::derive` | ❌ | | ❌ | | |
-| `::tossl::x448::generate` | ❌ | | ❌ | | |
-| `::tossl::base64url::decode` | ❌ | | ❌ | | |
-| `::tossl::base64url::encode` | ❌ | | ❌ | | |
-| `::tossl::pfs::test` | ❌ | | ❌ | | |
-| `::tossl::ed448::verify` | ❌ | | ❌ | | |
-| `::tossl::ed448::sign` | ❌ | | ❌ | | |
-| `::tossl::ed448::generate` | ❌ | | ❌ | | |
-| `::tossl::signature::validate` | ❌ | | ❌ | | |
-| `::tossl::ssl::verify_peer` | ❌ | | ❌ | | |
-| `::tossl::ssl::accept` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_protocol_version` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_alpn_callback` | ❌ | | ❌ | | |
-| `::tossl::ssl::verify_cert_pinning` | ❌ | | ❌ | | |
-| `::tossl::ssl::read` | ❌ | | ❌ | | |
-| `::tossl::ssl::check_pfs` | ❌ | | ❌ | | |
-| `::tossl::ssl::cipher_info` | ❌ | | ❌ | | |
-| `::tossl::ssl::get_peer_cert` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_ocsp_stapling` | ❌ | | ❌ | | |
-| `::tossl::ssl::connect` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_cert_pinning` | ❌ | | ❌ | | |
-| `::tossl::ssl::write` | ❌ | | ❌ | | |
-| `::tossl::ssl::alpn_selected` | ❌ | | ❌ | | |
-| `::tossl::ssl::socket_info` | ❌ | | ❌ | | |
-| `::tossl::ssl::context` | ❌ | | ❌ | | |
-| `::tossl::ssl::check_cert_status` | ❌ | | ❌ | | |
-| `::tossl::ssl::close` | ❌ | | ❌ | | |
-| `::tossl::ssl::protocol_version` | ❌ | | ❌ | | |
-| `::tossl::sm2::encrypt` | ❌ | | ❌ | | |
-| `::tossl::sm2::verify` | ❌ | | ❌ | | |
-| `::tossl::sm2::sign` | ❌ | | ❌ | | |
-| `::tossl::sm2::decrypt` | ❌ | | ❌ | | |
-| `::tossl::sm2::generate` | ❌ | | ❌ | | |
-| `::tossl::asn1::sequence_create` | ❌ | | ❌ | | |
-| `::tossl::asn1::text_to_oid` | ❌ | | ❌ | | |
-| `::tossl::asn1::oid_to_text` | ❌ | | ❌ | | |
-| `::tossl::asn1::encode` | ❌ | | ❌ | | |
-| `::tossl::asn1::set_create` | ❌ | | ❌ | | |
-| `::tossl::asn1::parse` | ❌ | | ❌ | | |
-| `::tossl::keywrap::info` | ❌ | | ❌ | | |
-| `::tossl::keywrap::kekgen` | ❌ | | ❌ | | |
-| `::tossl::keywrap::unwrap` | ❌ | | ❌ | | |
-| `::tossl::keywrap::algorithms` | ❌ | | ❌ | | |
-| `::tossl::keywrap::wrap` | ❌ | | ❌ | | |
-| `::tossl::cipher::analyze` | ❌ | | ❌ | | |
-| `::tossl::cipher::list` | ❌ | | ❌ | | |
-| `::tossl::cipher::info` | ❌ | | ❌ | | |
-| `::tossl::ca::sign` | ❌ | | ❌ | | |
-| `::tossl::ca::generate` | ❌ | | ❌ | | |
-| `::tossl::jwt::decode` | ❌ | | ❌ | | |
-| `::tossl::jwt::create` | ❌ | | ❌ | | |
-| `::tossl::jwt::verify` | ❌ | | ❌ | | |
-| `::tossl::jwt::validate` | ❌ | | ❌ | | |
-| `::tossl::jwt::extract_claims` | ❌ | | ❌ | | |
-| `::tossl::base64::decode` | ❌ | | ❌ | | |
-| `::tossl::base64::encode` | ❌ | | ❌ | | |
-| `::tossl::hex::decode` | ❌ | | ❌ | | |
-| `::tossl::hex::encode` | ❌ | | ❌ | | |
-| `::tossl::x25519::derive` | ❌ | | ❌ | | |
-| `::tossl::x25519::generate` | ❌ | | ❌ | | |
-| `::tossl::rsa::verify` | ❌ | | ❌ | | |
-| `::tossl::rsa::sign` | ❌ | | ❌ | | |
-| `::tossl::rsa::encrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::components` | ❌ | | ❌ | | |
-| `::tossl::rsa::validate` | ❌ | | ❌ | | |
-| `::tossl::rsa::decrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::generate` | ❌ | | ❌ | | |
-| `::tossl::ed25519::verify` | ❌ | | ❌ | | |
-| `::tossl::ed25519::sign` | ❌ | | ❌ | | |
-| `::tossl::ed25519::generate` | ❌ | | ❌ | | |
-
-## Legend
-- ❌ = Not started
-- 🔄 = In progress  
-- ✅ = Completed
-- ⚠️ = Issues/Problems
-
-## Notes
-- Test files should be created in the `tests/` directory
-- Documentation files should be created in the `doc/` directory
-- Each command should have both a test file and a documentation file
-- Test files should follow the naming convention: `test_<command_name>.tcl`
-- Documentation files should follow the naming convention: `<command_name>.md`
+| `::tossl::x509::fingerprint`
