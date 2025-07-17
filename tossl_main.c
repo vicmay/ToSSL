@@ -357,7 +357,17 @@ int FipsEnableCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
 }
 
 int FipsStatusCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    Tcl_SetResult(interp, (char *)"FIPS provider available: yes, FIPS mode: enabled", TCL_STATIC);
+    if (objc != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "");
+        return TCL_ERROR;
+    }
+    char *status_info = NULL;
+    if (!modern_check_fips_status(&status_info)) {
+        Tcl_SetResult(interp, (char *)"FIPS status check failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_SetResult(interp, status_info, TCL_VOLATILE);
+    free(status_info);
     return TCL_OK;
 } 
 
