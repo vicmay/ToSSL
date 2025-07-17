@@ -345,76 +345,75 @@ int DigestCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
     return TCL_OK;
 }
 
-// tossl::digest::stream -alg <name> [-format <format>] <data>
+// tossl::digest::stream -alg <name> -file <filename> [-format <format>]
 int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc < 4 || objc > 6) {
-        Tcl_WrongNumArgs(interp, 1, objv, "-alg name ?-format format? data");
+    if (objc < 4 || objc > 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-alg name -file filename ?-format format?");
         return TCL_ERROR;
     }
-    
-    const char *alg = NULL;
+    const char *alg = NULL, *filename = NULL;
     const char *format = "hex";
-    unsigned char *data = NULL;
-    int data_len = 0;
-    
-    // Parse arguments
-    for (int i = 1; i < objc; i++) {
+    int i = 1;
+    while (i < objc) {
         const char *opt = Tcl_GetString(objv[i]);
-        if (strcmp(opt, "-alg") == 0) {
-            if (++i >= objc) {
-                Tcl_SetResult(interp, "Missing algorithm name", TCL_STATIC);
-                return TCL_ERROR;
-            }
-            alg = Tcl_GetString(objv[i]);
-        } else if (strcmp(opt, "-format") == 0) {
-            if (++i >= objc) {
-                Tcl_SetResult(interp, "Missing format specification", TCL_STATIC);
-                return TCL_ERROR;
-            }
-            format = Tcl_GetString(objv[i]);
-        } else if (opt[0] != '-') {
-            // This is the data argument
-            data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[i], &data_len);
+        if (strcmp(opt, "-alg") == 0 && i+1 < objc) {
+            alg = Tcl_GetString(objv[i+1]);
+            i += 2;
+        } else if (strcmp(opt, "-file") == 0 && i+1 < objc) {
+            filename = Tcl_GetString(objv[i+1]);
+            i += 2;
+        } else if (strcmp(opt, "-format") == 0 && i+1 < objc) {
+            format = Tcl_GetString(objv[i+1]);
+            i += 2;
         } else {
-            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            Tcl_SetResult(interp, "Expected -alg, -file, or -format option", TCL_STATIC);
             return TCL_ERROR;
         }
     }
-    
-    if (!alg || !data) {
-        Tcl_SetResult(interp, "Missing required arguments", TCL_STATIC);
+    if (!alg || !filename) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
         return TCL_ERROR;
     }
-    
+
     const EVP_MD *md = EVP_get_digestbyname(alg);
     if (!md) {
         Tcl_SetResult(interp, "Unknown digest algorithm", TCL_STATIC);
         return TCL_ERROR;
     }
-    
+
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        Tcl_SetResult(interp, "Cannot open file for reading", TCL_STATIC);
+        return TCL_ERROR;
+    }
+
     EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
     if (!mdctx) {
+        fclose(file);
         Tcl_SetResult(interp, "OpenSSL: failed to create digest context", TCL_STATIC);
         return TCL_ERROR;
     }
-    
+
     if (!EVP_DigestInit_ex(mdctx, md, NULL)) {
         EVP_MD_CTX_free(mdctx);
+        fclose(file);
         Tcl_SetResult(interp, "OpenSSL: digest init failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    const int chunk_size = 1024;
-    for (int offset = 0; offset < data_len; offset += chunk_size) {
-        int chunk_len = (offset + chunk_size < data_len) ? chunk_size : (data_len - offset);
-        if (!EVP_DigestUpdate(mdctx, data + offset, chunk_len)) {
+
+    unsigned char buffer[8192];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        if (!EVP_DigestUpdate(mdctx, buffer, bytes_read)) {
             EVP_MD_CTX_free(mdctx);
+            fclose(file);
             Tcl_SetResult(interp, "OpenSSL: digest update failed", TCL_STATIC);
             return TCL_ERROR;
         }
     }
-    
+    fclose(file);
+
     unsigned char hash[EVP_MAX_MD_SIZE];
     unsigned int hash_len = 0;
     if (!EVP_DigestFinal_ex(mdctx, hash, &hash_len)) {
@@ -422,10 +421,8 @@ int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         Tcl_SetResult(interp, "OpenSSL: digest final failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     EVP_MD_CTX_free(mdctx);
-    
-    // Format output based on requested format
+
     if (strcmp(format, "hex") == 0) {
         char hex[2*EVP_MAX_MD_SIZE+1];
         bin2hex(hash, hash_len, hex);
@@ -435,7 +432,7 @@ int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     } else if (strcmp(format, "base64") == 0) {
         BIO *bio = BIO_new(BIO_s_mem());
         BIO *b64 = BIO_new(BIO_f_base64());
-        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL); // No newlines
+        BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
         BIO_push(b64, bio);
         BIO_write(b64, hash, hash_len);
         BIO_flush(b64);
@@ -447,7 +444,6 @@ int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         Tcl_SetResult(interp, "Invalid format. Use hex, binary, or base64", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     return TCL_OK;
 }
 

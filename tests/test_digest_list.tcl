@@ -201,9 +201,9 @@ test "Integration test - use listed algorithms with digest command" {
     set successful_tests 0
     
     ;# Test a few algorithms from the list
-    set test_count 0
+    set alg_test_count 0
     foreach alg $algorithms {
-        if {$test_count >= 5} break ;# Limit to first 5 algorithms
+        if {$alg_test_count >= 5} break ;# Limit to first 5 algorithms
         
         if {[catch {
             set hash [::tossl::digest -alg $alg $test_data]
@@ -212,7 +212,7 @@ test "Integration test - use listed algorithms with digest command" {
         }]} {
             puts "  Warning: Algorithm '$alg' failed integration test"
         }
-        incr test_count
+        incr alg_test_count
     }
     
     assert_true [expr {$successful_tests > 0}] "Should have at least some successful integration tests"

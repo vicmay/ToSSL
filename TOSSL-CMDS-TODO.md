@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 29/189 (15.3%)
-- **Documentation Created**: 29/189 (15.3%)
+- **Tests Created**: 30/189 (15.9%)
+- **Documentation Created**: 30/189 (15.9%)
 
 ## Command Status Tracking
 
@@ -72,7 +72,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::http::debug` | ✅ | tests/test_http_debug.tcl | ✅ | doc/http_debug.md | |
 
 | `::tossl::digest::list` | ✅ | tests/test_digest_list.tcl | ✅ | doc/digest_list.md | |
-| `::tossl::digest::stream` | ❌ | | ❌ | | |
+| `::tossl::digest::stream` | ✅ | tests/test_digest_stream.tcl | ✅ | doc/digest_stream.md | |
 | `::tossl::digest::compare` | ❌ | | ❌ | | |
 | `::tossl::crl::create` | ❌ | | ❌ | | |
 | `::tossl::crl::parse` | ❌ | | ❌ | | |
