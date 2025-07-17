@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 39/189 (20.6%)
-- **Documentation Created**: 39/189 (20.6%)
+- **Tests Created**: 40/189 (21.2%)
+- **Documentation Created**: 40/189 (21.2%)
 
 ## Command Status Tracking
 
@@ -82,7 +82,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::key::getpub` | ✅ | tests/test_key_getpub.tcl | ✅ | doc/key_getpub.md | |
 | `::tossl::key::generate` | ✅ | tests/test_key_generate.tcl | ✅ | doc/key_generate.md | |
 | `::tossl::key::write` | ✅ | tests/test_key_write.tcl | ✅ | doc/key_write.md | |
-| `::tossl::key::parse` | ❌ | | ❌ | | |
+| `::tossl::key::parse` | ✅ | tests/test_key_parse.tcl | ✅ | doc/key_parse.md | |
 | `::tossl::fips::status` | ❌ | | ❌ | | |
 | `::tossl::fips::enable` | ❌ | | ❌ | | |
 | `::tossl::json::generate` | ❌ | | ❌ | | |
