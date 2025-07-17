@@ -201,121 +201,119 @@ int KeyGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         Tcl_SetResult(interp, "Key type is required", TCL_STATIC);
         return TCL_ERROR;
     }
-    
+
     EVP_PKEY *pkey = NULL;
     EVP_PKEY_CTX *ctx = NULL;
-    
-    if (strcmp(type, "rsa") == 0) {
-        ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
-        if (!ctx) {
-            Tcl_SetResult(interp, "OpenSSL: failed to create RSA context", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        if (EVP_PKEY_keygen_init(ctx) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            Tcl_SetResult(interp, "OpenSSL: RSA keygen init failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            Tcl_SetResult(interp, "OpenSSL: RSA bits setting failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-    } else if (strcmp(type, "dsa") == 0) {
-        // Step 1: Generate DSA parameters
-        EVP_PKEY_CTX *param_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL);
-        if (!param_ctx) {
-            Tcl_SetResult(interp, "OpenSSL: failed to create DSA param context", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        if (EVP_PKEY_paramgen_init(param_ctx) <= 0) {
+    EVP_PKEY *params = NULL;
+
+    int rc = TCL_ERROR;
+    BIO *priv_bio = NULL, *pub_bio = NULL;
+    do {
+        if (strcmp(type, "rsa") == 0) {
+            ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+            if (!ctx) {
+                Tcl_SetResult(interp, "OpenSSL: failed to create RSA context", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_keygen_init(ctx) <= 0) {
+                Tcl_SetResult(interp, "OpenSSL: RSA keygen init failed", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits) <= 0) {
+                Tcl_SetResult(interp, "OpenSSL: RSA bits setting failed", TCL_STATIC);
+                break;
+            }
+        } else if (strcmp(type, "dsa") == 0) {
+            EVP_PKEY_CTX *param_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, NULL);
+            if (!param_ctx) {
+                Tcl_SetResult(interp, "OpenSSL: failed to create DSA param context", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_paramgen_init(param_ctx) <= 0) {
+                EVP_PKEY_CTX_free(param_ctx);
+                Tcl_SetResult(interp, "OpenSSL: DSA paramgen init failed", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_CTX_set_dsa_paramgen_bits(param_ctx, bits) <= 0) {
+                EVP_PKEY_CTX_free(param_ctx);
+                Tcl_SetResult(interp, "OpenSSL: DSA bits setting failed", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_paramgen(param_ctx, &params) <= 0) {
+                EVP_PKEY_CTX_free(param_ctx);
+                Tcl_SetResult(interp, "OpenSSL: DSA parameter generation failed", TCL_STATIC);
+                break;
+            }
             EVP_PKEY_CTX_free(param_ctx);
-            Tcl_SetResult(interp, "OpenSSL: DSA paramgen init failed", TCL_STATIC);
-            return TCL_ERROR;
+            param_ctx = NULL;
+            ctx = EVP_PKEY_CTX_new(params, NULL);
+            if (!ctx) {
+                EVP_PKEY_free(params); params = NULL;
+                Tcl_SetResult(interp, "OpenSSL: failed to create DSA keygen context", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_keygen_init(ctx) <= 0) {
+                EVP_PKEY_free(params); params = NULL;
+                Tcl_SetResult(interp, "OpenSSL: DSA keygen init failed", TCL_STATIC);
+                break;
+            }
+            EVP_PKEY_free(params); params = NULL;
+        } else if (strcmp(type, "ec") == 0) {
+            ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+            if (!ctx) {
+                Tcl_SetResult(interp, "OpenSSL: failed to create EC context", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_keygen_init(ctx) <= 0) {
+                Tcl_SetResult(interp, "OpenSSL: EC keygen init failed", TCL_STATIC);
+                break;
+            }
+            if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, OBJ_txt2nid(curve)) <= 0) {
+                Tcl_SetResult(interp, "OpenSSL: EC curve setting failed", TCL_STATIC);
+                break;
+            }
+        } else {
+            Tcl_SetResult(interp, "Only RSA, DSA, and EC supported for now", TCL_STATIC);
+            break;
         }
-        if (EVP_PKEY_CTX_set_dsa_paramgen_bits(param_ctx, bits) <= 0) {
-            EVP_PKEY_CTX_free(param_ctx);
-            Tcl_SetResult(interp, "OpenSSL: DSA bits setting failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        EVP_PKEY *params = NULL;
-        if (EVP_PKEY_paramgen(param_ctx, &params) <= 0) {
-            EVP_PKEY_CTX_free(param_ctx);
-            Tcl_SetResult(interp, "OpenSSL: DSA parameter generation failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        EVP_PKEY_CTX_free(param_ctx);
-        // Step 2: Generate DSA key from parameters
-        ctx = EVP_PKEY_CTX_new(params, NULL);
-        if (!ctx) {
-            EVP_PKEY_free(params);
-            Tcl_SetResult(interp, "OpenSSL: failed to create DSA keygen context", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        if (EVP_PKEY_keygen_init(ctx) <= 0) {
-            EVP_PKEY_free(params);
-            EVP_PKEY_CTX_free(ctx);
-            Tcl_SetResult(interp, "OpenSSL: DSA keygen init failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        EVP_PKEY_free(params);
-    }
-    else if (strcmp(type, "ec") == 0) {
-        ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
-        if (!ctx) {
-            Tcl_SetResult(interp, "OpenSSL: failed to create EC context", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        if (EVP_PKEY_keygen_init(ctx) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            Tcl_SetResult(interp, "OpenSSL: EC keygen init failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-        if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, OBJ_txt2nid(curve)) <= 0) {
-            EVP_PKEY_CTX_free(ctx);
-            Tcl_SetResult(interp, "OpenSSL: EC curve setting failed", TCL_STATIC);
-            return TCL_ERROR;
-        }
-    }
-    
-    if (EVP_PKEY_keygen(ctx, &pkey) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        Tcl_SetResult(interp, "OpenSSL: key generation failed", TCL_STATIC);
-        return TCL_ERROR;
-    }
 
-    // Write private key to PEM
-    BIO *priv_bio = BIO_new(BIO_s_mem());
-    PEM_write_bio_PrivateKey(priv_bio, pkey, NULL, NULL, 0, NULL, NULL);
-    BUF_MEM *priv_bptr;
-    BIO_get_mem_ptr(priv_bio, &priv_bptr);
-    Tcl_Obj *priv_pem = Tcl_NewStringObj(priv_bptr->data, priv_bptr->length);
+        if (EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+            Tcl_SetResult(interp, "OpenSSL: key generation failed", TCL_STATIC);
+            break;
+        }
 
-    // Write public key to PEM
-    BIO *pub_bio = BIO_new(BIO_s_mem());
-    PEM_write_bio_PUBKEY(pub_bio, pkey);
-    BUF_MEM *pub_bptr;
-    BIO_get_mem_ptr(pub_bio, &pub_bptr);
-    Tcl_Obj *pub_pem = Tcl_NewStringObj(pub_bptr->data, pub_bptr->length);
+        priv_bio = BIO_new(BIO_s_mem());
+        pub_bio = BIO_new(BIO_s_mem());
+        if (!priv_bio || !pub_bio) {
+            Tcl_SetResult(interp, "OpenSSL: BIO allocation failed", TCL_STATIC);
+            break;
+        }
+        PEM_write_bio_PrivateKey(priv_bio, pkey, NULL, NULL, 0, NULL, NULL);
+        PEM_write_bio_PUBKEY(pub_bio, pkey);
+        BUF_MEM *priv_bptr, *pub_bptr;
+        BIO_get_mem_ptr(priv_bio, &priv_bptr);
+        BIO_get_mem_ptr(pub_bio, &pub_bptr);
+        Tcl_Obj *priv_pem = Tcl_NewStringObj(priv_bptr->data, priv_bptr->length);
+        Tcl_Obj *pub_pem = Tcl_NewStringObj(pub_bptr->data, pub_bptr->length);
+        int keybits = EVP_PKEY_get_bits(pkey);
+        Tcl_Obj *dict = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), priv_pem);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("public", -1), pub_pem);
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj(type, -1));
+        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(keybits));
+        if (strcmp(type, "ec") == 0) {
+            Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve, -1));
+        }
+        Tcl_SetObjResult(interp, dict);
+        rc = TCL_OK;
+    } while (0);
 
-    int keybits = EVP_PKEY_get_bits(pkey);
-
-    Tcl_Obj *dict = Tcl_NewDictObj();
-    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("private", -1), priv_pem);
-    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("public", -1), pub_pem);
-    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj(type, -1));
-    Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("bits", -1), Tcl_NewIntObj(keybits));
-    if (strcmp(type, "ec") == 0) {
-        Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("curve", -1), Tcl_NewStringObj(curve, -1));
-    }
-
-    Tcl_SetObjResult(interp, dict);
-
-    BIO_free(priv_bio);
-    BIO_free(pub_bio);
-    EVP_PKEY_free(pkey);
-    EVP_PKEY_CTX_free(ctx);
-    return TCL_OK;
+    if (priv_bio) BIO_free(priv_bio);
+    if (pub_bio) BIO_free(pub_bio);
+    if (pkey) EVP_PKEY_free(pkey);
+    if (ctx) EVP_PKEY_CTX_free(ctx);
+    if (params) EVP_PKEY_free(params);
+    return rc;
 }
 
 // tossl::key::getpub -key <pem>
