@@ -352,6 +352,14 @@ int ProviderListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
 }
 
 int FipsEnableCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "");
+        return TCL_ERROR;
+    }
+    if (!modern_enable_fips()) {
+        Tcl_SetResult(interp, (char *)"Failed to enable FIPS mode", TCL_STATIC);
+        return TCL_ERROR;
+    }
     Tcl_SetResult(interp, (char *)"FIPS mode enabled", TCL_STATIC);
     return TCL_OK;
 }
