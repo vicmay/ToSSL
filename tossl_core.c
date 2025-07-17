@@ -45,7 +45,7 @@ void bin2hex(const unsigned char *in, int len, char *out) {
 // tossl::hmac -alg <name> -key <key> <data>
 int HmacCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 7) {
+    if (objc != 6) {
         Tcl_WrongNumArgs(interp, 1, objv, "-alg name -key key data");
         return TCL_ERROR;
     }
@@ -450,19 +450,20 @@ int DigestStreamCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
 // tossl::digest::compare <hash1> <hash2>
 int DigestCompareCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     (void)cd;
-    if (objc != 4) {
+    if (objc != 3) {
         Tcl_WrongNumArgs(interp, 1, objv, "hash1 hash2");
         return TCL_ERROR;
     }
-    const char *hash1 = Tcl_GetString(objv[1]);
-    const char *hash2 = Tcl_GetString(objv[2]);
+    int len1, len2;
+    const char *hash1 = Tcl_GetStringFromObj(objv[1], &len1);
+    const char *hash2 = Tcl_GetStringFromObj(objv[2], &len2);
     
-    if (strlen(hash1) != strlen(hash2)) {
+    if (len1 != len2) {
         Tcl_SetResult(interp, "0", TCL_STATIC);
         return TCL_OK;
     }
     
-    int result = (strcmp(hash1, hash2) == 0) ? 1 : 0;
+    int result = (memcmp(hash1, hash2, len1) == 0) ? 1 : 0;
     Tcl_SetResult(interp, result ? "1" : "0", TCL_STATIC);
     return TCL_OK;
 }
