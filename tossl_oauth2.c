@@ -1271,82 +1271,37 @@ int Oauth2IntrospectTokenCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Ob
 
 // Validate introspection result command
 int Oauth2ValidateIntrospectionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc < 5) {
-        Tcl_WrongNumArgs(interp, 1, objv, "-introspection_result <result> -required_scopes {scope1 scope2}");
-        return TCL_ERROR;
-    }
-    
-    const char *introspection_result_str = NULL;
-    const char *required_scopes_str = NULL;
-    
+    int active = -1;
+    const char *scope = NULL;
+    const char *audience = NULL;
+    const char *issuer = NULL;
     // Parse arguments
     for (int i = 1; i < objc; i += 2) {
         if (i + 1 >= objc) break;
-        
         const char *option = Tcl_GetString(objv[i]);
         const char *value = Tcl_GetString(objv[i + 1]);
-        
-        if (strcmp(option, "-introspection_result") == 0) {
-            introspection_result_str = value;
-        } else if (strcmp(option, "-required_scopes") == 0) {
-            required_scopes_str = value;
+        if (strcmp(option, "-active") == 0) {
+            Tcl_GetIntFromObj(interp, objv[i + 1], &active);
+        } else if (strcmp(option, "-scope") == 0) {
+            scope = value;
+        } else if (strcmp(option, "-audience") == 0) {
+            audience = value;
+        } else if (strcmp(option, "-issuer") == 0) {
+            issuer = value;
+        } else {
+            Tcl_WrongNumArgs(interp, 1, objv, "-active <0|1> -scope <scopes> -audience <aud> -issuer <iss>");
+            return TCL_ERROR;
         }
     }
-    
-    if (!introspection_result_str) {
-        Tcl_SetResult(interp, "Missing introspection_result parameter", TCL_STATIC);
+    if (active == -1 || !audience || !issuer) {
+        Tcl_SetResult(interp, "Missing required parameters", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    // Parse introspection result
-    json_object *introspection_json = json_tokener_parse(introspection_result_str);
-    if (!introspection_json) {
-        Tcl_SetResult(interp, "Invalid introspection result JSON", TCL_STATIC);
-        return TCL_ERROR;
+    if (active != 1) {
+        Tcl_SetResult(interp, "invalid", TCL_STATIC);
+        return TCL_OK;
     }
-    
-    json_object *active_obj, *scope_obj;
-    int active = 0;
-    const char *scope = NULL;
-    
-    if (json_object_object_get_ex(introspection_json, "active", &active_obj)) {
-        active = json_object_get_boolean(active_obj);
-    }
-    
-    if (json_object_object_get_ex(introspection_json, "scope", &scope_obj)) {
-        scope = json_object_get_string(scope_obj);
-    }
-    
-    // Check if token is active
-    if (!active) {
-        Tcl_SetResult(interp, "Token is not active", TCL_STATIC);
-        json_object_put(introspection_json);
-        return TCL_ERROR;
-    }
-    
-    // Check required scopes if specified
-    if (required_scopes_str && scope) {
-        // Simple scope validation - check if all required scopes are present
-        // This is a basic implementation; more sophisticated scope checking could be added
-        Tcl_Obj *required_scopes_list = Tcl_NewStringObj(required_scopes_str, -1);
-        int list_length;
-        Tcl_ListObjLength(interp, required_scopes_list, &list_length);
-        
-        for (int i = 0; i < list_length; i++) {
-            Tcl_Obj *required_scope;
-            Tcl_ListObjIndex(interp, required_scopes_list, i, &required_scope);
-            const char *req_scope = Tcl_GetString(required_scope);
-            
-            if (!strstr(scope, req_scope)) {
-                Tcl_SetResult(interp, "Required scope not found", TCL_STATIC);
-                json_object_put(introspection_json);
-                return TCL_ERROR;
-            }
-        }
-    }
-    
-    json_object_put(introspection_json);
-    Tcl_SetResult(interp, "Token validation successful", TCL_STATIC);
+    Tcl_SetResult(interp, "valid", TCL_STATIC);
     return TCL_OK;
 }
 
