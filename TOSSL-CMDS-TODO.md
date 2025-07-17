@@ -71,7 +71,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::http::metrics` | ✅ | tests/test_http_metrics.tcl | ✅ | doc/http_metrics.md | |
 | `::tossl::http::debug` | ✅ | tests/test_http_debug.tcl | ✅ | doc/http_debug.md | |
 
-| `::tossl::digest::list` | ❌ | | ❌ | | |
+| `::tossl::digest::list` | ✅ | tests/test_digest_list.tcl | ✅ | doc/digest_list.md | |
 | `::tossl::digest::stream` | ❌ | | ❌ | | |
 | `::tossl::digest::compare` | ❌ | | ❌ | | |
 | `::tossl::crl::create` | ❌ | | ❌ | | |

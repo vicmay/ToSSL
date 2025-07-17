@@ -560,7 +560,24 @@ static void digest_list_cb(EVP_MD *md, void *arg) {
     struct DigestListCtx *ctx = (struct DigestListCtx *)arg;
     const char *name = EVP_MD_get0_name(md);
     if (name) {
-        Tcl_ListObjAppendElement(ctx->interp, ctx->list, Tcl_NewStringObj(name, -1));
+        /* Check if this name is already in the list to avoid duplicates */
+        int list_len;
+        Tcl_ListObjLength(ctx->interp, ctx->list, &list_len);
+        int found = 0;
+        
+        for (int i = 0; i < list_len; i++) {
+            Tcl_Obj *element;
+            Tcl_ListObjIndex(ctx->interp, ctx->list, i, &element);
+            const char *existing_name = Tcl_GetString(element);
+            if (strcmp(name, existing_name) == 0) {
+                found = 1;
+                break;
+            }
+        }
+        
+        if (!found) {
+            Tcl_ListObjAppendElement(ctx->interp, ctx->list, Tcl_NewStringObj(name, -1));
+        }
     }
 }
 

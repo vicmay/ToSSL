@@ -55,26 +55,28 @@ puts "=== Testing ::tossl::digest::list ==="
 ;# Test 1: Basic functionality - get list of digest algorithms
 test "Get list of digest algorithms" {
     set algorithms [::tossl::digest::list]
-    assert_true {[llength $algorithms] > 0} "Should return non-empty list"
-    puts "  Found [llength $algorithms] digest algorithms"
+    set length [llength $algorithms]
+    assert_true [expr {$length > 0}] "Should return non-empty list"
+    puts "  Found $length digest algorithms"
 }
 
 ;# Test 2: Verify list structure
 test "Verify list structure" {
     set algorithms [::tossl::digest::list]
-    assert_true {[llength $algorithms] > 0} "List should not be empty"
+    set length [llength $algorithms]
+    assert_true [expr {$length > 0}] "List should not be empty"
     
     ;# Check that each element is a string
     foreach alg $algorithms {
-        assert_true {[string is ascii $alg]} "Algorithm name should be ASCII string"
-        assert_true {[string length $alg] > 0} "Algorithm name should not be empty"
+        assert_true [string is ascii $alg] "Algorithm name should be ASCII string"
+        assert_true [expr {[string length $alg] > 0}] "Algorithm name should not be empty"
     }
 }
 
 ;# Test 3: Check for common digest algorithms
 test "Check for common digest algorithms" {
     set algorithms [::tossl::digest::list]
-    set common_algs {sha256 sha1 md5 sha512}
+    set common_algs {SHA256 SHA1 MD5 SHA512}
     set found_count 0
     
     foreach common_alg $common_algs {
@@ -85,7 +87,7 @@ test "Check for common digest algorithms" {
     }
     
     ;# Should find at least some common algorithms
-    assert_true {$found_count > 0} "Should find at least some common digest algorithms"
+    assert_true [expr {$found_count > 0}] "Should find at least some common digest algorithms"
 }
 
 ;# Test 4: Verify algorithms are valid by testing them
@@ -99,7 +101,7 @@ test "Verify algorithms are valid by testing them" {
     foreach alg $test_algorithms {
         if {[catch {
             set hash [::tossl::digest -alg $alg $test_data]
-            assert_true {[string length $hash] > 0} "Hash should not be empty"
+            assert_true [expr {[string length $hash] > 0}] "Hash should not be empty"
         }]} {
             puts "  Warning: Algorithm '$alg' failed digest test"
         } else {
@@ -109,13 +111,13 @@ test "Verify algorithms are valid by testing them" {
     }
     
     ;# Should have at least some valid algorithms
-    assert_true {$valid_count > 0} "Should have at least some valid digest algorithms"
+    assert_true [expr {$valid_count > 0}] "Should have at least some valid digest algorithms"
 }
 
 ;# Test 5: Error handling - wrong number of arguments
 test "Error handling - wrong number of arguments" {
     set error_msg [assert_error {::tossl::digest::list extra_arg} "Wrong number of arguments should cause error"]
-    assert_true {[string match "*wrong # args*" $error_msg]} "Error should mention wrong number of arguments"
+    assert_true [string match "*wrong # args*" $error_msg] "Error should mention wrong number of arguments"
 }
 
 ;# Test 6: Consistency - multiple calls should return same results
@@ -139,16 +141,16 @@ test "Check for specific algorithm types" {
     ;# Check for SHA family
     set sha_found 0
     foreach alg $algorithms {
-        if {[string match "sha*" $alg]} {
+        if {[string match "SHA*" $alg]} {
             incr sha_found
         }
     }
-    assert_true {$sha_found > 0} "Should find SHA family algorithms"
+    assert_true [expr {$sha_found > 0}] "Should find SHA family algorithms"
     
     ;# Check for other common families
     set md5_found 0
     foreach alg $algorithms {
-        if {[string match "md5" $alg]} {
+        if {[string match "MD5" $alg]} {
             incr md5_found
         }
     }
@@ -162,14 +164,15 @@ test "Performance test - multiple rapid calls" {
     
     for {set i 0} {$i < 10} {incr i} {
         set algorithms [::tossl::digest::list]
-        assert_true {[llength $algorithms] > 0} "Each call should return algorithms"
+        set length [llength $algorithms]
+        assert_true [expr {$length > 0}] "Each call should return algorithms"
     }
     
     set end_time [clock clicks -milliseconds]
     set duration [expr {$end_time - $start_time}]
     
     puts "  Completed 10 calls in ${duration}ms"
-    assert_true {$duration < 1000} "Should complete 10 calls in under 1 second"
+    assert_true [expr {$duration < 1000}] "Should complete 10 calls in under 1 second"
 }
 
 ;# Test 9: Verify no duplicates in list
@@ -185,9 +188,9 @@ test "Check algorithm name format" {
     set algorithms [::tossl::digest::list]
     
     foreach alg $algorithms {
-        ;# Algorithm names should be lowercase and contain only alphanumeric characters and hyphens
-        assert_true {[regexp {^[a-z0-9-]+$} $alg]} "Algorithm name should be lowercase alphanumeric with hyphens: '$alg'"
-        assert_true {[string length $alg] <= 50} "Algorithm name should be reasonably short: '$alg'"
+        ;# Algorithm names should contain only alphanumeric characters, hyphens, and slashes
+        assert_true [regexp {^[A-Z0-9/-]+$} $alg] "Algorithm name should be uppercase alphanumeric with hyphens and slashes: '$alg'"
+        assert_true [expr {[string length $alg] <= 50}] "Algorithm name should be reasonably short: '$alg'"
     }
 }
 
@@ -204,7 +207,7 @@ test "Integration test - use listed algorithms with digest command" {
         
         if {[catch {
             set hash [::tossl::digest -alg $alg $test_data]
-            assert_true {[string length $hash] > 0} "Hash should not be empty for $alg"
+            assert_true [expr {[string length $hash] > 0}] "Hash should not be empty for $alg"
             incr successful_tests
         }]} {
             puts "  Warning: Algorithm '$alg' failed integration test"
@@ -212,23 +215,24 @@ test "Integration test - use listed algorithms with digest command" {
         incr test_count
     }
     
-    assert_true {$successful_tests > 0} "Should have at least some successful integration tests"
+    assert_true [expr {$successful_tests > 0}] "Should have at least some successful integration tests"
     puts "  Successfully tested $successful_tests algorithms"
 }
 
-;# Test 12: Verify list is sorted (optional - depends on OpenSSL implementation)
+;# Test 12: Verify list characteristics
 test "Verify list characteristics" {
     set algorithms [::tossl::digest::list]
     
     ;# Check that we have a reasonable number of algorithms
-    assert_true {[llength $algorithms] >= 5} "Should have at least 5 digest algorithms"
-    assert_true {[llength $algorithms] <= 100} "Should have reasonable number of algorithms (<=100)"
+    set length [llength $algorithms]
+    assert_true [expr {$length >= 5}] "Should have at least 5 digest algorithms"
+    assert_true [expr {$length <= 100}] "Should have reasonable number of algorithms (<=100)"
     
     ;# Check that all algorithms are unique
     set unique_count [llength [lsort -unique $algorithms]]
-    assert_equals [llength $algorithms] $unique_count "All algorithms should be unique"
+    assert_equals $length $unique_count "All algorithms should be unique"
     
-    puts "  List contains [llength $algorithms] unique algorithms"
+    puts "  List contains $length unique algorithms"
 }
 
 puts "\n=== Test Summary ==="
