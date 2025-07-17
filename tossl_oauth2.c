@@ -977,6 +977,10 @@ int Oauth2GenerateCodeVerifierCmd(ClientData cd, Tcl_Interp *interp, int objc, T
         Tcl_WrongNumArgs(interp, 1, objv, "?-length N?");
         return TCL_ERROR;
     }
+    if (length < 43 || length > 128) {
+        Tcl_SetResult(interp, "Failed to generate code verifier: length must be 43-128", TCL_STATIC);
+        return TCL_ERROR;
+    }
     char *verifier = generate_code_verifier(length);
     if (!verifier) {
         Tcl_SetResult(interp, "Failed to generate code verifier", TCL_STATIC);
