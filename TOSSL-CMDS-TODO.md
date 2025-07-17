@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 57/189 (30.2%)
-- **Documentation Created**: 57/189 (30.2%)
+- **Tests Created**: 67/189 (35.4%)
+- **Documentation Created**: 67/189 (35.4%)
 
 ## Command Status Tracking
 
@@ -105,9 +105,9 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::oauth2::validate_introspection` | ✅ | tests/test_oauth2_validate_introspection.tcl | ✅ | doc/oauth2_validate_introspection.md | |
 | `::tossl::oauth2::authorization_url` | ✅ | tests/test_oauth2_authorization_url.tcl | ✅ | doc/oauth2_authorization_url.md | |
 | `::tossl::oauth2::generate_state` | ✅ | tests/test_oauth2_generate_state.tcl | ✅ | doc/oauth2_generate_state.md | |
-| `::tossl::oauth2::introspect_token` | ❌ | | ❌ | | |
-| `::tossl::oauth2::client_credentials` | ❌ | | ❌ | | |
-| `::tossl::oauth2::exchange_code` | ❌ | | ❌ | | |
+| `::tossl::oauth2::introspect_token` | ✅ | tests/test_oauth2_introspect_token.tcl | ✅ | doc/oauth2_introspect_token.md | |
+| `::tossl::oauth2::client_credentials` | ✅ | tests/test_oauth2_client_credentials.tcl | ✅ | doc/oauth2_client_credentials.md | |
+| `::tossl::oauth2::exchange_code` | ✅ | tests/test_oauth2_exchange_code.tcl | ✅ | doc/oauth2_exchange_code.md | |
 | `::tossl::oauth2::authorization_url_pkce` | ❌ | | ❌ | | |
 | `::tossl::oauth2::poll_device_token` | ❌ | | ❌ | | |
 | `::tossl::oauth2::exchange_code_pkce` | ❌ | | ❌ | | |
