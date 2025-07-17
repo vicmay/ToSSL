@@ -1,0 +1,8 @@
+DEBUG: priv_rsa length = 1708
+DEBUG: priv_rsa head = -----BEGIN PRIVATE KEY-----
+MIIEvwIBADANBgkqhkiG9w0BAQEFAASCB
+RSA private PEM write: OK
+RSA public PEM write: OK
+DEBUG: priv_der length = 6
+DEBUG: priv_der hex head = 308204bf0201
+FAIL: RSA private DER write (too short)

@@ -1,0 +1,10 @@
+DEBUG: priv_rsa length = 1704
+DEBUG: priv_rsa head = -----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCB
+RSA private PEM write: OK
+RSA public PEM write: OK
+DEBUG: i2d_PKCS8PrivateKey_bio returned 1, DER length = 1218
+DEBUG: DER head: 308204be020100300d06092a864886f70d0101010500048204a8308204a40201
+DEBUG: priv_der length = 6
+DEBUG: priv_der hex head = 308204be0201
+FAIL: RSA private DER write (too short)

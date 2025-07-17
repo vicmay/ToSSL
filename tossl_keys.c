@@ -141,7 +141,17 @@ int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
         }
     } else if (strcmp(format, "der") == 0) {
         if (strcmp(type, "private") == 0) {
-            success = i2d_PrivateKey_bio(out_bio, pkey);
+            /* Use PKCS#8 DER output for private keys */
+            success = i2d_PKCS8PrivateKey_bio(out_bio, pkey, NULL, NULL, 0, NULL, NULL);
+            BUF_MEM *debug_bptr;
+            BIO_get_mem_ptr(out_bio, &debug_bptr);
+            fprintf(stderr, "DEBUG: i2d_PKCS8PrivateKey_bio returned %d, DER length = %ld\n", success, debug_bptr ? debug_bptr->length : -1L);
+            if (debug_bptr && debug_bptr->length > 0) {
+                int dump_len = debug_bptr->length < 32 ? debug_bptr->length : 32;
+                fprintf(stderr, "DEBUG: DER head: ");
+                for (int i = 0; i < dump_len; ++i) fprintf(stderr, "%02x", (unsigned char)debug_bptr->data[i]);
+                fprintf(stderr, "\n");
+            }
         } else {
             success = i2d_PUBKEY_bio(out_bio, pkey);
         }
@@ -163,7 +173,11 @@ int KeyWriteCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
     
     BUF_MEM *bptr;
     BIO_get_mem_ptr(out_bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+    if (strcmp(format, "der") == 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)bptr->data, bptr->length));
+    } else {
+        Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+    }
     
     BIO_free(out_bio);
     EVP_PKEY_free(pkey);
