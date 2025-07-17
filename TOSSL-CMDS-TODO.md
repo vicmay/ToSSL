@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 55/189 (29.1%)
-- **Documentation Created**: 55/189 (29.1%)
+- **Tests Created**: 56/189 (29.6%)
+- **Documentation Created**: 56/189 (29.6%)
 
 ## Command Status Tracking
 
@@ -98,7 +98,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::oauth2::validate_state` | ✅ | tests/test_oauth2_validate_state.tcl | ✅ | doc/oauth2_validate_state.md | |
 | `::tossl::oauth2::parse_token` | ✅ | tests/test_oauth2_parse_token.tcl | ✅ | doc/oauth2_parse_token.md | |
 | `::tossl::oauth2::is_token_expired` | ✅ | tests/test_oauth2_is_token_expired.tcl | ✅ | doc/oauth2_is_token_expired.md | |
-| `::tossl::oauth2::store_token` | ❌ | | ❌ | | |
+| `::tossl::oauth2::store_token` | ✅ | tests/test_oauth2_store_token.tcl | ✅ | doc/oauth2_store_token.md | |
 | `::tossl::oauth2::auto_refresh` | ❌ | | ❌ | | |
 | `::tossl::oauth2::refresh_token` | ❌ | | ❌ | | |
 | `::tossl::oauth2::generate_code_verifier` | ❌ | | ❌ | | |
