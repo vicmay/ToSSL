@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 111/190 (58.4%)
-- **Documentation Created**: 111/190 (58.4%)
+- **Tests Created**: 112/190 (58.9%)
+- **Documentation Created**: 112/190 (58.9%)
 
 ## Command Status Tracking
 
@@ -150,7 +150,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pbe::keyderive` | ✅ | tests/test_pbe_keyderive.tcl | ✅ | doc/pbe_keyderive.md | |
 | `::tossl::pbe::encrypt` | ✅ | tests/test_pbe_encrypt.tcl | ✅ | doc/pbe_encrypt.md | Algorithm parameter ignored, no validation, decrypt has bug |
 | `::tossl::pbe::algorithms` | ✅ | tests/test_pbe_algorithms.tcl | ✅ | doc/pbe_algorithms.md | |
-| `::tossl::pbe::saltgen` | ❌ | | ❌ | | |
+| `::tossl::pbe::saltgen` | ✅ | tests/test_pbe_saltgen.tcl | ✅ | doc/pbe_saltgen.md | |
 | `::tossl::pbe::decrypt` | ❌ | | ❌ | | |
 | `::tossl::pkcs7::info` | ❌ | | ❌ | | |
 | `::tossl::pkcs7::verify` | ❌ | | ❌ | | |
