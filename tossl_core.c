@@ -187,12 +187,23 @@ int Base64UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         return TCL_ERROR;
     }
     const char *data = Tcl_GetString(objv[1]);
-    char *modified = Tcl_Alloc(strlen(data) + 1);
+    int inlen = strlen(data);
+    if (inlen == 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(NULL, 0));
+        return TCL_OK;
+    }
+    int pad = (4 - (inlen % 4)) % 4;
+    int buflen = inlen + pad + 1;
+    char *modified = Tcl_Alloc(buflen);
     strcpy(modified, data);
     for (int i = 0; modified[i]; i++) {
         if (modified[i] == '-') modified[i] = '+';
         else if (modified[i] == '_') modified[i] = '/';
     }
+    for (int i = 0; i < pad; i++) {
+        modified[inlen + i] = '=';
+    }
+    modified[inlen + pad] = '\0';
     BIO *bio = BIO_new_mem_buf(modified, -1);
     BIO *b64 = BIO_new(BIO_f_base64());
     bio = BIO_push(b64, bio);
@@ -200,9 +211,16 @@ int Base64UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     unsigned char buffer[1024];
     int len = BIO_read(bio, buffer, sizeof(buffer));
     if (len > 0) {
+        // Trim trailing null bytes
+        while (len > 0 && buffer[len - 1] == '\0') {
+            len--;
+        }
         Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(buffer, len));
     } else {
-        Tcl_SetResult(interp, "", TCL_STATIC);
+        Tcl_Free(modified);
+        BIO_free_all(bio);
+        Tcl_SetResult(interp, "Invalid base64url input", TCL_STATIC);
+        return TCL_ERROR;
     }
     BIO_free_all(bio);
     Tcl_Free(modified);

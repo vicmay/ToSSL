@@ -159,7 +159,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pkcs7::decrypt` | ✅ | tests/test_pkcs7_decrypt.tcl | ✅ | doc/pkcs7_decrypt.md | Now uses CMS API, OpenSSL 3.x compatible |
 | `::tossl::x448::derive` | ✅ | tests/test_x448.tcl | ✅ | doc/x448_derive.md | Modern OpenSSL API, OpenSSL 3.x compatible |
 | `::tossl::x448::generate` | ✅ | tests/test_x448.tcl | ✅ | doc/x448_generate.md | Modern OpenSSL API, OpenSSL 3.x compatible |
-| `::tossl::base64url::decode` | ❌ | | ❌ | | |
+| `::tossl::base64url::decode` | ✅ | tests/test_base64url_decode.tcl | ✅ | doc/base64url_decode.md | RFC 4648, robust error handling |
 | `::tossl::base64url::encode` | ❌ | | ❌ | | |
 | `::tossl::pfs::test` | ❌ | | ❌ | | |
 | `::tossl::ed448::verify` | ❌ | | ❌ | | |
