@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 103/189 (54.5%)
-- **Documentation Created**: 103/189 (54.5%)
+- **Tests Created**: 104/189 (55.0%)
+- **Documentation Created**: 104/189 (55.0%)
 
 ## Command Status Tracking
 
@@ -147,7 +147,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::time::compare` | ✅ | tests/test_time_compare.tcl | ✅ | doc/time_compare.md | |
 | `::tossl::algorithm::info` | ✅ | tests/test_algorithm_info.tcl | ✅ | doc/algorithm_info.md | |
 | `::tossl::algorithm::list` | ✅ | tests/test_algorithm_list.tcl | ✅ | doc/algorithm_list.md | |
-| `::tossl::pbe::keyderive` | ❌ | | ❌ | | |
+| `::tossl::pbe::keyderive` | ✅ | tests/test_pbe_keyderive.tcl | ✅ | doc/pbe_keyderive.md | |
 | `::tossl::pbe::encrypt` | ❌ | | ❌ | | |
 | `::tossl::pbe::algorithms` | ❌ | | ❌ | | |
 | `::tossl::pbe::saltgen` | ❌ | | ❌ | | |

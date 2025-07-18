@@ -181,7 +181,7 @@ int PbeSaltGenCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
 
 // PBE key derivation command
 int PbeKeyDeriveCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 5) {
+    if (objc != 6) {
         Tcl_WrongNumArgs(interp, 1, objv, "algorithm password salt iterations key_length");
         return TCL_ERROR;
     }
@@ -191,6 +191,22 @@ int PbeKeyDeriveCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     const char *salt_data = Tcl_GetString(objv[3]);
     int iterations = atoi(Tcl_GetString(objv[4]));
     int key_length = atoi(Tcl_GetString(objv[5]));
+    
+    // Validate inputs
+    if (strlen(algorithm) == 0) {
+        Tcl_SetResult(interp, "Algorithm cannot be empty", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (strlen(password) == 0) {
+        Tcl_SetResult(interp, "Password cannot be empty", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (strlen(salt_data) == 0) {
+        Tcl_SetResult(interp, "Salt cannot be empty", TCL_STATIC);
+        return TCL_ERROR;
+    }
     
     if (iterations <= 0 || key_length <= 0) {
         Tcl_SetResult(interp, "Invalid iterations or key length", TCL_STATIC);
