@@ -1,0 +1,1 @@
+package require tossl; set keys [tossl::key::generate -type rsa -bits 2048]; set key [dict get $keys private]; set pub [dict get $keys public]; set cert [tossl::x509::create -subject "Test Cert" -issuer "Test Cert" -pubkey $pub -privkey $key -days 365]; puts $cert; puts $key

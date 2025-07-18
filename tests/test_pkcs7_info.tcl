@@ -53,14 +53,13 @@ test_error "too many arguments" {
     tossl::pkcs7::info "data" extra_arg
 }
 
-;# Test 3: Try with encrypted PKCS7 data (if available)
+;# Test 3: Try with encrypted PKCS7 data (should succeed)
 puts "\n3. Testing with encrypted PKCS7 data..."
 set keys [tossl::key::generate -type rsa -bits 2048]
 set key [dict get $keys private]
 set pub [dict get $keys public]
 set cert [tossl::x509::create -subject "Test Cert" -issuer "Test Cert" -pubkey $pub -privkey $key -days 365]
-set data "test"
-
+set data "test123"
 set encrypt_result [catch {tossl::pkcs7::encrypt -data $data -cert $cert} encrypted]
 if {$encrypt_result == 0} {
     puts "PASS: PKCS7 encrypt successful"
@@ -68,12 +67,26 @@ if {$encrypt_result == 0} {
     if {$info_result == 0} {
         puts "PASS: PKCS7 info successful"
         puts "Info: $info"
+        if {[dict get $info type] eq "pkcs7-envelopedData" && [dict get $info num_recipients] == 1} {
+            puts "PASS: Info fields correct"
+        } else {
+            puts "FAIL: Info fields incorrect: $info"
+            incr ::errors
+        }
     } else {
-        puts "WARNING: PKCS7 info failed: $info (known issue with PKCS7 encrypt implementation)"
-        ;# Don't increment errors since this is a known issue
+        puts "FAIL: PKCS7 info failed: $info"
+        incr ::errors
+    }
+    set dec_result [catch {tossl::pkcs7::decrypt $encrypted $key} dec]
+    if {$dec_result == 0 && $dec eq $data} {
+        puts "PASS: Decrypt round-trip"
+    } else {
+        puts "FAIL: Decrypt round-trip: $dec"
+        incr ::errors
     }
 } else {
-    puts "SKIP: PKCS7 encrypt failed: $encrypted"
+    puts "FAIL: PKCS7 encrypt failed: $encrypted"
+    incr ::errors
 }
 
 ;# Test 4: Performance test with invalid data
@@ -85,16 +98,6 @@ for {set i 0} {$i < 10} {incr i} {
 set end_time [clock milliseconds]
 set duration [expr {$end_time - $start_time}]
 puts "PASS: 10 info operations completed in ${duration}ms"
-
-;# Summary
-puts "\n=== Test Summary ==="
-if {$::errors == 0} {
-    puts "ALL TESTS PASSED"
-    exit 0
-} else {
-    puts "FAILED: $::errors test(s)"
-    exit 1
-}
 
 ;# Summary
 puts "\n=== Test Summary ==="

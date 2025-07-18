@@ -120,7 +120,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::legacy::ivgen` | ✅ | tests/test_legacy_ivgen.tcl | ✅ | doc/legacy_ivgen.md | |
 | `::tossl::legacy::encrypt` | ✅ | tests/test_legacy_encrypt.tcl | ✅ | doc/legacy_encrypt.md | |
 | `::tossl::legacy::keygen` | ✅ | tests/test_legacy_keygen.tcl | ✅ | doc/legacy_keygen.md | |
-| `::tossl::legacy::decrypt` | ✅ | tests/test_legacy_decrypt.tcl | ✅ | doc/legacy_decrypt.md | Known issue: decryption fails for most algorithms |
+| `::tossl::legacy::decrypt` | ✅ | tests/test_legacy_decrypt.tcl | ✅ | doc/legacy_decrypt.md | |
 | `::tossl::rand::test` | ✅ | tests/test_rand_test.tcl | ✅ | doc/rand_test.md | |
 | `::tossl::rand::key` | ✅ | tests/test_rand_key.tcl | ✅ | doc/rand_key.md | -len parameter parsed but ignored |
 | `::tossl::rand::iv` | ✅ | tests/test_rand_iv.tcl | ✅ | doc/rand_iv.md | |
@@ -152,7 +152,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pbe::algorithms` | ✅ | tests/test_pbe_algorithms.tcl | ✅ | doc/pbe_algorithms.md | |
 | `::tossl::pbe::saltgen` | ✅ | tests/test_pbe_saltgen.tcl | ✅ | doc/pbe_saltgen.md | |
 | `::tossl::pbe::decrypt` | ✅ | tests/test_pbe_decrypt.tcl | ✅ | doc/pbe_decrypt.md | Known strlen() bug affects binary data |
-| `::tossl::pkcs7::info` | ✅ | tests/test_pkcs7_info.tcl | ✅ | doc/pkcs7_info.md | Basic functionality works, parsing valid PKCS7 data fails due to encrypt implementation issue |
+| `::tossl::pkcs7::info` | ✅ | tests/test_pkcs7_info.tcl | ✅ | doc/pkcs7_info.md | Now uses CMS API, OpenSSL 3.x compatible |
 | `::tossl::pkcs7::verify` | ❌ | | ❌ | | |
 | `::tossl::pkcs7::sign` | ❌ | | ❌ | | |
 | `::tossl::pkcs7::encrypt` | ❌ | | ❌ | | |

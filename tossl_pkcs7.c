@@ -1,15 +1,14 @@
 #include "tossl.h"
+#include <openssl/cms.h>
 
-// PKCS#7 encrypt command
+// PKCS#7 encrypt command (now uses CMS_encrypt)
 int Pkcs7EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc < 4) {
         Tcl_WrongNumArgs(interp, 1, objv, "-data data -cert cert ?-cipher cipher?");
         return TCL_ERROR;
     }
-    
     const char *data = NULL, *cert_pem = NULL, *cipher = "aes-256-cbc";
     int data_len = 0, cert_len = 0;
-    
     for (int i = 1; i < objc; i += 2) {
         const char *opt = Tcl_GetString(objv[i]);
         if (strcmp(opt, "-data") == 0) {
@@ -23,144 +22,112 @@ int Pkcs7EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
             return TCL_ERROR;
         }
     }
-    
     if (!data || !cert_pem) {
         Tcl_SetResult(interp, "Data and certificate are required", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    BIO *cert_bio = BIO_new_mem_buf((void*)cert_pem, cert_len);
-    X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
+    BIO *certbio = BIO_new_mem_buf((void*)cert_pem, cert_len);
+    X509 *cert = PEM_read_bio_X509(certbio, NULL, NULL, NULL);
     if (!cert) {
-        BIO_free(cert_bio);
+        BIO_free(certbio);
         Tcl_SetResult(interp, "Failed to parse certificate", TCL_STATIC);
         return TCL_ERROR;
     }
-    
+    STACK_OF(X509) *recips = sk_X509_new_null();
+    if (!recips || !sk_X509_push(recips, cert)) {
+        if (recips) sk_X509_pop_free(recips, X509_free);
+        X509_free(cert);
+        BIO_free(certbio);
+        Tcl_SetResult(interp, "Failed to build recipient stack", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    BIO *databio = BIO_new_mem_buf((void*)data, data_len);
     const EVP_CIPHER *cipher_obj = EVP_get_cipherbyname(cipher);
     if (!cipher_obj) {
+        sk_X509_pop_free(recips, X509_free);
         X509_free(cert);
-        BIO_free(cert_bio);
+        BIO_free(certbio);
+        BIO_free(databio);
         Tcl_SetResult(interp, "Unknown cipher", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    // Create recipients stack
-    STACK_OF(X509) *recipients = sk_X509_new_null();
-    if (!recipients) {
+    CMS_ContentInfo *cms = CMS_encrypt(recips, databio, cipher_obj, CMS_BINARY);
+    if (!cms) {
+        sk_X509_pop_free(recips, X509_free);
         X509_free(cert);
-        BIO_free(cert_bio);
-        Tcl_SetResult(interp, "Failed to create recipients stack", TCL_STATIC);
+        BIO_free(certbio);
+        BIO_free(databio);
+        Tcl_SetResult(interp, "CMS_encrypt failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    if (!sk_X509_push(recipients, cert)) {
-        sk_X509_free(recipients);
+    BIO *outbio = BIO_new(BIO_s_mem());
+    int ok = i2d_CMS_bio(outbio, cms);
+    if (!ok) {
+        CMS_ContentInfo_free(cms);
+        sk_X509_pop_free(recips, X509_free);
         X509_free(cert);
-        BIO_free(cert_bio);
-        Tcl_SetResult(interp, "Failed to add certificate to recipients", TCL_STATIC);
+        BIO_free(certbio);
+        BIO_free(databio);
+        BIO_free(outbio);
+        Tcl_SetResult(interp, "Failed to serialize CMS/PKCS7", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    BIO *data_bio = BIO_new_mem_buf((void*)data, data_len);
-    PKCS7 *p7 = PKCS7_encrypt(recipients, data_bio, cipher_obj, 0);
-    if (!p7) {
-        sk_X509_free(recipients);
-        X509_free(cert);
-        BIO_free(cert_bio);
-        Tcl_SetResult(interp, "Failed to create PKCS7", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    BIO *out_bio = BIO_new(BIO_s_mem());
-    if (!out_bio) {
-        PKCS7_free(p7);
-        sk_X509_free(recipients);
-        X509_free(cert);
-        BIO_free(cert_bio);
-        Tcl_SetResult(interp, "Failed to create output BIO", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    if (i2d_PKCS7_bio(out_bio, p7) <= 0) {
-        BIO_free(out_bio);
-        PKCS7_free(p7);
-        sk_X509_free(recipients);
-        X509_free(cert);
-        BIO_free(cert_bio);
-        Tcl_SetResult(interp, "Failed to write PKCS7", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    BUF_MEM *bptr;
-    BIO_get_mem_ptr(out_bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
-    
-    BIO_free(out_bio);
-    PKCS7_free(p7);
-    sk_X509_free(recipients);
+    char *outbuf = NULL;
+    long outlen = BIO_get_mem_data(outbio, &outbuf);
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char*)outbuf, outlen));
+    CMS_ContentInfo_free(cms);
+    sk_X509_pop_free(recips, X509_free);
     X509_free(cert);
-    BIO_free(cert_bio);
+    BIO_free(certbio);
+    BIO_free(databio);
+    BIO_free(outbio);
     return TCL_OK;
 }
 
-// PKCS#7 decrypt command
+// PKCS#7 decrypt command (now uses CMS_decrypt)
 int Pkcs7DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 3) {
         Tcl_WrongNumArgs(interp, 1, objv, "pkcs7_data private_key");
         return TCL_ERROR;
     }
-    
-    const char *pkcs7_data = Tcl_GetString(objv[1]);
+    int pkcs7_len = 0;
+    unsigned char *pkcs7_data = Tcl_GetByteArrayFromObj(objv[1], &pkcs7_len);
     const char *key_pem = Tcl_GetString(objv[2]);
-    
-    BIO *pkcs7_bio = BIO_new_mem_buf((void*)pkcs7_data, -1);
-    PKCS7 *p7 = d2i_PKCS7_bio(pkcs7_bio, NULL);
-    if (!p7) {
+    BIO *pkcs7_bio = BIO_new_mem_buf((void*)pkcs7_data, pkcs7_len);
+    CMS_ContentInfo *cms = d2i_CMS_bio(pkcs7_bio, NULL);
+    if (!cms) {
         BIO_free(pkcs7_bio);
-        Tcl_SetResult(interp, "Failed to parse PKCS7", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to parse CMS/PKCS7", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     BIO *key_bio = BIO_new_mem_buf((void*)key_pem, -1);
     EVP_PKEY *pkey = PEM_read_bio_PrivateKey(key_bio, NULL, NULL, NULL);
     if (!pkey) {
         EVP_PKEY_free(pkey);
         BIO_free(key_bio);
-        PKCS7_free(p7);
+        CMS_ContentInfo_free(cms);
         BIO_free(pkcs7_bio);
         Tcl_SetResult(interp, "Failed to parse private key", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     BIO *out_bio = BIO_new(BIO_s_mem());
-    if (!out_bio) {
-        EVP_PKEY_free(pkey);
-        BIO_free(key_bio);
-        PKCS7_free(p7);
-        BIO_free(pkcs7_bio);
-        Tcl_SetResult(interp, "Failed to create output BIO", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    if (PKCS7_decrypt(p7, pkey, NULL, out_bio, 0) <= 0) {
+    int ok = CMS_decrypt(cms, pkey, NULL, NULL, out_bio, CMS_BINARY);
+    if (!ok) {
         BIO_free(out_bio);
         EVP_PKEY_free(pkey);
         BIO_free(key_bio);
-        PKCS7_free(p7);
+        CMS_ContentInfo_free(cms);
         BIO_free(pkcs7_bio);
-        Tcl_SetResult(interp, "Failed to decrypt PKCS7", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to decrypt CMS/PKCS7", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    BUF_MEM *bptr;
-    BIO_get_mem_ptr(out_bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
-    
+    char *outbuf = NULL;
+    long outlen = BIO_get_mem_data(out_bio, &outbuf);
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char*)outbuf, outlen));
     BIO_free(out_bio);
     EVP_PKEY_free(pkey);
     BIO_free(key_bio);
-    PKCS7_free(p7);
+    CMS_ContentInfo_free(cms);
     BIO_free(pkcs7_bio);
     return TCL_OK;
 }
@@ -273,9 +240,9 @@ int Pkcs7SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    BUF_MEM *bptr;
-    BIO_get_mem_ptr(out_bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+    char *outbuf = NULL;
+    long outlen = BIO_get_mem_data(out_bio, &outbuf);
+    Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char*)outbuf, outlen));
     
     BIO_free(out_bio);
     BIO_free(data_bio);
@@ -357,43 +324,32 @@ int Pkcs7InfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         Tcl_WrongNumArgs(interp, 1, objv, "pkcs7_data");
         return TCL_ERROR;
     }
-    
-    const char *pkcs7_data = Tcl_GetString(objv[1]);
-    
-    BIO *pkcs7_bio = BIO_new_mem_buf((void*)pkcs7_data, -1);
+    int pkcs7_len = 0;
+    unsigned char *pkcs7_data = Tcl_GetByteArrayFromObj(objv[1], &pkcs7_len);
+    BIO *pkcs7_bio = BIO_new_mem_buf((void*)pkcs7_data, pkcs7_len);
     PKCS7 *p7 = NULL;
-    
     // Try to parse as PEM first, then DER if that fails
     p7 = PEM_read_bio_PKCS7(pkcs7_bio, NULL, NULL, NULL);
     if (!p7) {
-        // If PEM failed, try DER
         BIO_reset(pkcs7_bio);
         p7 = d2i_PKCS7_bio(pkcs7_bio, NULL);
     }
-    
     if (!p7) {
         BIO_free(pkcs7_bio);
         Tcl_SetResult(interp, "Failed to parse PKCS7", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     Tcl_Obj *result = Tcl_NewDictObj();
-    
-    // Get type
     int type = OBJ_obj2nid(p7->type);
     const char *type_str = OBJ_nid2sn(type);
     if (type_str) {
         Tcl_DictObjPut(interp, result, Tcl_NewStringObj("type", -1), Tcl_NewStringObj(type_str, -1));
     }
-    
-    // Get signers info
     STACK_OF(PKCS7_SIGNER_INFO) *signers = PKCS7_get_signer_info(p7);
     if (signers) {
         int num_signers = sk_PKCS7_SIGNER_INFO_num(signers);
         Tcl_DictObjPut(interp, result, Tcl_NewStringObj("num_signers", -1), Tcl_NewIntObj(num_signers));
     }
-    
-    // Get recipients info
     STACK_OF(PKCS7_RECIP_INFO) *recipients = NULL;
     int type_nid = OBJ_obj2nid(p7->type);
     if (type_nid == NID_pkcs7_enveloped && p7->d.enveloped)
@@ -403,8 +359,6 @@ int Pkcs7InfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     if (recipients) {
         int num_recipients = sk_PKCS7_RECIP_INFO_num(recipients);
         Tcl_DictObjPut(interp, result, Tcl_NewStringObj("num_recipients", -1), Tcl_NewIntObj(num_recipients));
-        
-        // Get encryption algorithm for enveloped data
         if (type_nid == NID_pkcs7_enveloped && p7->d.enveloped && p7->d.enveloped->enc_data && p7->d.enveloped->enc_data->algorithm) {
             int enc_nid = OBJ_obj2nid(p7->d.enveloped->enc_data->algorithm->algorithm);
             const char *cipher_str = OBJ_nid2sn(enc_nid);
@@ -413,10 +367,8 @@ int Pkcs7InfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
             }
         }
     }
-    
     BIO_free(pkcs7_bio);
     PKCS7_free(p7);
-    
     Tcl_SetObjResult(interp, result);
     return TCL_OK;
 } 
