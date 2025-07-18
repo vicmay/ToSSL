@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 126/190 (66.3%)
-- **Documentation Created**: 126/190 (66.3%)
+- **Tests Created**: 127/190 (66.8%)
+- **Documentation Created**: 127/190 (66.8%)
 
 ## Command Status Tracking
 
@@ -164,7 +164,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pfs::test` | ✅ | tests/test_pfs_test.tcl | ✅ | doc/pfs_test.md | |
 | `::tossl::ed448::verify` | ✅ | tests/test_ed448_verify.tcl | ✅ | doc/ed448_verify.md | |
 | `::tossl::ed448::sign` | ✅ | tests/test_ed448_sign.tcl | ✅ | doc/ed448_sign.md | |
-| `::tossl::ed448::generate` | ❌ | | ❌ | | |
+| `::tossl::ed448::generate` | ✅ | tests/test_ed448_generate.tcl | ✅ | doc/ed448_generate.md | |
 | `::tossl::signature::validate` | ❌ | | ❌ | | |
 | `::tossl::ssl::verify_peer` | ❌ | | ❌ | | |
 | `::tossl::ssl::accept` | ❌ | | ❌ | | |
