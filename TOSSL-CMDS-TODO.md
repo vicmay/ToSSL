@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 75/189 (39.7%)
-- **Documentation Created**: 75/189 (39.7%)
+- **Tests Created**: 76/189 (40.2%)
+- **Documentation Created**: 76/189 (40.2%)
 
 ## Command Status Tracking
 
@@ -116,7 +116,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ocsp::create_request` | ✅ | tests/test_ocsp_create_request.tcl | ✅ | doc/ocsp_create_request.md | |
 | `::tossl::ocsp::parse_response` | ✅ | tests/test_ocsp_parse_response.tcl | ✅ | doc/ocsp_parse_response.md | |
 | `::tossl::legacy::info` | ✅ | tests/test_legacy_info.tcl | ✅ | doc/legacy_info.md | |
-| `::tossl::legacy::list` | ❌ | | ❌ | | |
+| `::tossl::legacy::list` | ✅ | tests/test_legacy_list.tcl | ✅ | doc/legacy_list.md | |
 | `::tossl::legacy::ivgen` | ❌ | | ❌ | | |
 | `::tossl::legacy::encrypt` | ❌ | | ❌ | | |
 | `::tossl::legacy::keygen` | ❌ | | ❌ | | |
@@ -217,4 +217,26 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::hex::encode` | ❌ | | ❌ | | |
 | `::tossl::x25519::derive` | ❌ | | ❌ | | |
 | `::tossl::x25519::generate` | ❌ | | ❌ | | |
-| `
+| `::tossl::rsa::verify` | ❌ | | ❌ | | |
+| `::tossl::rsa::sign` | ❌ | | ❌ | | |
+| `::tossl::rsa::encrypt` | ❌ | | ❌ | | |
+| `::tossl::rsa::components` | ❌ | | ❌ | | |
+| `::tossl::rsa::validate` | ❌ | | ❌ | | |
+| `::tossl::rsa::decrypt` | ❌ | | ❌ | | |
+| `::tossl::rsa::generate` | ❌ | | ❌ | | |
+| `::tossl::ed25519::verify` | ❌ | | ❌ | | |
+| `::tossl::ed25519::sign` | ❌ | | ❌ | | |
+| `::tossl::ed25519::generate` | ❌ | | ❌ | | |
+
+## Legend
+- ❌ = Not started
+- 🔄 = In progress  
+- ✅ = Completed
+- ⚠️ = Issues/Problems
+
+## Notes
+- Test files should be created in the `tests/` directory
+- Documentation files should be created in the `doc/` directory
+- Each command should have both a test file and a documentation file
+- Test files should follow the naming convention: `test_<command_name>.tcl`
+- Documentation files should follow the naming convention: `<command_name>.md`
