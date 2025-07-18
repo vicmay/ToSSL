@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 80/189 (42.3%)
-- **Documentation Created**: 80/189 (42.3%)
+- **Tests Created**: 81/189 (42.9%)
+- **Documentation Created**: 81/189 (42.9%)
 
 ## Command Status Tracking
 
@@ -121,7 +121,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::legacy::encrypt` | ✅ | tests/test_legacy_encrypt.tcl | ✅ | doc/legacy_encrypt.md | |
 | `::tossl::legacy::keygen` | ✅ | tests/test_legacy_keygen.tcl | ✅ | doc/legacy_keygen.md | |
 | `::tossl::legacy::decrypt` | ✅ | tests/test_legacy_decrypt.tcl | ✅ | doc/legacy_decrypt.md | Known issue: decryption fails for most algorithms |
-| `::tossl::rand::test` | ❌ | | ❌ | | |
+| `::tossl::rand::test` | ✅ | tests/test_rand_test.tcl | ✅ | doc/rand_test.md | |
 | `::tossl::rand::key` | ❌ | | ❌ | | |
 | `::tossl::rand::iv` | ❌ | | ❌ | | |
 | `::tossl::rand::bytes` | ❌ | | ❌ | | |
