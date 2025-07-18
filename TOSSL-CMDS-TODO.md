@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 118/190 (62.1%)
-- **Documentation Created**: 118/190 (62.1%)
+- **Tests Created**: 123/190 (64.7%)
+- **Documentation Created**: 123/190 (64.7%)
 
 ## Command Status Tracking
 
@@ -216,27 +216,4 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::hex::decode` | ❌ | | ❌ | | |
 | `::tossl::hex::encode` | ❌ | | ❌ | | |
 | `::tossl::x25519::derive` | ❌ | | ❌ | | |
-| `::tossl::x25519::generate` | ❌ | | ❌ | | |
-| `::tossl::rsa::verify` | ❌ | | ❌ | | |
-| `::tossl::rsa::sign` | ❌ | | ❌ | | |
-| `::tossl::rsa::encrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::components` | ❌ | | ❌ | | |
-| `::tossl::rsa::validate` | ❌ | | ❌ | | |
-| `::tossl::rsa::decrypt` | ❌ | | ❌ | | |
-| `::tossl::rsa::generate` | ❌ | | ❌ | | |
-| `::tossl::ed25519::verify` | ❌ | | ❌ | | |
-| `::tossl::ed25519::sign` | ❌ | | ❌ | | |
-| `::tossl::ed25519::generate` | ❌ | | ❌ | | |
-
-## Legend
-- ❌ = Not started
-- 🔄 = In progress  
-- ✅ = Completed
-- ⚠️ = Issues/Problems
-
-## Notes
-- Test files should be created in the `tests/` directory
-- Documentation files should be created in the `doc/` directory
-- Each command should have both a test file and a documentation file
-- Test files should follow the naming convention: `test_<command_name>.tcl`
-- Documentation files should follow the naming convention: `<command_name>.md`
+| `
