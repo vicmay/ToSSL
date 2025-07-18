@@ -136,7 +136,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::x509::create` | ✅ | tests/test_x509_create.tcl | ✅ | doc/x509_create.md | |
 | `::tossl::x509::modify` | ✅ | tests/test_x509_modify.tcl | ✅ | doc/x509_modify.md | |
 | `::tossl::x509::verify` | ✅ | tests/test_x509_verify.tcl | ✅ | doc/x509_verify.md | |
-| `::tossl::x509::validate` | ❌ | | ❌ | | |
+| `::tossl::x509::validate` | ✅ | tests/test_x509_validate.tcl | ✅ | doc/x509_validate.md | |
 | `::tossl::x509::parse` | ❌ | | ❌ | | |
 | `::tossl::acme::cleanup_dns` | ❌ | | ❌ | | |
 | `::tossl::acme::dns01_challenge` | ❌ | | ❌ | | |
