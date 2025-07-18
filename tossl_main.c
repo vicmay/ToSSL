@@ -374,6 +374,69 @@ int FipsStatusCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     return TCL_OK;
 } 
 
+// Context structure for algorithm enumeration
+struct AlgorithmListCtx {
+    Tcl_Interp *interp;
+    Tcl_Obj *list;
+    const char *type;
+};
+
+// Callback for digest enumeration
+static void digest_list_cb(EVP_MD *md, void *arg) {
+    struct AlgorithmListCtx *ctx = (struct AlgorithmListCtx *)arg;
+    if (strcmp(ctx->type, "digest") == 0) {
+        const char *name = EVP_MD_get0_name(md);
+        if (name) {
+            // Check for duplicates
+            int list_len;
+            Tcl_ListObjLength(ctx->interp, ctx->list, &list_len);
+            int found = 0;
+            
+            for (int i = 0; i < list_len; i++) {
+                Tcl_Obj *element;
+                Tcl_ListObjIndex(ctx->interp, ctx->list, i, &element);
+                const char *existing_name = Tcl_GetString(element);
+                if (strcmp(name, existing_name) == 0) {
+                    found = 1;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                Tcl_ListObjAppendElement(ctx->interp, ctx->list, Tcl_NewStringObj(name, -1));
+            }
+        }
+    }
+}
+
+// Callback for cipher enumeration
+static void cipher_list_cb(EVP_CIPHER *cipher, void *arg) {
+    struct AlgorithmListCtx *ctx = (struct AlgorithmListCtx *)arg;
+    if (strcmp(ctx->type, "cipher") == 0) {
+        const char *name = EVP_CIPHER_get0_name(cipher);
+        if (name) {
+            // Check for duplicates
+            int list_len;
+            Tcl_ListObjLength(ctx->interp, ctx->list, &list_len);
+            int found = 0;
+            
+            for (int i = 0; i < list_len; i++) {
+                Tcl_Obj *element;
+                Tcl_ListObjIndex(ctx->interp, ctx->list, i, &element);
+                const char *existing_name = Tcl_GetString(element);
+                if (strcmp(name, existing_name) == 0) {
+                    found = 1;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                Tcl_ListObjAppendElement(ctx->interp, ctx->list, Tcl_NewStringObj(name, -1));
+            }
+        }
+    }
+}
+
 int AlgorithmListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
     if (objc != 2) {
         Tcl_WrongNumArgs(interp, 1, objv, "type");
@@ -381,24 +444,51 @@ int AlgorithmListCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     }
     
     const char *type = Tcl_GetString(objv[1]);
-    if (strcmp(type, "digest") == 0) {
-        Tcl_SetResult(interp, (char *)"sha1, sha256, sha384, sha512, md5", TCL_STATIC);
-    } else if (strcmp(type, "cipher") == 0) {
-        Tcl_SetResult(interp, (char *)"aes-128-cbc, aes-256-cbc, aes-128-gcm, aes-256-gcm", TCL_STATIC);
-    } else if (strcmp(type, "mac") == 0) {
-        Tcl_SetResult(interp, (char *)"hmac, cmac", TCL_STATIC);
-    } else if (strcmp(type, "kdf") == 0) {
-        Tcl_SetResult(interp, (char *)"pbkdf2, scrypt, argon2", TCL_STATIC);
-    } else if (strcmp(type, "keyexch") == 0) {
-        Tcl_SetResult(interp, (char *)"ecdh, dh", TCL_STATIC);
-    } else if (strcmp(type, "signature") == 0) {
-        Tcl_SetResult(interp, (char *)"rsa, dsa, ecdsa, ed25519, ed448", TCL_STATIC);
-    } else if (strcmp(type, "asym_cipher") == 0) {
-        Tcl_SetResult(interp, (char *)"rsa, sm2", TCL_STATIC);
-    } else {
-        Tcl_SetResult(interp, (char *)"Unknown algorithm type", TCL_STATIC);
+    
+    // Validate algorithm type
+    if (strcmp(type, "digest") != 0 && strcmp(type, "cipher") != 0 && 
+        strcmp(type, "mac") != 0 && strcmp(type, "kdf") != 0 && 
+        strcmp(type, "keyexch") != 0 && strcmp(type, "signature") != 0 && 
+        strcmp(type, "asym_cipher") != 0) {
+        Tcl_SetResult(interp, "Unknown algorithm type", TCL_STATIC);
         return TCL_ERROR;
     }
+    
+    Tcl_Obj *list = Tcl_NewListObj(0, NULL);
+    
+    if (strcmp(type, "digest") == 0) {
+        // Use OpenSSL's digest enumeration
+        struct AlgorithmListCtx ctx = { interp, list, type };
+        EVP_MD_do_all_provided(NULL, digest_list_cb, &ctx);
+    } else if (strcmp(type, "cipher") == 0) {
+        // Use OpenSSL's cipher enumeration
+        struct AlgorithmListCtx ctx = { interp, list, type };
+        EVP_CIPHER_do_all_provided(NULL, cipher_list_cb, &ctx);
+    } else {
+        // For other types, return known algorithms (these don't have direct OpenSSL enumeration APIs)
+        if (strcmp(type, "mac") == 0) {
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("hmac", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("cmac", -1));
+        } else if (strcmp(type, "kdf") == 0) {
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("pbkdf2", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("scrypt", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("argon2", -1));
+        } else if (strcmp(type, "keyexch") == 0) {
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("ecdh", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("dh", -1));
+        } else if (strcmp(type, "signature") == 0) {
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("rsa", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("dsa", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("ecdsa", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("ed25519", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("ed448", -1));
+        } else if (strcmp(type, "asym_cipher") == 0) {
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("rsa", -1));
+            Tcl_ListObjAppendElement(interp, list, Tcl_NewStringObj("sm2", -1));
+        }
+    }
+    
+    Tcl_SetObjResult(interp, list);
     return TCL_OK;
 }
 
