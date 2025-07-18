@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 123/190 (64.7%)
-- **Documentation Created**: 123/190 (64.7%)
+- **Tests Created**: 124/190 (65.3%)
+- **Documentation Created**: 124/190 (65.3%)
 
 ## Command Status Tracking
 
@@ -161,7 +161,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::x448::generate` | ✅ | tests/test_x448.tcl | ✅ | doc/x448_generate.md | Modern OpenSSL API, OpenSSL 3.x compatible |
 | `::tossl::base64url::decode` | ✅ | tests/test_base64url_decode.tcl | ✅ | doc/base64url_decode.md | RFC 4648, robust error handling |
 | `::tossl::base64url::encode` | ✅ | tests/test_base64url_encode.tcl | ✅ | doc/base64url_encode.md | RFC 4648, no padding, URL-safe |
-| `::tossl::pfs::test` | ❌ | | ❌ | | |
+| `::tossl::pfs::test` | ✅ | tests/test_pfs_test.tcl | ✅ | doc/pfs_test.md | |
 | `::tossl::ed448::verify` | ❌ | | ❌ | | |
 | `::tossl::ed448::sign` | ❌ | | ❌ | | |
 | `::tossl::ed448::generate` | ❌ | | ❌ | | |
@@ -216,4 +216,3 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::hex::decode` | ❌ | | ❌ | | |
 | `::tossl::hex::encode` | ❌ | | ❌ | | |
 | `::tossl::x25519::derive` | ❌ | | ❌ | | |
-| `
