@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 84/189 (44.4%)
-- **Documentation Created**: 84/189 (44.4%)
+- **Tests Created**: 85/189 (45.0%)
+- **Documentation Created**: 85/189 (45.0%)
 
 ## Command Status Tracking
 
@@ -125,7 +125,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::rand::key` | ✅ | tests/test_rand_key.tcl | ✅ | doc/rand_key.md | -len parameter parsed but ignored |
 | `::tossl::rand::iv` | ✅ | tests/test_rand_iv.tcl | ✅ | doc/rand_iv.md | |
 | `::tossl::rand::bytes` | ✅ | tests/test_randbytes.tcl | ✅ | doc/randbytes.md | |
-| `::tossl::kdf::argon2` | ❌ | | ❌ | | |
+| `::tossl::kdf::argon2` | ✅ | tests/test_kdf_argon2.tcl | ✅ | doc/kdf_argon2.md | Known issue: implementation uses scrypt instead of Argon2 |
 | `::tossl::kdf::scrypt` | ❌ | | ❌ | | |
 | `::tossl::kdf::pbkdf2` | ❌ | | ❌ | | |
 | `::tossl::cert::status` | ❌ | | ❌ | | |
