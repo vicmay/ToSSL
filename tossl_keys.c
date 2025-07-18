@@ -358,8 +358,36 @@ int KeyGetPubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     
     BUF_MEM *bptr;
     BIO_get_mem_ptr(out_bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
-    
+    // Patch: For Ed448/Ed25519, verify the PEM is valid and type is correct
+    char *pub_pem = bptr->data;
+    BIO *pub_bio = BIO_new_mem_buf(pub_pem, bptr->length);
+    EVP_PKEY *pubkey_check = PEM_read_bio_PUBKEY(pub_bio, NULL, NULL, NULL);
+    if (!pubkey_check) {
+        BIO_free(pub_bio);
+        BIO_free(out_bio);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Failed to parse extracted public key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    int type = EVP_PKEY_id(pubkey_check);
+    EVP_PKEY_free(pubkey_check);
+    BIO_free(pub_bio);
+    if (EVP_PKEY_id(pkey) == EVP_PKEY_ED448 && type != EVP_PKEY_ED448) {
+        BIO_free(out_bio);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Extracted public key is not valid Ed448", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    if (EVP_PKEY_id(pkey) == EVP_PKEY_ED25519 && type != EVP_PKEY_ED25519) {
+        BIO_free(out_bio);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Extracted public key is not valid Ed25519", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    Tcl_SetResult(interp, pub_pem, TCL_VOLATILE);
     BIO_free(out_bio);
     EVP_PKEY_free(pkey);
     BIO_free(bio);

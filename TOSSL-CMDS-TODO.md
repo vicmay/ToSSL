@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 124/190 (65.3%)
-- **Documentation Created**: 124/190 (65.3%)
+- **Tests Created**: 125/190 (65.8%)
+- **Documentation Created**: 125/190 (65.8%)
 
 ## Command Status Tracking
 
@@ -162,7 +162,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::base64url::decode` | ✅ | tests/test_base64url_decode.tcl | ✅ | doc/base64url_decode.md | RFC 4648, robust error handling |
 | `::tossl::base64url::encode` | ✅ | tests/test_base64url_encode.tcl | ✅ | doc/base64url_encode.md | RFC 4648, no padding, URL-safe |
 | `::tossl::pfs::test` | ✅ | tests/test_pfs_test.tcl | ✅ | doc/pfs_test.md | |
-| `::tossl::ed448::verify` | ❌ | | ❌ | | |
+| `::tossl::ed448::verify` | ✅ | tests/test_ed448_verify.tcl | ✅ | doc/ed448_verify.md | |
 | `::tossl::ed448::sign` | ❌ | | ❌ | | |
 | `::tossl::ed448::generate` | ❌ | | ❌ | | |
 | `::tossl::signature::validate` | ❌ | | ❌ | | |
@@ -201,18 +201,4 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::keywrap::unwrap` | ❌ | | ❌ | | |
 | `::tossl::keywrap::algorithms` | ❌ | | ❌ | | |
 | `::tossl::keywrap::wrap` | ❌ | | ❌ | | |
-| `::tossl::cipher::analyze` | ❌ | | ❌ | | |
-| `::tossl::cipher::list` | ❌ | | ❌ | | |
-| `::tossl::cipher::info` | ❌ | | ❌ | | |
-| `::tossl::ca::sign` | ❌ | | ❌ | | |
-| `::tossl::ca::generate` | ❌ | | ❌ | | |
-| `::tossl::jwt::decode` | ❌ | | ❌ | | |
-| `::tossl::jwt::create` | ❌ | | ❌ | | |
-| `::tossl::jwt::verify` | ❌ | | ❌ | | |
-| `::tossl::jwt::validate` | ❌ | | ❌ | | |
-| `::tossl::jwt::extract_claims` | ❌ | | ❌ | | |
-| `::tossl::base64::decode` | ❌ | | ❌ | | |
-| `::tossl::base64::encode` | ❌ | | ❌ | | |
-| `::tossl::hex::decode` | ❌ | | ❌ | | |
-| `::tossl::hex::encode` | ❌ | | ❌ | | |
-| `::tossl::x25519::derive` | ❌ | | ❌ | | |
+| `::tossl::cipher::analyze`

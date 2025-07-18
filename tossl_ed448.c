@@ -64,7 +64,8 @@ int Ed448SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     }
     
     const char *key_data = Tcl_GetString(objv[1]);
-    const char *data = Tcl_GetString(objv[2]);
+    int data_len;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[2], &data_len);
     
     EVP_PKEY *pkey = NULL;
     BIO *bio = BIO_new_mem_buf(key_data, -1);
@@ -103,7 +104,7 @@ int Ed448SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     }
     
     size_t sig_len;
-    if (EVP_DigestSign(ctx, NULL, &sig_len, (const unsigned char*)data, strlen(data)) <= 0) {
+    if (EVP_DigestSign(ctx, NULL, &sig_len, data, data_len) <= 0) {
         EVP_MD_CTX_free(ctx);
         EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "Failed to calculate signature length", TCL_STATIC);
@@ -118,7 +119,7 @@ int Ed448SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    if (EVP_DigestSign(ctx, sig, &sig_len, (const unsigned char*)data, strlen(data)) <= 0) {
+    if (EVP_DigestSign(ctx, sig, &sig_len, data, data_len) <= 0) {
         free(sig);
         EVP_MD_CTX_free(ctx);
         EVP_PKEY_free(pkey);
@@ -143,8 +144,9 @@ int Ed448VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
     }
     
     const char *key_data = Tcl_GetString(objv[1]);
-    const char *data = Tcl_GetString(objv[2]);
-    const char *sig_data = Tcl_GetString(objv[3]);
+    int data_len, sig_len;
+    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[2], &data_len);
+    unsigned char *sig_data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &sig_len);
     
     EVP_PKEY *pkey = NULL;
     BIO *bio = BIO_new_mem_buf(key_data, -1);
@@ -182,8 +184,7 @@ int Ed448VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         return TCL_ERROR;
     }
     
-    int result = EVP_DigestVerify(ctx, (const unsigned char*)sig_data, strlen(sig_data),
-                                 (const unsigned char*)data, strlen(data));
+    int result = EVP_DigestVerify(ctx, sig_data, sig_len, data, data_len);
     
     EVP_MD_CTX_free(ctx);
     EVP_PKEY_free(pkey);
