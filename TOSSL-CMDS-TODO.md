@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 132/190 (69.5%)
-- **Documentation Created**: 132/190 (69.5%)
+- **Tests Created**: 133/190 (70.0%)
+- **Documentation Created**: 133/190 (70.0%)
 
 ## Command Status Tracking
 
@@ -171,7 +171,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ssl::set_protocol_version` | ✅ | tests/test_ssl_set_protocol_version.tcl | ✅ | doc/ssl_set_protocol_version.md | |
 | `::tossl::ssl::set_alpn_callback` | ✅ | tests/test_ssl_set_alpn_callback.tcl | ✅ | doc/ssl_set_alpn_callback.md | |
 | `::tossl::ssl::verify_cert_pinning` | ✅ | tests/test_ssl_verify_cert_pinning.tcl | ✅ | doc/ssl_verify_cert_pinning.md | |
-| `::tossl::ssl::read` | ❌ | | ❌ | | |
+| `::tossl::ssl::read` | ✅ | tests/test_ssl_read.tcl | ✅ | doc/ssl_read.md | |
 | `::tossl::ssl::check_pfs` | ❌ | | ❌ | | |
 | `::tossl::ssl::cipher_info` | ❌ | | ❌ | | |
 | `::tossl::ssl::get_peer_cert` | ❌ | | ❌ | | |
