@@ -152,7 +152,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pbe::algorithms` | ✅ | tests/test_pbe_algorithms.tcl | ✅ | doc/pbe_algorithms.md | |
 | `::tossl::pbe::saltgen` | ✅ | tests/test_pbe_saltgen.tcl | ✅ | doc/pbe_saltgen.md | |
 | `::tossl::pbe::decrypt` | ✅ | tests/test_pbe_decrypt.tcl | ✅ | doc/pbe_decrypt.md | Known strlen() bug affects binary data |
-| `::tossl::pkcs7::info` | ❌ | | ❌ | | |
+| `::tossl::pkcs7::info` | ✅ | tests/test_pkcs7_info.tcl | ✅ | doc/pkcs7_info.md | Basic functionality works, parsing valid PKCS7 data fails due to encrypt implementation issue |
 | `::tossl::pkcs7::verify` | ❌ | | ❌ | | |
 | `::tossl::pkcs7::sign` | ❌ | | ❌ | | |
 | `::tossl::pkcs7::encrypt` | ❌ | | ❌ | | |
