@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 125/190 (65.8%)
-- **Documentation Created**: 125/190 (65.8%)
+- **Tests Created**: 126/190 (66.3%)
+- **Documentation Created**: 126/190 (66.3%)
 
 ## Command Status Tracking
 
@@ -163,7 +163,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::base64url::encode` | ✅ | tests/test_base64url_encode.tcl | ✅ | doc/base64url_encode.md | RFC 4648, no padding, URL-safe |
 | `::tossl::pfs::test` | ✅ | tests/test_pfs_test.tcl | ✅ | doc/pfs_test.md | |
 | `::tossl::ed448::verify` | ✅ | tests/test_ed448_verify.tcl | ✅ | doc/ed448_verify.md | |
-| `::tossl::ed448::sign` | ❌ | | ❌ | | |
+| `::tossl::ed448::sign` | ✅ | tests/test_ed448_sign.tcl | ✅ | doc/ed448_sign.md | |
 | `::tossl::ed448::generate` | ❌ | | ❌ | | |
 | `::tossl::signature::validate` | ❌ | | ❌ | | |
 | `::tossl::ssl::verify_peer` | ❌ | | ❌ | | |
