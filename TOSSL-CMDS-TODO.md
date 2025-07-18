@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 127/190 (66.8%)
-- **Documentation Created**: 127/190 (66.8%)
+- **Tests Created**: 128/190 (67.4%)
+- **Documentation Created**: 128/190 (67.4%)
 
 ## Command Status Tracking
 
@@ -165,40 +165,5 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ed448::verify` | ✅ | tests/test_ed448_verify.tcl | ✅ | doc/ed448_verify.md | |
 | `::tossl::ed448::sign` | ✅ | tests/test_ed448_sign.tcl | ✅ | doc/ed448_sign.md | |
 | `::tossl::ed448::generate` | ✅ | tests/test_ed448_generate.tcl | ✅ | doc/ed448_generate.md | |
-| `::tossl::signature::validate` | ❌ | | ❌ | | |
-| `::tossl::ssl::verify_peer` | ❌ | | ❌ | | |
-| `::tossl::ssl::accept` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_protocol_version` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_alpn_callback` | ❌ | | ❌ | | |
-| `::tossl::ssl::verify_cert_pinning` | ❌ | | ❌ | | |
-| `::tossl::ssl::read` | ❌ | | ❌ | | |
-| `::tossl::ssl::check_pfs` | ❌ | | ❌ | | |
-| `::tossl::ssl::cipher_info` | ❌ | | ❌ | | |
-| `::tossl::ssl::get_peer_cert` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_ocsp_stapling` | ❌ | | ❌ | | |
-| `::tossl::ssl::connect` | ❌ | | ❌ | | |
-| `::tossl::ssl::set_cert_pinning` | ❌ | | ❌ | | |
-| `::tossl::ssl::write` | ❌ | | ❌ | | |
-| `::tossl::ssl::alpn_selected` | ❌ | | ❌ | | |
-| `::tossl::ssl::socket_info` | ❌ | | ❌ | | |
-| `::tossl::ssl::context` | ❌ | | ❌ | | |
-| `::tossl::ssl::check_cert_status` | ❌ | | ❌ | | |
-| `::tossl::ssl::close` | ❌ | | ❌ | | |
-| `::tossl::ssl::protocol_version` | ❌ | | ❌ | | |
-| `::tossl::sm2::encrypt` | ❌ | | ❌ | | |
-| `::tossl::sm2::verify` | ❌ | | ❌ | | |
-| `::tossl::sm2::sign` | ❌ | | ❌ | | |
-| `::tossl::sm2::decrypt` | ❌ | | ❌ | | |
-| `::tossl::sm2::generate` | ❌ | | ❌ | | |
-| `::tossl::asn1::sequence_create` | ❌ | | ❌ | | |
-| `::tossl::asn1::text_to_oid` | ❌ | | ❌ | | |
-| `::tossl::asn1::oid_to_text` | ❌ | | ❌ | | |
-| `::tossl::asn1::encode` | ❌ | | ❌ | | |
-| `::tossl::asn1::set_create` | ❌ | | ❌ | | |
-| `::tossl::asn1::parse` | ❌ | | ❌ | | |
-| `::tossl::keywrap::info` | ❌ | | ❌ | | |
-| `::tossl::keywrap::kekgen` | ❌ | | ❌ | | |
-| `::tossl::keywrap::unwrap` | ❌ | | ❌ | | |
-| `::tossl::keywrap::algorithms` | ❌ | | ❌ | | |
-| `::tossl::keywrap::wrap` | ❌ | | ❌ | | |
-| `::tossl::cipher::analyze`
+| `::tossl::signature::validate` | ✅ | tests/test_signature_validate.tcl | ✅ | doc/signature_validate.md | Now fully working |
+| `::tossl::ssl::verify_peer`

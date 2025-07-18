@@ -1859,35 +1859,23 @@ int SignatureValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
         Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     for (int i = 0; i < sig_len; i++) {
         sscanf(signature_hex + i * 2, "%2hhx", &signature[i]);
     }
     
-    // Create verification context
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
-    if (!ctx) {
+    // Set up digest context for verification
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
         free(signature);
         EVP_PKEY_free(pkey);
         BIO_free(bio);
-        Tcl_SetResult(interp, "Failed to create verification context", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to create digest context", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    // Initialize verification
-    if (EVP_PKEY_verify_init(ctx) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
-        free(signature);
-        EVP_PKEY_free(pkey);
-        BIO_free(bio);
-        Tcl_SetResult(interp, "Failed to initialize verification", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    // Set digest algorithm
     const EVP_MD *md = EVP_get_digestbyname(algorithm);
     if (!md) {
-        EVP_PKEY_CTX_free(ctx);
+        EVP_MD_CTX_free(mdctx);
         free(signature);
         EVP_PKEY_free(pkey);
         BIO_free(bio);
@@ -1895,27 +1883,36 @@ int SignatureValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_CTX_set_signature_md(ctx, md) <= 0) {
-        EVP_PKEY_CTX_free(ctx);
+    int rc = EVP_DigestVerifyInit(mdctx, NULL, md, NULL, pkey);
+    if (rc <= 0) {
+        EVP_MD_CTX_free(mdctx);
         free(signature);
         EVP_PKEY_free(pkey);
         BIO_free(bio);
-        Tcl_SetResult(interp, "Failed to set digest algorithm", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to initialize verification", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    // Verify signature
-    int result = EVP_PKEY_verify(ctx, signature, sig_len, 
-                                 (const unsigned char*)data, strlen(data));
+    rc = EVP_DigestVerifyUpdate(mdctx, data, strlen(data));
+    if (rc <= 0) {
+        EVP_MD_CTX_free(mdctx);
+        free(signature);
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Failed to update digest for verification", TCL_STATIC);
+        return TCL_ERROR;
+    }
     
-    EVP_PKEY_CTX_free(ctx);
+    rc = EVP_DigestVerifyFinal(mdctx, signature, sig_len);
+    
+    EVP_MD_CTX_free(mdctx);
     free(signature);
     EVP_PKEY_free(pkey);
     BIO_free(bio);
     
-    Tcl_SetResult(interp, result == 1 ? "valid" : "invalid", TCL_STATIC);
+    Tcl_SetResult(interp, rc == 1 ? "valid" : "invalid", TCL_STATIC);
     return TCL_OK;
-} 
+}
 
 /* Hardware acceleration detection */
 int
