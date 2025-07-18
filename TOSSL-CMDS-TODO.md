@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 92/189 (48.7%)
-- **Documentation Created**: 92/189 (48.7%)
+- **Tests Created**: 93/189 (49.2%)
+- **Documentation Created**: 93/189 (49.2%)
 
 ## Command Status Tracking
 
@@ -133,9 +133,9 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::hardware::detect` | ✅ | tests/test_hardware_detect.tcl | ✅ | doc/hardware_detect.md | |
 | `::tossl::x509::time_validate` | ✅ | tests/test_x509_time_validate.tcl | ✅ | doc/x509_time_validate.md | |
 | `::tossl::x509::fingerprint` | ✅ | tests/test_x509_fingerprint.tcl | ✅ | doc/x509_fingerprint.md | |
-| `::tossl::x509::create` | ❌ | | ❌ | | |
-| `::tossl::x509::modify` | ❌ | | ❌ | | |
-| `::tossl::x509::verify` | ❌ | | ❌ | | |
+| `::tossl::x509::create` | ✅ | tests/test_x509_create.tcl | ✅ | doc/x509_create.md | |
+| `::tossl::x509::modify` | ✅ | tests/test_x509_modify.tcl | ✅ | doc/x509_modify.md | |
+| `::tossl::x509::verify` | ✅ | tests/test_x509_verify.tcl | ✅ | doc/x509_verify.md | |
 | `::tossl::x509::validate` | ❌ | | ❌ | | |
 | `::tossl::x509::parse` | ❌ | | ❌ | | |
 | `::tossl::acme::cleanup_dns` | ❌ | | ❌ | | |

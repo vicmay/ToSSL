@@ -125,86 +125,104 @@ int X509CtExtensionsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
 
 // X.509 certificate modification command
 int X509ModifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc < 3) {
-        Tcl_WrongNumArgs(interp, 1, objv, "certificate field value ?field value? ...");
+    (void)cd;
+    // Accept: -cert <pem> -add_extension <oid> <value> <critical> ?-remove_extension <oid>?
+    if (objc != 7 && objc != 9) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-cert pem -add_extension oid value critical ?-remove_extension oid?");
         return TCL_ERROR;
     }
-    
-    const char *cert_data = Tcl_GetString(objv[1]);
-    X509 *cert = NULL;
-    BIO *bio = BIO_new_mem_buf(cert_data, -1);
-    
-    if (!bio) {
-        Tcl_SetResult(interp, "Failed to create BIO", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    cert = PEM_read_bio_X509(bio, NULL, NULL, NULL);
-    BIO_free(bio);
-    
-    if (!cert) {
-        Tcl_SetResult(interp, "Failed to parse certificate", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    // Process field modifications
-    for (int i = 2; i < objc; i += 2) {
-        if (i + 1 >= objc) {
-            X509_free(cert);
-            Tcl_SetResult(interp, "Odd number of arguments for field-value pairs", TCL_STATIC);
+    const char *cert_pem = NULL, *add_oid = NULL, *add_value = NULL, *remove_oid = NULL;
+    int cert_len = 0;
+    int add_critical = 0;
+    int i = 1;
+    while (i < objc) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-cert") == 0 && (i+1 < objc)) {
+            cert_pem = Tcl_GetStringFromObj(objv[i+1], &cert_len);
+            i += 2;
+        } else if (strcmp(opt, "-add_extension") == 0 && (i+3 < objc)) {
+            add_oid = Tcl_GetString(objv[i+1]);
+            add_value = Tcl_GetString(objv[i+2]);
+            const char *critical_str = Tcl_GetString(objv[i+3]);
+            add_critical = (strcmp(critical_str, "true") == 0 || strcmp(critical_str, "1") == 0);
+            i += 4;
+        } else if (strcmp(opt, "-remove_extension") == 0 && (i+1 < objc)) {
+            remove_oid = Tcl_GetString(objv[i+1]);
+            i += 2;
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
             return TCL_ERROR;
         }
-        
-        const char *field = Tcl_GetString(objv[i]);
-        const char *value = Tcl_GetString(objv[i + 1]);
-        
-        if (strcmp(field, "subject") == 0) {
-            X509_NAME *name = X509_NAME_new();
-            if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)value, -1, -1, 0) <= 0) {
-                X509_NAME_free(name);
-                X509_free(cert);
-                Tcl_SetResult(interp, "Failed to set subject", TCL_STATIC);
-                return TCL_ERROR;
+    }
+    if (!cert_pem || !add_oid) {
+        Tcl_SetResult(interp, "Missing required options", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Parse certificate
+    BIO *cert_bio = BIO_new_mem_buf((void*)cert_pem, cert_len);
+    X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
+    if (!cert) {
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse certificate", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Remove extension if specified
+    if (remove_oid) {
+        int nid = OBJ_txt2nid(remove_oid);
+        if (nid == NID_undef) {
+            X509_free(cert);
+            BIO_free(cert_bio);
+            Tcl_SetResult(interp, "Unknown extension OID", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        int ext_idx = X509_get_ext_by_NID(cert, nid, -1);
+        if (ext_idx >= 0) {
+            X509_EXTENSION *ext = X509_get_ext(cert, ext_idx);
+            if (ext) {
+                X509_delete_ext(cert, ext_idx);
+                X509_EXTENSION_free(ext);
             }
-            X509_set_subject_name(cert, name);
-            X509_NAME_free(name);
-        } else if (strcmp(field, "issuer") == 0) {
-            X509_NAME *name = X509_NAME_new();
-            if (X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)value, -1, -1, 0) <= 0) {
-                X509_NAME_free(name);
-                X509_free(cert);
-                Tcl_SetResult(interp, "Failed to set issuer", TCL_STATIC);
-                return TCL_ERROR;
-            }
-            X509_set_issuer_name(cert, name);
-            X509_NAME_free(name);
         }
     }
-    
-    // Write modified certificate
-    bio = BIO_new(BIO_s_mem());
-    if (!bio) {
+    // Add extension
+    int nid = OBJ_txt2nid(add_oid);
+    if (nid == NID_undef) {
         X509_free(cert);
-        Tcl_SetResult(interp, "Failed to create BIO", TCL_STATIC);
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "Unknown extension OID", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    if (PEM_write_bio_X509(bio, cert) <= 0) {
-        BIO_free(bio);
+    X509V3_CTX ctx;
+    X509V3_set_ctx_nodb(&ctx);
+    X509V3_set_ctx(&ctx, cert, cert, NULL, NULL, 0);
+    X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, &ctx, nid, (char*)add_value);
+    if (!ext) {
         X509_free(cert);
-        Tcl_SetResult(interp, "Failed to write certificate", TCL_STATIC);
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create extension", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    BUF_MEM *bptr;
-    BIO_get_mem_ptr(bio, &bptr);
-    
-    Tcl_Obj *result = Tcl_NewStringObj(bptr->data, bptr->length);
-    
-    BIO_free(bio);
+    if (add_critical) {
+        X509_EXTENSION_set_critical(ext, 1);
+    }
+    if (!X509_add_ext(cert, ext, -1)) {
+        X509_EXTENSION_free(ext);
+        X509_free(cert);
+        BIO_free(cert_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to add extension", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    // Output modified certificate
+    BIO *out = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509(out, cert);
+    char *pem = NULL;
+    long pemlen = BIO_get_mem_data(out, &pem);
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(pem, pemlen));
+    // Cleanup
+    BIO_free(out);
+    X509_EXTENSION_free(ext);
     X509_free(cert);
-    
-    Tcl_SetObjResult(interp, result);
+    BIO_free(cert_bio);
     return TCL_OK;
 }
 
