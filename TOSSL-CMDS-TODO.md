@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 99/189 (52.4%)
-- **Documentation Created**: 99/189 (52.4%)
+- **Tests Created**: 100/189 (52.9%)
+- **Documentation Created**: 100/189 (52.9%)
 
 ## Command Status Tracking
 
@@ -143,7 +143,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::acme::create_account` | ✅ | tests/test_acme_create_account.tcl | ✅ | doc/acme_create_account.md | |
 | `::tossl::acme::directory` | ✅ | tests/test_acme_directory.tcl | ✅ | doc/acme_directory.md | |
 | `::tossl::acme::create_order` | ✅ | tests/test_acme_create_order.tcl | ✅ | doc/acme_create_order.md | |
-| `::tossl::time::convert` | ❌ | | ❌ | | |
+| `::tossl::time::convert` | ✅ | tests/test_time_convert.tcl | ✅ | doc/time_convert.md | |
 | `::tossl::time::compare` | ❌ | | ❌ | | |
 | `::tossl::algorithm::info` | ❌ | | ❌ | | |
 | `::tossl::algorithm::list` | ❌ | | ❌ | | |
