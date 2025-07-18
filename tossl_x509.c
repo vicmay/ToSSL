@@ -387,11 +387,11 @@ int X509FingerprintCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         return TCL_ERROR;
     }
     
-    char hex_fingerprint[EVP_MAX_MD_SIZE * 2 + 1];
+    char *hex_fingerprint = Tcl_Alloc(EVP_MAX_MD_SIZE * 2 + 1);
     bin2hex(fingerprint, fingerprint_len, hex_fingerprint);
     
     X509_free(cert);
-    Tcl_SetResult(interp, hex_fingerprint, TCL_STATIC);
+    Tcl_SetResult(interp, hex_fingerprint, TCL_DYNAMIC);
     return TCL_OK;
 }
 
