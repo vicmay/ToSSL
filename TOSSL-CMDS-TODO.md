@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 78/189 (41.3%)
-- **Documentation Created**: 78/189 (41.3%)
+- **Tests Created**: 79/189 (41.8%)
+- **Documentation Created**: 79/189 (41.8%)
 
 ## Command Status Tracking
 
@@ -119,7 +119,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::legacy::list` | ✅ | tests/test_legacy_list.tcl | ✅ | doc/legacy_list.md | |
 | `::tossl::legacy::ivgen` | ✅ | tests/test_legacy_ivgen.tcl | ✅ | doc/legacy_ivgen.md | |
 | `::tossl::legacy::encrypt` | ✅ | tests/test_legacy_encrypt.tcl | ✅ | doc/legacy_encrypt.md | |
-| `::tossl::legacy::keygen` | ❌ | | ❌ | | |
+| `::tossl::legacy::keygen` | ✅ | tests/test_legacy_keygen.tcl | ✅ | doc/legacy_keygen.md | |
 | `::tossl::legacy::decrypt` | ❌ | | ❌ | | |
 | `::tossl::rand::test` | ❌ | | ❌ | | |
 | `::tossl::rand::key` | ❌ | | ❌ | | |
