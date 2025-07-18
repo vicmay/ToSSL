@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 86/189 (45.5%)
-- **Documentation Created**: 86/189 (45.5%)
+- **Tests Created**: 87/189 (46.0%)
+- **Documentation Created**: 87/189 (46.0%)
 
 ## Command Status Tracking
 
@@ -127,7 +127,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::rand::bytes` | ✅ | tests/test_randbytes.tcl | ✅ | doc/randbytes.md | |
 | `::tossl::kdf::argon2` | ✅ | tests/test_kdf_argon2.tcl | ✅ | doc/kdf_argon2.md | Known issue: implementation uses scrypt instead of Argon2 |
 | `::tossl::kdf::scrypt` | ✅ | tests/test_scrypt.tcl | ✅ | doc/scrypt.md | |
-| `::tossl::kdf::pbkdf2` | ❌ | | ❌ | | |
+| `::tossl::kdf::pbkdf2` | ✅ | tests/test_pbkdf2.tcl | ✅ | doc/pbkdf2.md | |
 | `::tossl::cert::status` | ❌ | | ❌ | | |
 | `::tossl::sidechannel::protect` | ❌ | | ❌ | | |
 | `::tossl::hardware::detect` | ❌ | | ❌ | | |
