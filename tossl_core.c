@@ -168,13 +168,27 @@ int Base64UrlEncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
     BIO_flush(bio);
     BUF_MEM *bptr;
     BIO_get_mem_ptr(bio, &bptr);
-    char *result = Tcl_Alloc(bptr->length + 1);
-    strcpy(result, bptr->data);
-    for (int i = 0; result[i]; i++) {
-        if (result[i] == '+') result[i] = '-';
-        else if (result[i] == '/') result[i] = '_';
+    // Copy base64 output to temp buffer, always null-terminate
+    size_t b64len = bptr->length;
+    char *temp = Tcl_Alloc(b64len + 1);
+    memcpy(temp, bptr->data, b64len);
+    temp[b64len] = '\0';
+    // Replace + with -, / with _
+    for (size_t i = 0; i < b64len; i++) {
+        if (temp[i] == '+') temp[i] = '-';
+        else if (temp[i] == '/') temp[i] = '_';
     }
+    // Find length without trailing '='
+    size_t len = b64len;
+    while (len > 0 && temp[len - 1] == '=') {
+        len--;
+    }
+    // Copy to result buffer
+    char *result = Tcl_Alloc(len + 1);
+    memcpy(result, temp, len);
+    result[len] = '\0';
     Tcl_SetResult(interp, result, TCL_DYNAMIC);
+    Tcl_Free(temp);
     BIO_free_all(bio);
     return TCL_OK;
 }

@@ -160,7 +160,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::x448::derive` | ✅ | tests/test_x448.tcl | ✅ | doc/x448_derive.md | Modern OpenSSL API, OpenSSL 3.x compatible |
 | `::tossl::x448::generate` | ✅ | tests/test_x448.tcl | ✅ | doc/x448_generate.md | Modern OpenSSL API, OpenSSL 3.x compatible |
 | `::tossl::base64url::decode` | ✅ | tests/test_base64url_decode.tcl | ✅ | doc/base64url_decode.md | RFC 4648, robust error handling |
-| `::tossl::base64url::encode` | ❌ | | ❌ | | |
+| `::tossl::base64url::encode` | ✅ | tests/test_base64url_encode.tcl | ✅ | doc/base64url_encode.md | RFC 4648, no padding, URL-safe |
 | `::tossl::pfs::test` | ❌ | | ❌ | | |
 | `::tossl::ed448::verify` | ❌ | | ❌ | | |
 | `::tossl::ed448::sign` | ❌ | | ❌ | | |
