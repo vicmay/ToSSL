@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 91/189 (48.1%)
-- **Documentation Created**: 91/189 (48.1%)
+- **Tests Created**: 92/189 (48.7%)
+- **Documentation Created**: 92/189 (48.7%)
 
 ## Command Status Tracking
 
@@ -132,7 +132,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::sidechannel::protect` | ✅ | tests/test_sidechannel_protect.tcl | ✅ | doc/sidechannel_protect.md | |
 | `::tossl::hardware::detect` | ✅ | tests/test_hardware_detect.tcl | ✅ | doc/hardware_detect.md | |
 | `::tossl::x509::time_validate` | ✅ | tests/test_x509_time_validate.tcl | ✅ | doc/x509_time_validate.md | |
-| `::tossl::x509::fingerprint` | ❌ | | ❌ | | |
+| `::tossl::x509::fingerprint` | ✅ | tests/test_x509_fingerprint.tcl | ✅ | doc/x509_fingerprint.md | |
 | `::tossl::x509::create` | ❌ | | ❌ | | |
 | `::tossl::x509::modify` | ❌ | | ❌ | | |
 | `::tossl::x509::verify` | ❌ | | ❌ | | |

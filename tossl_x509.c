@@ -210,93 +210,136 @@ int X509ModifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
 
 // X.509 certificate creation command
 int X509CreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 4) {
-        Tcl_WrongNumArgs(interp, 1, objv, "private_key subject days");
+    (void)cd;
+    if (objc < 11 || objc % 2 == 0) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-subject dn -issuer dn -pubkey pem -privkey pem -days n ?-san {dns1 dns2 ...}? ?-keyusage {usage1 usage2 ...}?");
         return TCL_ERROR;
     }
-    
-    const char *key_data = Tcl_GetString(objv[1]);
-    const char *subject_str = Tcl_GetString(objv[2]);
-    int days = atoi(Tcl_GetString(objv[3]));
-    
-    EVP_PKEY *pkey = NULL;
-    BIO *bio = BIO_new_mem_buf(key_data, -1);
-    
-    if (!bio) {
-        Tcl_SetResult(interp, "Failed to create BIO", TCL_STATIC);
+    const char *subject = NULL, *issuer = NULL, *pubkey = NULL, *privkey = NULL;
+    int pubkey_len = 0, privkey_len = 0, days = 0;
+    Tcl_Obj *sanListObj = NULL;
+    Tcl_Obj *keyUsageListObj = NULL;
+    for (int i = 1; i < objc; i += 2) {
+        const char *opt = Tcl_GetString(objv[i]);
+        if (strcmp(opt, "-subject") == 0) {
+            subject = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-issuer") == 0) {
+            issuer = Tcl_GetString(objv[i+1]);
+        } else if (strcmp(opt, "-pubkey") == 0) {
+            pubkey = Tcl_GetStringFromObj(objv[i+1], &pubkey_len);
+        } else if (strcmp(opt, "-privkey") == 0) {
+            privkey = Tcl_GetStringFromObj(objv[i+1], &privkey_len);
+        } else if (strcmp(opt, "-days") == 0) {
+            if (Tcl_GetIntFromObj(interp, objv[i+1], &days) != TCL_OK) return TCL_ERROR;
+        } else if (strcmp(opt, "-san") == 0) {
+            sanListObj = objv[i+1];
+        } else if (strcmp(opt, "-keyusage") == 0) {
+            keyUsageListObj = objv[i+1];
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    if (!subject || !issuer || !pubkey || !privkey || days <= 0) {
+        Tcl_SetResult(interp, "Missing required option", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-    BIO_free(bio);
-    
-    if (!pkey) {
-        Tcl_SetResult(interp, "Failed to parse private key", TCL_STATIC);
+    BIO *pub_bio = BIO_new_mem_buf((void*)pubkey, pubkey_len);
+    EVP_PKEY *pkey = PEM_read_bio_PUBKEY(pub_bio, NULL, NULL, NULL);
+    BIO *priv_bio = BIO_new_mem_buf((void*)privkey, privkey_len);
+    EVP_PKEY *issuer_pkey = PEM_read_bio_PrivateKey(priv_bio, NULL, NULL, NULL);
+    if (!pkey || !issuer_pkey) {
+        if (pkey) EVP_PKEY_free(pkey);
+        if (issuer_pkey) EVP_PKEY_free(issuer_pkey);
+        BIO_free(pub_bio); BIO_free(priv_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to parse key(s)", TCL_STATIC);
         return TCL_ERROR;
     }
-    
     X509 *cert = X509_new();
     if (!cert) {
-        EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Failed to create certificate", TCL_STATIC);
+        EVP_PKEY_free(pkey); EVP_PKEY_free(issuer_pkey);
+        BIO_free(pub_bio); BIO_free(priv_bio);
+        Tcl_SetResult(interp, "OpenSSL: failed to create X509 object", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    // Set version
-    X509_set_version(cert, 2);
-    
-    // Set serial number
     ASN1_INTEGER_set(X509_get_serialNumber(cert), 1);
-    
-    // Set subject
-    X509_NAME *name = X509_NAME_new();
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)subject_str, -1, -1, 0);
-    X509_set_subject_name(cert, name);
-    X509_set_issuer_name(cert, name);
-    X509_NAME_free(name);
-    
-    // Set validity
     X509_gmtime_adj(X509_getm_notBefore(cert), 0);
-    X509_gmtime_adj(X509_getm_notAfter(cert), days * 24 * 60 * 60);
-    
-    // Set public key
+    X509_gmtime_adj(X509_getm_notAfter(cert), (long)60*60*24*days);
     X509_set_pubkey(cert, pkey);
-    
-    // Sign certificate
-    if (X509_sign(cert, pkey, EVP_sha256()) <= 0) {
+    X509_NAME *subj = X509_NAME_new();
+    X509_NAME *iss = X509_NAME_new();
+    X509_NAME_add_entry_by_txt(subj, "CN", MBSTRING_ASC, (const unsigned char*)subject, -1, -1, 0);
+    X509_NAME_add_entry_by_txt(iss, "CN", MBSTRING_ASC, (const unsigned char*)issuer, -1, -1, 0);
+    X509_set_subject_name(cert, subj);
+    X509_set_issuer_name(cert, iss);
+    // Add SAN extension if requested
+    if (sanListObj) {
+        int sanCount;
+        Tcl_Obj **sanElems;
+        if (Tcl_ListObjGetElements(interp, sanListObj, &sanCount, &sanElems) == TCL_OK && sanCount > 0) {
+            char sanStr[1024] = "";
+            for (int i = 0; i < sanCount; ++i) {
+                if (i > 0) strcat(sanStr, ",");
+                const char *val = Tcl_GetString(sanElems[i]);
+                if (strchr(val, '.') || strchr(val, ':')) {
+                    strcat(sanStr, "DNS:");
+                    strcat(sanStr, val);
+                } else {
+                    strcat(sanStr, val);
+                }
+            }
+            X509V3_CTX ctx;
+            X509V3_set_ctx_nodb(&ctx);
+            X509V3_set_ctx(&ctx, cert, cert, NULL, NULL, 0);
+            X509_EXTENSION *ext = X509V3_EXT_conf_nid(NULL, &ctx, NID_subject_alt_name, sanStr);
+            if (ext) {
+                X509_add_ext(cert, ext, -1);
+                X509_EXTENSION_free(ext);
+            }
+        }
+    }
+    // Add key usage extension if requested
+    if (keyUsageListObj) {
+        int kuCount;
+        Tcl_Obj **kuElems;
+        if (Tcl_ListObjGetElements(interp, keyUsageListObj, &kuCount, &kuElems) == TCL_OK && kuCount > 0) {
+            ASN1_BIT_STRING *ku = ASN1_BIT_STRING_new();
+            for (int i = 0; i < kuCount; ++i) {
+                const char *usage = Tcl_GetString(kuElems[i]);
+                if (strcmp(usage, "digitalSignature") == 0) ASN1_BIT_STRING_set_bit(ku, 0, 1);
+                if (strcmp(usage, "nonRepudiation") == 0) ASN1_BIT_STRING_set_bit(ku, 1, 1);
+                if (strcmp(usage, "keyEncipherment") == 0) ASN1_BIT_STRING_set_bit(ku, 2, 1);
+                if (strcmp(usage, "dataEncipherment") == 0) ASN1_BIT_STRING_set_bit(ku, 3, 1);
+                if (strcmp(usage, "keyAgreement") == 0) ASN1_BIT_STRING_set_bit(ku, 4, 1);
+                if (strcmp(usage, "keyCertSign") == 0) ASN1_BIT_STRING_set_bit(ku, 5, 1);
+                if (strcmp(usage, "cRLSign") == 0) ASN1_BIT_STRING_set_bit(ku, 6, 1);
+                if (strcmp(usage, "encipherOnly") == 0) ASN1_BIT_STRING_set_bit(ku, 7, 1);
+                if (strcmp(usage, "decipherOnly") == 0) ASN1_BIT_STRING_set_bit(ku, 8, 1);
+            }
+            X509_EXTENSION *ext = X509V3_EXT_i2d(NID_key_usage, 0, ku);
+            if (ext) {
+                X509_add_ext(cert, ext, -1);
+                X509_EXTENSION_free(ext);
+            }
+            ASN1_BIT_STRING_free(ku);
+        }
+    }
+    int ok = X509_sign(cert, issuer_pkey, EVP_sha256());
+    X509_NAME_free(subj); X509_NAME_free(iss);
+    EVP_PKEY_free(pkey); EVP_PKEY_free(issuer_pkey);
+    BIO_free(pub_bio); BIO_free(priv_bio);
+    if (!ok) {
         X509_free(cert);
-        EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Failed to sign certificate", TCL_STATIC);
+        Tcl_SetResult(interp, "OpenSSL: certificate signing failed", TCL_STATIC);
         return TCL_ERROR;
     }
-    
-    // Write certificate
-    bio = BIO_new(BIO_s_mem());
-    if (!bio) {
-        X509_free(cert);
-        EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Failed to create BIO", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    if (PEM_write_bio_X509(bio, cert) <= 0) {
-        BIO_free(bio);
-        X509_free(cert);
-        EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Failed to write certificate", TCL_STATIC);
-        return TCL_ERROR;
-    }
-    
-    BUF_MEM *bptr;
-    BIO_get_mem_ptr(bio, &bptr);
-    
-    Tcl_Obj *result = Tcl_NewStringObj(bptr->data, bptr->length);
-    
-    BIO_free(bio);
+    BIO *out = BIO_new(BIO_s_mem());
+    PEM_write_bio_X509(out, cert);
+    char *pem = NULL;
+    long pemlen = BIO_get_mem_data(out, &pem);
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(pem, pemlen));
+    BIO_free(out);
     X509_free(cert);
-    EVP_PKEY_free(pkey);
-    
-    Tcl_SetObjResult(interp, result);
     return TCL_OK;
 }
 
