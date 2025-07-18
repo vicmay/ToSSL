@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 113/190 (59.5%)
-- **Documentation Created**: 113/190 (59.5%)
+- **Tests Created**: 116/190 (61.1%)
+- **Documentation Created**: 116/190 (61.1%)
 
 ## Command Status Tracking
 
@@ -153,10 +153,10 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::pbe::saltgen` | ✅ | tests/test_pbe_saltgen.tcl | ✅ | doc/pbe_saltgen.md | |
 | `::tossl::pbe::decrypt` | ✅ | tests/test_pbe_decrypt.tcl | ✅ | doc/pbe_decrypt.md | Known strlen() bug affects binary data |
 | `::tossl::pkcs7::info` | ✅ | tests/test_pkcs7_info.tcl | ✅ | doc/pkcs7_info.md | Now uses CMS API, OpenSSL 3.x compatible |
-| `::tossl::pkcs7::verify` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::sign` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::encrypt` | ❌ | | ❌ | | |
-| `::tossl::pkcs7::decrypt` | ❌ | | ❌ | | |
+| `::tossl::pkcs7::verify` | ✅ | tests/test_pkcs7_verify.tcl | ✅ | doc/pkcs7_verify.md | Now uses CMS API, OpenSSL 3.x compatible |
+| `::tossl::pkcs7::sign` | ✅ | tests/test_pkcs7_sign.tcl | ✅ | doc/pkcs7_sign.md | Now uses CMS API, OpenSSL 3.x compatible |
+| `::tossl::pkcs7::encrypt` | ✅ | tests/test_pkcs7_encrypt.tcl | ✅ | doc/pkcs7_encrypt.md | Now uses CMS API, OpenSSL 3.x compatible |
+| `::tossl::pkcs7::decrypt` | ✅ | tests/test_pkcs7_decrypt.tcl | ✅ | doc/pkcs7_decrypt.md | Now uses CMS API, OpenSSL 3.x compatible |
 | `::tossl::x448::derive` | ❌ | | ❌ | | |
 | `::tossl::x448::generate` | ❌ | | ❌ | | |
 | `::tossl::base64url::decode` | ❌ | | ❌ | | |
