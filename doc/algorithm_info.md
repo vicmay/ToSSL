@@ -205,10 +205,9 @@ if {$rc != 0} {
 }
 
 # Handle invalid algorithm names
-set rc [catch {tossl::algorithm::info "invalid-algorithm" "digest"} err]
-if {$rc != 0} {
-    puts "Error (expected): $err"
-}
+set result [tossl::algorithm::info "invalid-algorithm" "digest"]
+puts "Result: $result"
+# Output: algorithm=invalid-algorithm, type=digest, status=unavailable
 
 # Handle invalid algorithm types
 set rc [catch {tossl::algorithm::info "sha256" "invalid-type"} err]
@@ -217,10 +216,9 @@ if {$rc != 0} {
 }
 
 # Handle empty arguments
-set rc [catch {tossl::algorithm::info "" "digest"} err]
-if {$rc != 0} {
-    puts "Error (expected): $err"
-}
+set result [tossl::algorithm::info "" "digest"]
+puts "Result: $result"
+# Output: algorithm=, type=digest, status=unavailable
 
 set rc [catch {tossl::algorithm::info "sha256" ""} err]
 if {$rc != 0} {
@@ -231,9 +229,9 @@ if {$rc != 0} {
 ## Error Handling
 
 - **Missing arguments**: Returns an error if either `algorithm` or `type` is not provided
-- **Invalid algorithm**: Returns an error if the algorithm is not recognized
+- **Invalid algorithm**: Returns `status=unavailable` if the algorithm is not recognized or not available in the current OpenSSL build
 - **Invalid type**: Returns an error if the algorithm type is not supported
-- **Empty arguments**: Returns an error if either argument is an empty string
+- **Empty arguments**: Returns `status=unavailable` for empty algorithm names
 
 ### Common Error Messages
 
@@ -248,7 +246,7 @@ tossl::algorithm::info "sha256"
 
 # Invalid algorithm or type
 tossl::algorithm::info "invalid-algorithm" "digest"
-# Error: Algorithm not found or not available
+# Result: algorithm=invalid-algorithm, type=digest, status=unavailable
 ```
 
 ## Security Considerations

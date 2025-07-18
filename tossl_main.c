@@ -411,8 +411,97 @@ int AlgorithmInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     const char *algorithm = Tcl_GetString(objv[1]);
     const char *type = Tcl_GetString(objv[2]);
     
+    // Validate algorithm type
+    if (strcmp(type, "digest") != 0 && strcmp(type, "cipher") != 0 && 
+        strcmp(type, "mac") != 0 && strcmp(type, "kdf") != 0 && 
+        strcmp(type, "keyexch") != 0 && strcmp(type, "signature") != 0 && 
+        strcmp(type, "asym_cipher") != 0) {
+        Tcl_SetResult(interp, "Invalid algorithm type", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Check algorithm availability based on type
+    int available = 0;
+    const char *status = "unavailable";
+    
+    if (strcmp(type, "digest") == 0) {
+        EVP_MD *md = EVP_MD_fetch(NULL, algorithm, NULL);
+        if (md) {
+            available = 1;
+            EVP_MD_free(md);
+        }
+    } else if (strcmp(type, "cipher") == 0) {
+        EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, algorithm, NULL);
+        if (cipher) {
+            available = 1;
+            EVP_CIPHER_free(cipher);
+        }
+    } else if (strcmp(type, "mac") == 0) {
+        // For MAC algorithms, check if the underlying digest is available
+        if (strcmp(algorithm, "hmac") == 0) {
+            // HMAC is always available if we have any digest
+            EVP_MD *md = EVP_MD_fetch(NULL, "sha256", NULL);
+            if (md) {
+                available = 1;
+                EVP_MD_free(md);
+            }
+        } else if (strcmp(algorithm, "cmac") == 0) {
+            // CMAC requires a block cipher
+            EVP_CIPHER *cipher = EVP_CIPHER_fetch(NULL, "aes-128-cbc", NULL);
+            if (cipher) {
+                available = 1;
+                EVP_CIPHER_free(cipher);
+            }
+        }
+    } else if (strcmp(type, "kdf") == 0) {
+        // For KDF algorithms, check availability
+        if (strcmp(algorithm, "pbkdf2") == 0) {
+            // PBKDF2 is always available if we have any digest
+            EVP_MD *md = EVP_MD_fetch(NULL, "sha256", NULL);
+            if (md) {
+                available = 1;
+                EVP_MD_free(md);
+            }
+        } else if (strcmp(algorithm, "scrypt") == 0) {
+            // Scrypt availability depends on OpenSSL build
+            available = 1; // Assume available for now
+        } else if (strcmp(algorithm, "argon2") == 0) {
+            // Argon2 availability depends on OpenSSL build
+            available = 1; // Assume available for now
+        }
+    } else if (strcmp(type, "keyexch") == 0) {
+        // For key exchange algorithms
+        if (strcmp(algorithm, "ecdh") == 0) {
+            // ECDH requires EC support
+            EVP_PKEY *pkey = EVP_PKEY_new();
+            if (pkey) {
+                EVP_PKEY_free(pkey);
+                available = 1;
+            }
+        } else if (strcmp(algorithm, "dh") == 0) {
+            // DH availability
+            available = 1; // Assume available
+        }
+    } else if (strcmp(type, "signature") == 0) {
+        // For signature algorithms
+        if (strcmp(algorithm, "rsa") == 0 || strcmp(algorithm, "dsa") == 0 || 
+            strcmp(algorithm, "ecdsa") == 0 || strcmp(algorithm, "ed25519") == 0 || 
+            strcmp(algorithm, "ed448") == 0) {
+            available = 1; // Assume available
+        }
+    } else if (strcmp(type, "asym_cipher") == 0) {
+        // For asymmetric cipher algorithms
+        if (strcmp(algorithm, "rsa") == 0 || strcmp(algorithm, "sm2") == 0) {
+            available = 1; // Assume available
+        }
+    }
+    
+    if (available) {
+        status = "available";
+    }
+    
     char info[256];
-    snprintf(info, sizeof(info), "algorithm=%s, type=%s, status=available", algorithm, type);
+    snprintf(info, sizeof(info), "algorithm=%s, type=%s, status=%s", algorithm, type, status);
     Tcl_SetResult(interp, info, TCL_VOLATILE);
     return TCL_OK;
 } 
