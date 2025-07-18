@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 189
-- **Tests Created**: 95/189 (50.3%)
-- **Documentation Created**: 95/189 (50.3%)
+- **Tests Created**: 96/189 (50.8%)
+- **Documentation Created**: 96/189 (50.8%)
 
 ## Command Status Tracking
 
@@ -139,7 +139,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::x509::validate` | ✅ | tests/test_x509_validate.tcl | ✅ | doc/x509_validate.md | |
 | `::tossl::x509::parse` | ✅ | tests/test_x509_parse.tcl | ✅ | doc/x509_parse.md | |
 | `::tossl::acme::cleanup_dns` | ✅ | tests/test_acme_cleanup_dns.tcl | ✅ | doc/acme_cleanup_dns.md | |
-| `::tossl::acme::dns01_challenge` | ❌ | | ❌ | | |
+| `::tossl::acme::dns01_challenge` | ✅ | tests/test_acme_dns01_challenge.tcl | ✅ | doc/acme_dns01_challenge.md | |
 | `::tossl::acme::create_account` | ❌ | | ❌ | | |
 | `::tossl::acme::directory` | ❌ | | ❌ | | |
 | `::tossl::acme::create_order` | ❌ | | ❌ | | |
