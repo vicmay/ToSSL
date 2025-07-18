@@ -30,9 +30,9 @@ For each TOSSL command, the following tasks must be completed:
    - Update progress summary counts
 
 ## Progress Summary
-- **Total Commands**: 189
-- **Tests Created**: 105/189 (55.6%)
-- **Documentation Created**: 105/189 (55.6%)
+- **Total Commands**: 190
+- **Tests Created**: 110/190 (57.9%)
+- **Documentation Created**: 110/190 (57.9%)
 
 ## Command Status Tracking
 
