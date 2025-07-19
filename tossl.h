@@ -157,6 +157,7 @@ int OidcFetchJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 int OidcGetJwkCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcValidateJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcValidateIdTokenCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int OidcVerifyJwtWithJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcUserinfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcValidateUserinfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcExtractUserClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);

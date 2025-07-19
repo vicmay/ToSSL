@@ -20,6 +20,17 @@
 #include <time.h>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
+#include <openssl/rsa.h>
+#include <openssl/ec.h>
+#include <openssl/bn.h>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+
+// Forward declarations for helper functions
+static EVP_PKEY *create_rsa_key_from_jwk(const char *n, const char *e);
+static EVP_PKEY *create_ec_key_from_jwk(const char *x, const char *y, const char *crv);
+static int verify_jwt_signature(const char *token, EVP_PKEY *pkey, const char *alg);
+static unsigned char *base64url_decode(const char *input, size_t input_len, size_t *output_len);
 
 // OIDC discovery configuration structure
 typedef struct {
@@ -670,52 +681,56 @@ static int parse_jwt_header(const char *token, char **alg, char **kid) {
     }
     *dot1 = '\0';
     
-    // Base64url decode header
-    size_t header_len = strlen(token_copy);
-    size_t decoded_len = (header_len * 3) / 4;
-    unsigned char *decoded = malloc(decoded_len + 1);
-    if (!decoded) {
+    // Convert base64url to base64 manually
+    char *base64_input = malloc(strlen(token_copy) + 4);
+    if (!base64_input) {
         free(token_copy);
         return 0;
     }
     
-    // Simple base64url decode (for now)
-    int j = 0;
-    for (int i = 0; i < header_len; i += 4) {
-        unsigned int sextet_a = token_copy[i] == '-' ? 62 : 
-                               token_copy[i] == '_' ? 63 : 
-                               token_copy[i] >= 'A' && token_copy[i] <= 'Z' ? token_copy[i] - 'A' :
-                               token_copy[i] >= 'a' && token_copy[i] <= 'z' ? token_copy[i] - 'a' + 26 :
-                               token_copy[i] >= '0' && token_copy[i] <= '9' ? token_copy[i] - '0' + 52 : 0;
-        
-        unsigned int sextet_b = i + 1 < header_len ? 
-                               (token_copy[i+1] == '-' ? 62 : 
-                                token_copy[i+1] == '_' ? 63 : 
-                                token_copy[i+1] >= 'A' && token_copy[i+1] <= 'Z' ? token_copy[i+1] - 'A' :
-                                token_copy[i+1] >= 'a' && token_copy[i+1] <= 'z' ? token_copy[i+1] - 'a' + 26 :
-                                token_copy[i+1] >= '0' && token_copy[i+1] <= '9' ? token_copy[i+1] - '0' + 52 : 0) : 0;
-        
-        unsigned int sextet_c = i + 2 < header_len ? 
-                               (token_copy[i+2] == '-' ? 62 : 
-                                token_copy[i+2] == '_' ? 63 : 
-                                token_copy[i+2] >= 'A' && token_copy[i+2] <= 'Z' ? token_copy[i+2] - 'A' :
-                                token_copy[i+2] >= 'a' && token_copy[i+2] <= 'z' ? token_copy[i+2] - 'a' + 26 :
-                                token_copy[i+2] >= '0' && token_copy[i+2] <= '9' ? token_copy[i+2] - '0' + 52 : 0) : 0;
-        
-        unsigned int sextet_d = i + 3 < header_len ? 
-                               (token_copy[i+3] == '-' ? 62 : 
-                                token_copy[i+3] == '_' ? 63 : 
-                                token_copy[i+3] >= 'A' && token_copy[i+3] <= 'Z' ? token_copy[i+3] - 'A' :
-                                token_copy[i+3] >= 'a' && token_copy[i+3] <= 'z' ? token_copy[i+3] - 'a' + 26 :
-                                token_copy[i+3] >= '0' && token_copy[i+3] <= '9' ? token_copy[i+3] - '0' + 52 : 0) : 0;
-        
-        unsigned int triple = (sextet_a << 18) | (sextet_b << 12) | (sextet_c << 6) | sextet_d;
-        
-        if (j < decoded_len) decoded[j++] = (triple >> 16) & 0xFF;
-        if (j < decoded_len) decoded[j++] = (triple >> 8) & 0xFF;
-        if (j < decoded_len) decoded[j++] = triple & 0xFF;
+    size_t j = 0;
+    for (size_t i = 0; i < strlen(token_copy); i++) {
+        if (token_copy[i] == '-') {
+            base64_input[j++] = '+';
+        } else if (token_copy[i] == '_') {
+            base64_input[j++] = '/';
+        } else {
+            base64_input[j++] = token_copy[i];
+        }
     }
-    decoded[j] = '\0';
+    
+    // Add padding if needed
+    while (j % 4 != 0) {
+        base64_input[j++] = '=';
+    }
+    base64_input[j] = '\0';
+    
+    // Use OpenSSL BIO to decode
+    BIO *bio = BIO_new_mem_buf(base64_input, -1);
+    BIO *b64 = BIO_new(BIO_f_base64());
+    bio = BIO_push(b64, bio);
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    
+    unsigned char *decoded = malloc(strlen(token_copy));
+    if (!decoded) {
+        BIO_free_all(bio);
+        free(base64_input);
+        free(token_copy);
+        return 0;
+    }
+    
+    int decoded_len = BIO_read(bio, decoded, strlen(token_copy));
+    BIO_free_all(bio);
+    free(base64_input);
+    
+    if (decoded_len < 0) {
+        free(decoded);
+        free(token_copy);
+        return 0;
+    }
+    
+    // Ensure null termination
+    decoded[decoded_len] = '\0';
     
     // Parse JSON header
     json_object *header_json = json_tokener_parse((char*)decoded);
@@ -987,6 +1002,474 @@ int OidcValidateJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     
     Tcl_SetObjResult(interp, result);
     return TCL_OK;
+}
+
+// Verify JWT signature using JWKS
+int OidcVerifyJwtWithJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-token <jwt_token> -jwks <jwks_data>");
+        return TCL_ERROR;
+    }
+    
+    const char *token = Tcl_GetString(objv[2]);
+    const char *jwks_data = Tcl_GetString(objv[4]);
+    
+    // Parse JWT header to get algorithm and key ID
+    char *alg = NULL;
+    char *kid = NULL;
+    
+    if (parse_jwt_header(token, &alg, &kid) == 0) {
+        Tcl_SetResult(interp, "Failed to parse JWT header", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (!alg || !kid) {
+        Tcl_SetResult(interp, "Missing 'alg' or 'kid' in JWT header", TCL_STATIC);
+        free(alg);
+        free(kid);
+        return TCL_ERROR;
+    }
+    
+    // Parse JWKS to find the key
+    json_object *jwks_json = json_tokener_parse(jwks_data);
+    if (!jwks_json) {
+        Tcl_SetResult(interp, "Invalid JWKS data", TCL_STATIC);
+        free(alg);
+        free(kid);
+        return TCL_ERROR;
+    }
+    
+    json_object *keys_obj;
+    if (!json_object_object_get_ex(jwks_json, "keys", &keys_obj)) {
+        Tcl_SetResult(interp, "Missing 'keys' field in JWKS", TCL_STATIC);
+        json_object_put(jwks_json);
+        free(alg);
+        free(kid);
+        return TCL_ERROR;
+    }
+    
+    if (json_object_get_type(keys_obj) != json_type_array) {
+        Tcl_SetResult(interp, "Invalid 'keys' field format", TCL_STATIC);
+        json_object_put(jwks_json);
+        free(alg);
+        free(kid);
+        return TCL_ERROR;
+    }
+    
+    // Find the key with matching kid
+    json_object *matching_key = NULL;
+    int keys_count = json_object_array_length(keys_obj);
+    
+    for (int i = 0; i < keys_count; i++) {
+        json_object *key_obj = json_object_array_get_idx(keys_obj, i);
+        if (json_object_get_type(key_obj) == json_type_object) {
+            json_object *key_kid;
+            if (json_object_object_get_ex(key_obj, "kid", &key_kid)) {
+                if (strcmp(json_object_get_string(key_kid), kid) == 0) {
+                    matching_key = key_obj;
+                    break;
+                }
+            }
+        }
+    }
+    
+    if (!matching_key) {
+        Tcl_SetResult(interp, "Key with specified 'kid' not found in JWKS", TCL_STATIC);
+        json_object_put(jwks_json);
+        free(alg);
+        free(kid);
+        return TCL_ERROR;
+    }
+    
+    // Extract key type and parameters
+    json_object *kty_obj, *n_obj, *e_obj, *x_obj, *y_obj, *crv_obj;
+    const char *kty = NULL;
+    
+    if (json_object_object_get_ex(matching_key, "kty", &kty_obj)) {
+        kty = json_object_get_string(kty_obj);
+    }
+    
+    if (!kty) {
+        Tcl_SetResult(interp, "Missing 'kty' field in JWK", TCL_STATIC);
+        json_object_put(jwks_json);
+        free(alg);
+        free(kid);
+        return TCL_ERROR;
+    }
+    
+    // Verify JWT signature based on key type and algorithm
+    int verification_result = 0;
+    
+    if (strcmp(kty, "RSA") == 0) {
+        // RSA key verification
+        if (json_object_object_get_ex(matching_key, "n", &n_obj) &&
+            json_object_object_get_ex(matching_key, "e", &e_obj)) {
+            
+            const char *n = json_object_get_string(n_obj);
+            const char *e = json_object_get_string(e_obj);
+            
+            // Create RSA public key from JWK parameters
+            EVP_PKEY *pkey = create_rsa_key_from_jwk(n, e);
+            if (pkey) {
+                verification_result = verify_jwt_signature(token, pkey, alg);
+                EVP_PKEY_free(pkey);
+            }
+        }
+    } else if (strcmp(kty, "EC") == 0) {
+        // EC key verification
+        if (json_object_object_get_ex(matching_key, "x", &x_obj) &&
+            json_object_object_get_ex(matching_key, "y", &y_obj) &&
+            json_object_object_get_ex(matching_key, "crv", &crv_obj)) {
+            
+            const char *x = json_object_get_string(x_obj);
+            const char *y = json_object_get_string(y_obj);
+            const char *crv = json_object_get_string(crv_obj);
+            
+            // Create EC public key from JWK parameters
+            EVP_PKEY *pkey = create_ec_key_from_jwk(x, y, crv);
+            if (pkey) {
+                verification_result = verify_jwt_signature(token, pkey, alg);
+                EVP_PKEY_free(pkey);
+            }
+        }
+    } else {
+        Tcl_SetResult(interp, "Unsupported key type in JWK", TCL_STATIC);
+        json_object_put(jwks_json);
+        free(alg);
+        free(kid);
+        return TCL_ERROR;
+    }
+    
+    // Create result
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(verification_result));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("algorithm", -1), Tcl_NewStringObj(alg, -1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("key_id", -1), Tcl_NewStringObj(kid, -1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("key_type", -1), Tcl_NewStringObj(kty, -1));
+    
+    if (!verification_result) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("error", -1), 
+                       Tcl_NewStringObj("JWT signature verification failed", -1));
+    }
+    
+    json_object_put(jwks_json);
+    free(alg);
+    free(kid);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// Helper function to create RSA key from JWK parameters using modern OpenSSL 3.x API
+static EVP_PKEY *create_rsa_key_from_jwk(const char *n, const char *e) {
+    if (!n || !e) return NULL;
+    
+    // Decode base64url parameters
+    size_t n_len, e_len;
+    unsigned char *n_bytes = base64url_decode(n, strlen(n), &n_len);
+    unsigned char *e_bytes = base64url_decode(e, strlen(e), &e_len);
+    
+    if (!n_bytes || !e_bytes) {
+        free(n_bytes);
+        free(e_bytes);
+        return NULL;
+    }
+    
+    // Create BIGNUMs from the decoded bytes
+    BIGNUM *n_bn = BN_bin2bn(n_bytes, n_len, NULL);
+    BIGNUM *e_bn = BN_bin2bn(e_bytes, e_len, NULL);
+    
+    if (!n_bn || !e_bn) {
+        BN_free(n_bn);
+        BN_free(e_bn);
+        free(n_bytes);
+        free(e_bytes);
+        return NULL;
+    }
+    
+    // Create EVP_PKEY using modern API
+    EVP_PKEY *pkey = EVP_PKEY_new();
+    if (!pkey) {
+        BN_free(n_bn);
+        BN_free(e_bn);
+        free(n_bytes);
+        free(e_bytes);
+        return NULL;
+    }
+    
+    // Use OSSL_PARAM to set RSA parameters
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_BN("n", n_bn, 0),
+        OSSL_PARAM_BN("e", e_bn, 0),
+        OSSL_PARAM_END
+    };
+    
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", NULL);
+    if (!ctx) {
+        EVP_PKEY_free(pkey);
+        BN_free(n_bn);
+        BN_free(e_bn);
+        free(n_bytes);
+        free(e_bytes);
+        return NULL;
+    }
+    
+    if (EVP_PKEY_fromdata_init(ctx) != 1) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BN_free(n_bn);
+        BN_free(e_bn);
+        free(n_bytes);
+        free(e_bytes);
+        return NULL;
+    }
+    
+    if (EVP_PKEY_fromdata(ctx, &pkey, EVP_PKEY_PUBLIC_KEY, params) != 1) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BN_free(n_bn);
+        BN_free(e_bn);
+        free(n_bytes);
+        free(e_bytes);
+        return NULL;
+    }
+    
+    EVP_PKEY_CTX_free(ctx);
+    BN_free(n_bn);
+    BN_free(e_bn);
+    free(n_bytes);
+    free(e_bytes);
+    
+    return pkey;
+}
+
+// Helper function to create EC key from JWK parameters using modern OpenSSL 3.x API
+static EVP_PKEY *create_ec_key_from_jwk(const char *x, const char *y, const char *crv) {
+    if (!x || !y || !crv) return NULL;
+    
+    // Decode base64url parameters
+    size_t x_len, y_len;
+    unsigned char *x_bytes = base64url_decode(x, strlen(x), &x_len);
+    unsigned char *y_bytes = base64url_decode(y, strlen(y), &y_len);
+    
+    if (!x_bytes || !y_bytes) {
+        free(x_bytes);
+        free(y_bytes);
+        return NULL;
+    }
+    
+    // Get curve name
+    const char *curve_name = NULL;
+    if (strcmp(crv, "P-256") == 0) {
+        curve_name = "P-256";
+    } else if (strcmp(crv, "P-384") == 0) {
+        curve_name = "P-384";
+    } else if (strcmp(crv, "P-521") == 0) {
+        curve_name = "P-521";
+    } else {
+        free(x_bytes);
+        free(y_bytes);
+        return NULL;
+    }
+    
+    // Create BIGNUMs from the decoded bytes
+    BIGNUM *x_bn = BN_bin2bn(x_bytes, x_len, NULL);
+    BIGNUM *y_bn = BN_bin2bn(y_bytes, y_len, NULL);
+    
+    if (!x_bn || !y_bn) {
+        BN_free(x_bn);
+        BN_free(y_bn);
+        free(x_bytes);
+        free(y_bytes);
+        return NULL;
+    }
+    
+    // Create EVP_PKEY using modern API
+    EVP_PKEY *pkey = EVP_PKEY_new();
+    if (!pkey) {
+        BN_free(x_bn);
+        BN_free(y_bn);
+        free(x_bytes);
+        free(y_bytes);
+        return NULL;
+    }
+    
+    // Use OSSL_PARAM to set EC parameters
+    OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string("group", curve_name, 0),
+        OSSL_PARAM_BN("pub-x", x_bn, 0),
+        OSSL_PARAM_BN("pub-y", y_bn, 0),
+        OSSL_PARAM_END
+    };
+    
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    if (!ctx) {
+        EVP_PKEY_free(pkey);
+        BN_free(x_bn);
+        BN_free(y_bn);
+        free(x_bytes);
+        free(y_bytes);
+        return NULL;
+    }
+    
+    if (EVP_PKEY_fromdata_init(ctx) != 1) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BN_free(x_bn);
+        BN_free(y_bn);
+        free(x_bytes);
+        free(y_bytes);
+        return NULL;
+    }
+    
+    if (EVP_PKEY_fromdata(ctx, &pkey, EVP_PKEY_PUBLIC_KEY, params) != 1) {
+        EVP_PKEY_CTX_free(ctx);
+        EVP_PKEY_free(pkey);
+        BN_free(x_bn);
+        BN_free(y_bn);
+        free(x_bytes);
+        free(y_bytes);
+        return NULL;
+    }
+    
+    EVP_PKEY_CTX_free(ctx);
+    BN_free(x_bn);
+    BN_free(y_bn);
+    free(x_bytes);
+    free(y_bytes);
+    
+    return pkey;
+}
+
+// Helper function to verify JWT signature
+static int verify_jwt_signature(const char *token, EVP_PKEY *pkey, const char *alg) {
+    if (!token || !pkey || !alg) return 0;
+    
+    // Split JWT into parts
+    char *token_copy = strdup(token);
+    if (!token_copy) return 0;
+    
+    char *dot1 = strchr(token_copy, '.');
+    if (!dot1) {
+        free(token_copy);
+        return 0;
+    }
+    *dot1 = '\0';
+    
+    char *dot2 = strchr(dot1 + 1, '.');
+    if (!dot2) {
+        free(token_copy);
+        return 0;
+    }
+    *dot2 = '\0';
+    
+    char *header = token_copy;
+    char *payload = dot1 + 1;
+    char *signature = dot2 + 1;
+    
+    // Create data to verify (header.payload)
+    char *data_to_verify = malloc(strlen(header) + 1 + strlen(payload) + 1);
+    if (!data_to_verify) {
+        free(token_copy);
+        return 0;
+    }
+    
+    sprintf(data_to_verify, "%s.%s", header, payload);
+    
+    // Decode signature
+    size_t sig_len;
+    unsigned char *sig_bytes = base64url_decode(signature, strlen(signature), &sig_len);
+    if (!sig_bytes) {
+        free(data_to_verify);
+        free(token_copy);
+        return 0;
+    }
+    
+    // Verify signature based on algorithm
+    int result = 0;
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    if (ctx) {
+        const EVP_MD *md = NULL;
+        
+        if (strcmp(alg, "RS256") == 0) {
+            md = EVP_sha256();
+        } else if (strcmp(alg, "RS384") == 0) {
+            md = EVP_sha384();
+        } else if (strcmp(alg, "RS512") == 0) {
+            md = EVP_sha512();
+        } else if (strcmp(alg, "ES256") == 0) {
+            md = EVP_sha256();
+        } else if (strcmp(alg, "ES384") == 0) {
+            md = EVP_sha384();
+        } else if (strcmp(alg, "ES512") == 0) {
+            md = EVP_sha512();
+        }
+        
+        if (md && EVP_DigestVerifyInit(ctx, NULL, md, NULL, pkey) == 1) {
+            result = EVP_DigestVerify(ctx, sig_bytes, sig_len, 
+                                     (unsigned char*)data_to_verify, strlen(data_to_verify));
+            result = (result == 1);
+        }
+        
+        EVP_MD_CTX_free(ctx);
+    }
+    
+    free(sig_bytes);
+    free(data_to_verify);
+    free(token_copy);
+    
+    return result;
+}
+
+// Helper function for base64url decoding
+static unsigned char *base64url_decode(const char *input, size_t input_len, size_t *output_len) {
+    if (!input || !output_len) return NULL;
+    
+    // Convert base64url to base64
+    char *base64_input = malloc(input_len + 4);
+    if (!base64_input) return NULL;
+    
+    size_t j = 0;
+    for (size_t i = 0; i < input_len; i++) {
+        if (input[i] == '-') {
+            base64_input[j++] = '+';
+        } else if (input[i] == '_') {
+            base64_input[j++] = '/';
+        } else {
+            base64_input[j++] = input[i];
+        }
+    }
+    
+    // Add padding if needed
+    while (j % 4 != 0) {
+        base64_input[j++] = '=';
+    }
+    base64_input[j] = '\0';
+    
+    // Decode base64
+    BIO *bio = BIO_new_mem_buf(base64_input, -1);
+    BIO *b64 = BIO_new(BIO_f_base64());
+    bio = BIO_push(b64, bio);
+    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    
+    unsigned char *output = malloc(input_len);
+    if (!output) {
+        BIO_free_all(bio);
+        free(base64_input);
+        return NULL;
+    }
+    
+    int decoded_len = BIO_read(bio, output, input_len);
+    BIO_free_all(bio);
+    free(base64_input);
+    
+    if (decoded_len < 0) {
+        free(output);
+        return NULL;
+    }
+    
+    *output_len = decoded_len;
+    return output;
 }
 
 // Validate OIDC ID token
@@ -1956,6 +2439,7 @@ int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::get_jwk", OidcGetJwkCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_jwks", OidcValidateJwksCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_id_token", OidcValidateIdTokenCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::verify_jwt_with_jwks", OidcVerifyJwtWithJwksCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::userinfo", OidcUserinfoCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_userinfo", OidcValidateUserinfoCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::extract_user_claims", OidcExtractUserClaimsCmd, NULL, NULL);

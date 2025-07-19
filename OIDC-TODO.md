@@ -330,9 +330,9 @@ tossl::oauth2::refresh_token_oidc -client_id <id> -client_secret <secret> -refre
 
 ## 🎯 **IMMEDIATE NEXT STEPS**
 
-### **1. Code Cleanup (Priority: High)**
-- [ ] Remove debug logging from production code
-- [ ] Clean up remaining unused cleanup flags in `tossl_main.c`
+### **1. Code Cleanup (Priority: High) - ✅ COMPLETED**
+- ✅ Remove debug logging from production code
+- ✅ Clean up remaining unused cleanup flags in `tossl_main.c`
 - [ ] Review other HTTP callback functions for similar memory issues
 - [ ] Add comprehensive code comments for OIDC functions
 
@@ -587,12 +587,12 @@ tossl::oidc::end_session \
 - Unit and integration tests: ✅ 1 day
 - Documentation updates: ✅ 1 day
 
-### **Code Cleanup and Bug Fixes**: ✅ COMPLETED - 1 day
+### **Code Cleanup and Bug Fixes**: ✅ COMPLETED - 1.5 days
 - Memory corruption fix: ✅ 1 day
-- Code cleanup: [ ] 0.5 day (remaining)
+- Code cleanup: ✅ 0.5 day
 
-**Total Completed**: 6 days
-**Total Remaining**: 2.5 days
+**Total Completed**: 6.5 days
+**Total Remaining**: 2 days
 **Total Estimated Time**: 8.5 days
 
 ## Success Criteria
