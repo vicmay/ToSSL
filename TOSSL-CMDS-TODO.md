@@ -204,7 +204,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::cipher::analyze` | ✅ | tests/test_cipher_analyze.tcl | ✅ | doc/cipher_analyze.md | |
 | `::tossl::cipher::list` | ✅ | tests/test_cipher_list.tcl | ✅ | doc/cipher_list.md | |
 | `::tossl::cipher::info` | ✅ | tests/test_cipher_info.tcl | ✅ | doc/cipher_info.md | |
-| `::tossl::ca::sign` | ❌ | | ❌ | | |
+| `::tossl::ca::sign` | ✅ | tests/test_ca_sign.tcl | ✅ | doc/ca_sign.md | |
 | `::tossl::ca::generate` | ❌ | | ❌ | | |
 | `::tossl::jwt::decode` | ❌ | | ❌ | | |
 | `::tossl::jwt::create` | ❌ | | ❌ | | |
