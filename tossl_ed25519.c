@@ -144,7 +144,8 @@ int Ed25519VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     
     const char *key_data = Tcl_GetString(objv[1]);
     const char *data = Tcl_GetString(objv[2]);
-    const char *sig_data = Tcl_GetString(objv[3]);
+    int sig_len;
+    const unsigned char *sig_data = (const unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &sig_len);
     
     EVP_PKEY *pkey = NULL;
     BIO *bio = BIO_new_mem_buf(key_data, -1);
@@ -182,7 +183,7 @@ int Ed25519VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         return TCL_ERROR;
     }
     
-    int result = EVP_DigestVerify(ctx, (const unsigned char*)sig_data, strlen(sig_data),
+    int result = EVP_DigestVerify(ctx, sig_data, sig_len,
                                  (const unsigned char*)data, strlen(data));
     
     EVP_MD_CTX_free(ctx);
