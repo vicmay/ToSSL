@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 141/190 (74.2%)
-- **Documentation Created**: 141/190 (74.2%)
+- **Tests Created**: 142/190 (74.7%)
+- **Documentation Created**: 142/190 (74.7%)
 
 ## Command Status Tracking
 
@@ -189,7 +189,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::sm2::verify` | ✅ | tests/test_sm2_verify.tcl | ✅ | doc/sm2_verify.md | |
 | `::tossl::sm2::sign` | ✅ | tests/test_sm2_sign.tcl | ✅ | doc/sm2_sign.md | |
 | `::tossl::sm2::decrypt` | ✅ | tests/test_sm2_decrypt.tcl | ✅ | doc/sm2_decrypt.md | |
-| `::tossl::sm2::generate` | ❌ | | ❌ | | |
+| `::tossl::sm2::generate` | ✅ | tests/test_sm2_generate.tcl | ✅ | doc/sm2_generate.md | |
 | `::tossl::asn1::sequence_create` | ❌ | | ❌ | | |
 | `::tossl::asn1::text_to_oid` | ❌ | | ❌ | | |
 | `::tossl::asn1::oid_to_text` | ❌ | | ❌ | | |
