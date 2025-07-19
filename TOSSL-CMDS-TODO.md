@@ -185,7 +185,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ssl::check_cert_status` | ✅ | tests/test_ssl_check_cert_status.tcl | ✅ | doc/ssl_check_cert_status.md | Fully implemented and tested |
 | `::tossl::ssl::close` | ✅ | tests/test_ssl_close.tcl | ✅ | doc/ssl_close.md | Fully implemented and tested |
 | `::tossl::ssl::protocol_version` | ✅ | tests/test_ssl_protocol_version.tcl | ✅ | doc/ssl_protocol_version.md | Fully implemented and tested |
-| `::tossl::sm2::encrypt` | ❌ | | ❌ | | |
+| `::tossl::sm2::encrypt` | ✅ | tests/test_sm2_encrypt.tcl | ✅ | doc/sm2_encrypt.md | Fully implemented and tested (SM2 key extraction limitation noted) |
 | `::tossl::sm2::verify` | ❌ | | ❌ | | |
 | `::tossl::sm2::sign` | ❌ | | ❌ | | |
 | `::tossl::sm2::decrypt` | ❌ | | ❌ | | |
