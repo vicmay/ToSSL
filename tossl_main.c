@@ -39,28 +39,59 @@ int GetFdFromChannel(Tcl_Interp *interp, const char *chanName) {
     return fd;
 }
 
+// Global variables for OpenSSL providers
+static OSSL_PROVIDER *default_provider = NULL;
+static OSSL_PROVIDER *legacy_provider = NULL;
+static int openssl_initialized = 0;
+
+// OpenSSL cleanup function
+static void openssl_cleanup(void) {
+    if (legacy_provider) {
+        OSSL_PROVIDER_unload(legacy_provider);
+        legacy_provider = NULL;
+    }
+    if (default_provider) {
+        OSSL_PROVIDER_unload(default_provider);
+        default_provider = NULL;
+    }
+    if (openssl_initialized) {
+        OPENSSL_cleanup();
+        openssl_initialized = 0;
+    }
+}
+
 // Main initialization function
 int Tossl_Init(Tcl_Interp *interp) {
     if (Tcl_InitStubs(interp, "8.6", 0) == NULL) {
         return TCL_ERROR;
     }
     
-    // Initialize OpenSSL 3.x
-    OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, NULL);
-    OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, NULL);
-    
-    // Load default provider
-    OSSL_PROVIDER *default_provider = OSSL_PROVIDER_load(NULL, "default");
-    if (!default_provider) {
-        Tcl_SetResult(interp, "Failed to load OpenSSL default provider", TCL_STATIC);
-        return TCL_ERROR;
+    // Initialize OpenSSL 3.x only once
+    if (!openssl_initialized) {
+        OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, NULL);
+        OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, NULL);
+        openssl_initialized = 1;
+        
+        // Register cleanup function
+        atexit(openssl_cleanup);
     }
     
-    // Load legacy provider for backward compatibility
-    OSSL_PROVIDER *legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
+    // Load default provider only if not already loaded
+    if (!default_provider) {
+        default_provider = OSSL_PROVIDER_load(NULL, "default");
+        if (!default_provider) {
+            Tcl_SetResult(interp, "Failed to load OpenSSL default provider", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    // Load legacy provider for backward compatibility only if not already loaded
     if (!legacy_provider) {
-        // Legacy provider is optional, just log a warning
-        // Tcl_SetResult(interp, "Warning: Failed to load OpenSSL legacy provider", TCL_STATIC);
+        legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
+        if (!legacy_provider) {
+            // Legacy provider is optional, just log a warning
+            // Tcl_SetResult(interp, "Warning: Failed to load OpenSSL legacy provider", TCL_STATIC);
+        }
     }
     
     // Create namespace
