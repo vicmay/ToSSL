@@ -202,9 +202,132 @@ int Asn1SequenceCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *
         return TCL_ERROR;
     }
     
-    // For now, just return a simple success message
-    // Full sequence implementation would require more complex ASN.1 handling
-    Tcl_SetResult(interp, "ASN.1 sequence creation not yet fully implemented", TCL_STATIC);
+    // Create a sequence using STACK_OF(ASN1_TYPE)
+    STACK_OF(ASN1_TYPE) *seq = sk_ASN1_TYPE_new_null();
+    if (!seq) {
+        Tcl_SetResult(interp, "Failed to create ASN.1 sequence", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Add elements to the sequence
+    for (int i = 1; i < objc; i++) {
+        const char *element_str = Tcl_GetString(objv[i]);
+        
+        // Try to parse as different ASN.1 types
+        ASN1_TYPE *element = NULL;
+        
+        // Try as integer first
+        char *endptr;
+        long int_val = strtol(element_str, &endptr, 10);
+        if (*endptr == '\0') {
+            // Valid integer
+            ASN1_INTEGER *int_obj = ASN1_INTEGER_new();
+            if (ASN1_INTEGER_set(int_obj, int_val)) {
+                element = ASN1_TYPE_new();
+                ASN1_TYPE_set(element, V_ASN1_INTEGER, int_obj);
+            }
+        } else {
+            // Try as octet string
+            ASN1_OCTET_STRING *octet = ASN1_OCTET_STRING_new();
+            if (ASN1_OCTET_STRING_set(octet, (const unsigned char*)element_str, strlen(element_str))) {
+                element = ASN1_TYPE_new();
+                ASN1_TYPE_set(element, V_ASN1_OCTET_STRING, octet);
+            }
+        }
+        
+        if (element) {
+            if (!sk_ASN1_TYPE_push(seq, element)) {
+                ASN1_TYPE_free(element);
+                sk_ASN1_TYPE_free(seq);
+                Tcl_SetResult(interp, "Failed to add element to sequence", TCL_STATIC);
+                return TCL_ERROR;
+            }
+        } else {
+            sk_ASN1_TYPE_free(seq);
+            Tcl_SetResult(interp, "Failed to create ASN.1 element", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    // Create a simple sequence structure for encoding
+    // For now, return a basic sequence structure
+    // This is a simplified implementation - full ASN.1 sequence encoding is complex
+    
+    // Calculate total length of all elements
+    int total_length = 0;
+    
+    // Calculate total length of all elements
+    for (int i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
+        ASN1_TYPE *element = sk_ASN1_TYPE_value(seq, i);
+        unsigned char *der = NULL;
+        int der_len = i2d_ASN1_TYPE(element, &der);
+        if (der_len > 0) {
+            total_length += der_len;
+            OPENSSL_free(der);
+        }
+    }
+    
+    // Allocate buffer for complete sequence (with extra space for length encoding)
+    unsigned char *result_buffer = malloc(6 + total_length); // Extra space for long length encoding
+    if (!result_buffer) {
+        sk_ASN1_TYPE_free(seq);
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Set sequence tag
+    result_buffer[0] = 0x30; // SEQUENCE
+    
+    // Set length (handle both short and long form)
+    int offset = 2;
+    if (total_length < 128) {
+        // Short form
+        result_buffer[1] = total_length;
+    } else {
+        // Long form - calculate number of length bytes needed
+        int length_bytes = 1;
+        int temp_length = total_length;
+        while (temp_length > 255) {
+            length_bytes++;
+            temp_length >>= 8;
+        }
+        
+        // Check if we have enough space
+        if (length_bytes > 3) { // Limit to reasonable size
+            free(result_buffer);
+            sk_ASN1_TYPE_free(seq);
+            Tcl_SetResult(interp, "Sequence too long for encoding", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        
+        // Set length byte with bit 7 set and length bytes count
+        result_buffer[1] = 0x80 | length_bytes;
+        offset = 2 + length_bytes;
+        
+        // Set length bytes (big-endian)
+        for (int i = length_bytes - 1; i >= 0; i--) {
+            result_buffer[2 + i] = total_length & 0xFF;
+            total_length >>= 8;
+        }
+    }
+    
+    // Add all elements
+    for (int i = 0; i < sk_ASN1_TYPE_num(seq); i++) {
+        ASN1_TYPE *element = sk_ASN1_TYPE_value(seq, i);
+        unsigned char *der = NULL;
+        int der_len = i2d_ASN1_TYPE(element, &der);
+        if (der_len > 0) {
+            memcpy(result_buffer + offset, der, der_len);
+            offset += der_len;
+            OPENSSL_free(der);
+        }
+    }
+    
+    Tcl_Obj *result = Tcl_NewByteArrayObj(result_buffer, offset);
+    Tcl_SetObjResult(interp, result);
+    free(result_buffer);
+    
+    sk_ASN1_TYPE_free(seq);
     return TCL_OK;
 }
 
