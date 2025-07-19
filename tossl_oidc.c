@@ -96,12 +96,14 @@ typedef struct {
     char *error_description;
 } OidcIdTokenValidation;
 
-// Global discovery cache
+// Global discovery cache (currently disabled to avoid memory issues)
+// TODO: Implement proper URL-based caching
 static OidcDiscovery **discovery_cache = NULL;
 static int discovery_cache_count = 0;
 static int discovery_cache_capacity = 0;
 
-// Global JWKS cache
+// Global JWKS cache (currently disabled to avoid memory issues)
+// TODO: Implement proper URL-based caching
 static OidcJwks **jwks_cache = NULL;
 static int jwks_cache_count = 0;
 static int jwks_cache_capacity = 0;
@@ -619,15 +621,7 @@ int OidcDiscoverCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         return TCL_ERROR;
     }
     
-    // Cache the result
-    if (discovery_cache_count >= discovery_cache_capacity) {
-        discovery_cache_capacity = discovery_cache_capacity == 0 ? 10 : discovery_cache_capacity * 2;
-        discovery_cache = realloc(discovery_cache, discovery_cache_capacity * sizeof(OidcDiscovery *));
-    }
-    
-    discovery_cache[discovery_cache_count++] = discovery;
-    
-    // Create result dict
+    // Create result dict before freeing discovery
     Tcl_Obj *result = Tcl_NewDictObj();
     
     if (discovery->issuer) {
@@ -740,6 +734,10 @@ int OidcDiscoverCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
                    Tcl_NewBooleanObj(discovery->request_uri_parameter_supported));
     Tcl_DictObjPut(interp, result, Tcl_NewStringObj("require_request_uri_registration", -1), 
                    Tcl_NewBooleanObj(discovery->require_request_uri_registration));
+    
+    // For now, skip caching to avoid memory issues
+    // TODO: Implement proper URL-based caching
+    free_oidc_discovery(discovery);
     
     Tcl_SetObjResult(interp, result);
     return TCL_OK;
@@ -866,25 +864,8 @@ int OidcFetchJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     
     const char *jwks_url = Tcl_GetString(objv[2]);
     
-    // Check cache first
-    for (int i = 0; i < jwks_cache_count; i++) {
-        if (jwks_cache[i] && jwks_cache[i]->keys_count > 0) {
-            // Return cached result
-            Tcl_Obj *result = Tcl_NewDictObj();
-            
-            Tcl_Obj *keys_list = Tcl_NewListObj(0, NULL);
-            for (int j = 0; j < jwks_cache[i]->keys_count; j++) {
-                if (jwks_cache[i]->keys[j]) {
-                    Tcl_ListObjAppendElement(interp, keys_list, 
-                                           Tcl_NewStringObj(jwks_cache[i]->keys[j], -1));
-                }
-            }
-            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("keys", -1), keys_list);
-            
-            Tcl_SetObjResult(interp, result);
-            return TCL_OK;
-        }
-    }
+    // For now, skip cache to avoid memory issues
+    // TODO: Implement proper URL-based caching
     
     // Perform JWKS request
     char *response_data = perform_jwks_request(jwks_url);
@@ -908,15 +889,7 @@ int OidcFetchJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         return TCL_ERROR;
     }
     
-    // Cache the result
-    if (jwks_cache_count >= jwks_cache_capacity) {
-        jwks_cache_capacity = jwks_cache_capacity == 0 ? 10 : jwks_cache_capacity * 2;
-        jwks_cache = realloc(jwks_cache, jwks_cache_capacity * sizeof(OidcJwks *));
-    }
-    
-    jwks_cache[jwks_cache_count++] = jwks;
-    
-    // Create result dict
+    // Create result dict before freeing jwks
     Tcl_Obj *result = Tcl_NewDictObj();
     
     Tcl_Obj *keys_list = Tcl_NewListObj(0, NULL);
@@ -927,6 +900,10 @@ int OidcFetchJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         }
     }
     Tcl_DictObjPut(interp, result, Tcl_NewStringObj("keys", -1), keys_list);
+    
+    // For now, skip caching to avoid memory issues
+    // TODO: Implement proper URL-based caching
+    free_oidc_jwks(jwks);
     
     Tcl_SetObjResult(interp, result);
     return TCL_OK;
