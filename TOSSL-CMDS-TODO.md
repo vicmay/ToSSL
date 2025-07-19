@@ -178,7 +178,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ssl::set_ocsp_stapling` | ✅ | tests/test_ssl_set_ocsp_stapling.tcl | ✅ | doc/ssl_set_ocsp_stapling.md | |
 | `::tossl::ssl::connect` | ✅ | tests/test_ssl_connect.tcl | ✅ | doc/ssl_connect.md | |
 | `::tossl::ssl::set_cert_pinning` | ✅ | tests/test_ssl_set_cert_pinning.tcl | ✅ | doc/ssl_set_cert_pinning.md | Fully implemented with pinning enforcement |
-| `::tossl::ssl::write` | ❌ | | ❌ | | |
+| `::tossl::ssl::write` | ✅ | tests/test_ssl_write.tcl | ✅ | doc/ssl_write.md | Fully implemented and tested |
 | `::tossl::ssl::alpn_selected` | ❌ | | ❌ | | |
 | `::tossl::ssl::socket_info` | ❌ | | ❌ | | |
 | `::tossl::ssl::context` | ❌ | | ❌ | | |
