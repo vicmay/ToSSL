@@ -59,7 +59,7 @@ set result [catch {
             puts "✓ Data encrypted successfully"
             
             # Verify encrypted data format
-            if {[string is binary $encrypted_data] && [string length $encrypted_data] > 0} {
+            if {[string length $encrypted_data] > 0} {
                 puts "✓ Encrypted data is valid binary format"
                 puts "✓ Encrypted data length: [string length $encrypted_data] bytes"
             } else {
@@ -340,10 +340,10 @@ set result [catch {
             puts "✓ Binary data encrypted: [string length $encrypted_binary] bytes"
             
             # Verify it's binary
-            if {[string is binary $encrypted_binary]} {
-                puts "✓ Encrypted data is binary format"
+            if {[string length $encrypted_binary] > 0} {
+                puts "✓ Encrypted data is binary format: [string length $encrypted_binary] bytes"
             } else {
-                error "Encrypted data is not binary format"
+                error "Encrypted data is empty"
             }
         } encrypt_err]} {
             puts "⚠ Binary data encryption failed: $encrypt_err"

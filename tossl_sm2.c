@@ -8,27 +8,55 @@ int Sm2GenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
     }
     
     EVP_PKEY *pkey = NULL;
-    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_SM2, NULL);
+    EVP_PKEY_CTX *ctx = NULL;
     
+    // Try SM2 key generation first
+    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_SM2, NULL);
+    if (ctx) {
+        if (EVP_PKEY_keygen_init(ctx) > 0 && EVP_PKEY_keygen(ctx, &pkey) > 0) {
+            EVP_PKEY_CTX_free(ctx);
+            // Verify it's actually an SM2 key
+            if (EVP_PKEY_id(pkey) == EVP_PKEY_SM2) {
+                goto write_key;
+            } else {
+                EVP_PKEY_free(pkey);
+                pkey = NULL;
+            }
+        } else {
+            EVP_PKEY_CTX_free(ctx);
+            ctx = NULL;
+        }
+    }
+    
+    // Fallback to EC key generation with SM2 curve
+    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
     if (!ctx) {
-        Tcl_SetResult(interp, "Failed to create SM2 context", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to create EC context", TCL_STATIC);
         return TCL_ERROR;
     }
     
     if (EVP_PKEY_keygen_init(ctx) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        Tcl_SetResult(interp, "Failed to initialize key generation", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to initialize EC key generation", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Set the curve to SM2
+    if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, NID_sm2) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        Tcl_SetResult(interp, "Failed to set SM2 curve", TCL_STATIC);
         return TCL_ERROR;
     }
     
     if (EVP_PKEY_keygen(ctx, &pkey) <= 0) {
         EVP_PKEY_CTX_free(ctx);
-        Tcl_SetResult(interp, "Failed to generate SM2 key", TCL_STATIC);
+        Tcl_SetResult(interp, "Failed to generate SM2 EC key", TCL_STATIC);
         return TCL_ERROR;
     }
     
     EVP_PKEY_CTX_free(ctx);
     
+write_key:
     // Write private key to PEM
     BIO *bio = BIO_new(BIO_s_mem());
     if (!bio) {
@@ -82,10 +110,23 @@ int Sm2SignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_id(pkey) != EVP_PKEY_SM2) {
+    // Check if it's an SM2 key or EC key with SM2 curve
+    int key_type = EVP_PKEY_id(pkey);
+    if (key_type != EVP_PKEY_SM2 && key_type != EVP_PKEY_EC) {
         EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Not an SM2 key", TCL_STATIC);
+        Tcl_SetResult(interp, "Not an SM2 or EC key", TCL_STATIC);
         return TCL_ERROR;
+    }
+    
+    // If it's an EC key, verify it's using SM2 curve
+    if (key_type == EVP_PKEY_EC) {
+        char curve_name[80] = "unknown";
+        if (EVP_PKEY_get_group_name(pkey, curve_name, sizeof(curve_name), NULL) <= 0 || 
+            strstr(curve_name, "SM2") == NULL) {
+            EVP_PKEY_free(pkey);
+            Tcl_SetResult(interp, "Not an SM2 curve EC key", TCL_STATIC);
+            return TCL_ERROR;
+        }
     }
     
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
@@ -162,10 +203,23 @@ int Sm2VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_id(pkey) != EVP_PKEY_SM2) {
+    // Check if it's an SM2 key or EC key with SM2 curve
+    int key_type = EVP_PKEY_id(pkey);
+    if (key_type != EVP_PKEY_SM2 && key_type != EVP_PKEY_EC) {
         EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Not an SM2 key", TCL_STATIC);
+        Tcl_SetResult(interp, "Not an SM2 or EC key", TCL_STATIC);
         return TCL_ERROR;
+    }
+    
+    // If it's an EC key, verify it's using SM2 curve
+    if (key_type == EVP_PKEY_EC) {
+        char curve_name[80] = "unknown";
+        if (EVP_PKEY_get_group_name(pkey, curve_name, sizeof(curve_name), NULL) <= 0 || 
+            strstr(curve_name, "SM2") == NULL) {
+            EVP_PKEY_free(pkey);
+            Tcl_SetResult(interp, "Not an SM2 curve EC key", TCL_STATIC);
+            return TCL_ERROR;
+        }
     }
     
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
@@ -218,11 +272,20 @@ int Sm2EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_id(pkey) != EVP_PKEY_SM2) {
+    // Basic key validation - reject obviously wrong key types
+    int key_type = EVP_PKEY_id(pkey);
+    
+    // Only reject keys that we can positively identify as wrong types
+    // Allow unknown types (-1) as they might be SM2 keys
+    if (key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_DSA || 
+        key_type == EVP_PKEY_DH || key_type == EVP_PKEY_RSA_PSS) {
         EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "Not an SM2 key", TCL_STATIC);
         return TCL_ERROR;
     }
+    
+    // Accept SM2, EC, and unknown key types
+    // The actual validation will happen during the encryption operation
     
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
     if (!ctx) {
@@ -279,7 +342,8 @@ int Sm2DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     }
     
     const char *key_data = Tcl_GetString(objv[1]);
-    const char *data = Tcl_GetString(objv[2]);
+    int data_len;
+    const unsigned char *data = (const unsigned char *)Tcl_GetByteArrayFromObj(objv[2], &data_len);
     
     EVP_PKEY *pkey = NULL;
     BIO *bio = BIO_new_mem_buf(key_data, -1);
@@ -297,9 +361,14 @@ int Sm2DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_id(pkey) != EVP_PKEY_SM2) {
+    // Check if it's an SM2 key or EC key with SM2 curve
+    int key_type = EVP_PKEY_id(pkey);
+    int base_type = EVP_PKEY_base_id(pkey);
+    
+    if (key_type != EVP_PKEY_SM2 && key_type != EVP_PKEY_EC && 
+        base_type != EVP_PKEY_SM2 && base_type != EVP_PKEY_EC) {
         EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Not an SM2 key", TCL_STATIC);
+        Tcl_SetResult(interp, "Not an SM2 or EC key", TCL_STATIC);
         return TCL_ERROR;
     }
     
@@ -318,7 +387,7 @@ int Sm2DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     }
     
     size_t out_len;
-    if (EVP_PKEY_decrypt(ctx, NULL, &out_len, (const unsigned char*)data, strlen(data)) <= 0) {
+    if (EVP_PKEY_decrypt(ctx, NULL, &out_len, data, data_len) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "Failed to calculate decrypted length", TCL_STATIC);
@@ -333,7 +402,7 @@ int Sm2DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_decrypt(ctx, out, &out_len, (const unsigned char*)data, strlen(data)) <= 0) {
+    if (EVP_PKEY_decrypt(ctx, out, &out_len, data, data_len) <= 0) {
         free(out);
         EVP_PKEY_CTX_free(ctx);
         EVP_PKEY_free(pkey);

@@ -26,7 +26,7 @@ int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
             Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("rsa", -1));
         } else if (type == EVP_PKEY_DSA) {
             Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
-        } else if (type == EVP_PKEY_EC) {
+        } else if (type == EVP_PKEY_EC || type == EVP_PKEY_SM2) {
             Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ec", -1));
             char curve[80] = {0};
             OSSL_PARAM params[2] = { OSSL_PARAM_utf8_string("group", curve, sizeof(curve)), OSSL_PARAM_END };
@@ -60,7 +60,7 @@ int KeyParseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv
             Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("rsa", -1));
         } else if (type == EVP_PKEY_DSA) {
             Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("dsa", -1));
-        } else if (type == EVP_PKEY_EC) {
+        } else if (type == EVP_PKEY_EC || type == EVP_PKEY_SM2) {
             Tcl_DictObjPut(interp, dict, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("ec", -1));
             char curve[80] = {0};
             OSSL_PARAM params[2] = { OSSL_PARAM_utf8_string("group", curve, sizeof(curve)), OSSL_PARAM_END };
@@ -387,6 +387,8 @@ int KeyGetPubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         Tcl_SetResult(interp, "Extracted public key is not valid Ed25519", TCL_STATIC);
         return TCL_ERROR;
     }
+    // Note: SM2 keys may be EC keys with SM2 curve, so we don't validate the type here
+    // The SM2 commands will handle the validation themselves
     Tcl_SetResult(interp, pub_pem, TCL_VOLATILE);
     BIO_free(out_bio);
     EVP_PKEY_free(pkey);
