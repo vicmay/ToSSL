@@ -485,18 +485,43 @@ int RsaValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         return TCL_ERROR;
     }
     
-    const char *key_pem = Tcl_GetString(objv[2]);
-    BIO *bio = BIO_new_mem_buf((void*)key_pem, -1);
-    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-    if (!pkey) {
-        BIO_free(bio);
-        Tcl_SetResult(interp, "Failed to parse private key", TCL_STATIC);
+    const char *opt = Tcl_GetString(objv[1]);
+    if (strcmp(opt, "-key") != 0) {
+        Tcl_SetResult(interp, "Expected -key option", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    int result = modern_rsa_validate_key(pkey);
-    Tcl_SetResult(interp, (result == 1) ? "1" : "0", TCL_STATIC);
+    const char *key_pem = Tcl_GetString(objv[2]);
+    BIO *bio = BIO_new_mem_buf((void*)key_pem, -1);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+    int is_private = 1;
+    if (!pkey) {
+        BIO_free(bio);
+        bio = BIO_new_mem_buf((void*)key_pem, -1);
+        pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+        is_private = 0;
+    }
+    if (!pkey) {
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Failed to parse RSA key", TCL_STATIC);
+        return TCL_ERROR;
+    }
     
+    if (EVP_PKEY_base_id(pkey) != EVP_PKEY_RSA) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Not an RSA key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int result;
+    if (is_private) {
+        result = modern_rsa_validate_key(pkey);
+    } else {
+        result = modern_rsa_public_check(pkey);
+    }
+    
+    Tcl_SetResult(interp, (result == 1) ? "1" : "0", TCL_STATIC);
     EVP_PKEY_free(pkey);
     BIO_free(bio);
     return TCL_OK;

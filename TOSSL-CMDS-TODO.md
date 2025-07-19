@@ -221,7 +221,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::rsa::sign` | ✅ | tests/test_rsa_sign.tcl | ✅ | doc/rsa_sign.md | |
 | `::tossl::rsa::encrypt` | ✅ | tests/test_rsa_encrypt.tcl | ✅ | doc/rsa_encrypt.md | |
 | `::tossl::rsa::components` | ✅ | tests/test_rsa_components.tcl | ✅ | doc/rsa_components.md | |
-| `::tossl::rsa::validate` | ❌ | | ❌ | | |
+| `::tossl::rsa::validate` | ✅ | tests/test_rsa_validate.tcl | ✅ | doc/rsa_validate.md | |
 | `::tossl::rsa::decrypt` | ❌ | | ❌ | | |
 | `::tossl::rsa::generate` | ❌ | | ❌ | | |
 | `::tossl::ed25519::verify` | ❌ | | ❌ | | |

@@ -92,6 +92,16 @@ int modern_rsa_validate_key(EVP_PKEY *pkey) {
     return result;
 }
 
+int modern_rsa_public_check(EVP_PKEY *pkey) {
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!ctx) {
+        return 0;
+    }
+    int result = EVP_PKEY_public_check(ctx);
+    EVP_PKEY_CTX_free(ctx);
+    return result;
+}
+
 // DSA-specific modern functions
 int modern_dsa_get_key_params(EVP_PKEY *pkey, BIGNUM **p, BIGNUM **q, BIGNUM **g, BIGNUM **pub_key, BIGNUM **priv_key) {
     OSSL_PARAM params[] = {
