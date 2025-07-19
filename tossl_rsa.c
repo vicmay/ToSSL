@@ -519,20 +519,35 @@ int RsaComponentsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
         return TCL_ERROR;
     }
     
+    // Check if it's an RSA key
+    if (EVP_PKEY_base_id(pkey) != EVP_PKEY_RSA) {
+        EVP_PKEY_free(pkey);
+        BIO_free(bio);
+        Tcl_SetResult(interp, "Not an RSA key", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
     Tcl_Obj *dict = Tcl_NewDictObj();
     
+    // Get key components using EVP_PKEY_get_bn_param (OpenSSL 3.x API)
     BIGNUM *n = NULL, *e = NULL, *d = NULL, *p = NULL, *q = NULL;
     BIGNUM *dmp1 = NULL, *dmq1 = NULL, *iqmp = NULL;
     
-    if (modern_rsa_get_key_params(pkey, &n, &e, &d) <= 0) {
+    if (EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_N, &n) <= 0 ||
+        EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_E, &e) <= 0 ||
+        EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_D, &d) <= 0) {
         EVP_PKEY_free(pkey);
         BIO_free(bio);
         Tcl_SetResult(interp, "Failed to get RSA key parameters", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    modern_rsa_get_factors(pkey, &p, &q);
-    modern_rsa_get_crt_params(pkey, &dmp1, &dmq1, &iqmp);
+    // Get factors and CRT parameters (these might not be available for all keys)
+    EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_FACTOR1, &p);
+    EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_FACTOR2, &q);
+    EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_EXPONENT1, &dmp1);
+    EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_EXPONENT2, &dmq1);
+    EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_COEFFICIENT1, &iqmp);
     
     if (n) {
         char *n_hex = BN_bn2hex(n);
