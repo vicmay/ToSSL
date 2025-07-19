@@ -135,13 +135,25 @@ test "JWT creation with none algorithm" {
         error "JWT should have exactly 3 parts"
     }
     
-    # Note: JWT with none algorithm has empty signature part which may cause
-    # issues with some JWT libraries, but this is the correct format
-    puts "  Note: JWT with none algorithm has empty signature part"
+    # Verify the JWT can be verified
+    set verify_result [tossl::jwt::verify -token $jwt -key "" -alg none]
+    if {![dict get $verify_result valid]} {
+        error "JWT with none algorithm verification failed"
+    }
     
-    # Note: JWT verify and decode functions have limitations with empty signature parts
-    # due to strtok behavior, but this is a known issue with the current implementation
-    puts "  Note: JWT verify/decode functions have limitation with empty signatures"
+    # Verify the JWT can be decoded
+    set decoded [tossl::jwt::decode -token $jwt]
+    set decoded_header [tossl::json::parse [dict get $decoded header]]
+    set decoded_payload [tossl::json::parse [dict get $decoded payload]]
+    
+    if {[dict get $decoded_header alg] != "none"} {
+        error "Header algorithm should be none"
+    }
+    if {[dict get $decoded_payload sub] != "user_none"} {
+        error "Payload subject should be user_none"
+    }
+    
+    puts "  Note: JWT with none algorithm now works correctly with empty signature"
 }
 
 # Test 6: JWT creation with complex payload

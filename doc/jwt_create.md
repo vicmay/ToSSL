@@ -462,15 +462,17 @@ This command implements JWT creation according to RFC 7519 (JSON Web Token) spec
 - Cryptographic signatures using OpenSSL
 - Algorithm support for HMAC, RSA, and EC
 
-## Known Limitations
+## Implementation Notes
 
 ### Empty Signature Handling
 
-The "none" algorithm creates JWTs with empty signature parts, which may cause issues with:
-- `::tossl::jwt::decode` - Due to `strtok` behavior with empty parts
-- `::tossl::jwt::verify` - Due to `strtok` behavior with empty parts
+The "none" algorithm creates JWTs with empty signature parts, which are now properly handled by all JWT functions:
+- `::tossl::jwt::decode` - Correctly handles empty signature parts
+- `::tossl::jwt::verify` - Correctly handles empty signature parts
+- `::tossl::jwt::validate` - Correctly handles empty signature parts
+- `::tossl::jwt::extract_claims` - Correctly handles empty signature parts
 
-This is a limitation of the current implementation using `strtok` for parsing.
+The implementation uses manual string parsing instead of `strtok` to properly handle empty signature parts.
 
 ## See Also
 

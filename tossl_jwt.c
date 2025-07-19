@@ -501,13 +501,36 @@ int JwtVerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     
     JwtAlgorithm alg = parse_algorithm(alg_str);
     
-    // Split token into parts
+    // Split token into parts manually to handle empty signature
     char *token_copy = strdup(token_str);
-    char *header_part = strtok(token_copy, ".");
-    char *payload_part = strtok(NULL, ".");
-    char *signature_part = strtok(NULL, ".");
+    char *header_part = NULL;
+    char *payload_part = NULL;
+    char *signature_part = NULL;
     
-    if (!header_part || !payload_part || !signature_part) {
+    // Find first dot
+    char *first_dot = strchr(token_copy, '.');
+    if (!first_dot) {
+        free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    *first_dot = '\0';
+    header_part = token_copy;
+    
+    // Find second dot
+    char *second_dot = strchr(first_dot + 1, '.');
+    if (!second_dot) {
+        free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    *second_dot = '\0';
+    payload_part = first_dot + 1;
+    
+    // Signature part (may be empty)
+    signature_part = second_dot + 1;
+    
+    if (!header_part || !payload_part) {
         free(token_copy);
         Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         return TCL_ERROR;
@@ -584,13 +607,36 @@ int JwtDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     
     const char *token_str = Tcl_GetString(objv[2]);
     
-    // Split token into parts
+    // Split token into parts manually to handle empty signature
     char *token_copy = strdup(token_str);
-    char *header_part = strtok(token_copy, ".");
-    char *payload_part = strtok(NULL, ".");
-    char *signature_part = strtok(NULL, ".");
+    char *header_part = NULL;
+    char *payload_part = NULL;
+    char *signature_part = NULL;
     
-    if (!header_part || !payload_part || !signature_part) {
+    // Find first dot
+    char *first_dot = strchr(token_copy, '.');
+    if (!first_dot) {
+        free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    *first_dot = '\0';
+    header_part = token_copy;
+    
+    // Find second dot
+    char *second_dot = strchr(first_dot + 1, '.');
+    if (!second_dot) {
+        free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    *second_dot = '\0';
+    payload_part = first_dot + 1;
+    
+    // Signature part (may be empty)
+    signature_part = second_dot + 1;
+    
+    if (!header_part || !payload_part) {
         free(token_copy);
         Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         return TCL_ERROR;
@@ -776,13 +822,36 @@ int JwtValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
         return TCL_ERROR;
     }
     
-    // Parse JWT
+    // Parse JWT manually to handle empty signature
     char *token_copy = strdup(token);
-    char *header_part = strtok(token_copy, ".");
-    char *payload_part = strtok(NULL, ".");
-    char *signature_part = strtok(NULL, ".");
+    char *header_part = NULL;
+    char *payload_part = NULL;
+    char *signature_part = NULL;
     
-    if (!header_part || !payload_part || !signature_part) {
+    // Find first dot
+    char *first_dot = strchr(token_copy, '.');
+    if (!first_dot) {
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        free(token_copy);
+        return TCL_ERROR;
+    }
+    *first_dot = '\0';
+    header_part = token_copy;
+    
+    // Find second dot
+    char *second_dot = strchr(first_dot + 1, '.');
+    if (!second_dot) {
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        free(token_copy);
+        return TCL_ERROR;
+    }
+    *second_dot = '\0';
+    payload_part = first_dot + 1;
+    
+    // Signature part (may be empty)
+    signature_part = second_dot + 1;
+    
+    if (!header_part || !payload_part) {
         Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         free(token_copy);
         return TCL_ERROR;
@@ -877,13 +946,36 @@ int JwtExtractClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     
     const char *token = Tcl_GetString(objv[2]);
     
-    // Parse JWT
+    // Parse JWT manually to handle empty signature
     char *token_copy = strdup(token);
-    char *header_part = strtok(token_copy, ".");
-    char *payload_part = strtok(NULL, ".");
-    char *signature_part = strtok(NULL, ".");
+    char *header_part = NULL;
+    char *payload_part = NULL;
+    char *signature_part = NULL;
     
-    if (!header_part || !payload_part || !signature_part) {
+    // Find first dot
+    char *first_dot = strchr(token_copy, '.');
+    if (!first_dot) {
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        free(token_copy);
+        return TCL_ERROR;
+    }
+    *first_dot = '\0';
+    header_part = token_copy;
+    
+    // Find second dot
+    char *second_dot = strchr(first_dot + 1, '.');
+    if (!second_dot) {
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        free(token_copy);
+        return TCL_ERROR;
+    }
+    *second_dot = '\0';
+    payload_part = first_dot + 1;
+    
+    // Signature part (may be empty)
+    signature_part = second_dot + 1;
+    
+    if (!header_part || !payload_part) {
         Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         free(token_copy);
         return TCL_ERROR;
