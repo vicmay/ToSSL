@@ -114,9 +114,19 @@ int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         return TCL_ERROR;
     }
     
-    // Get the data as a byte array - this preserves the data unchanged
+    // Handle both binary data and text strings properly
     int data_len;
-    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &data_len);
+    unsigned char *data;
+    
+    // Check if this is a byte array object (binary data like from [binary format])
+    if (objv[1]->typePtr && strcmp(objv[1]->typePtr->name, "bytearray") == 0) {
+        // Handle as binary data - use byte array directly
+        data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &data_len);
+    } else {
+        // Handle as text string - get UTF-8 representation
+        const char *str = Tcl_GetStringFromObj(objv[1], &data_len);
+        data = (unsigned char *)str;
+    }
     
     BIO *bio = BIO_new(BIO_s_mem());
     BIO *b64 = BIO_new(BIO_f_base64());
@@ -126,7 +136,13 @@ int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     BIO_flush(bio);
     BUF_MEM *bptr;
     BIO_get_mem_ptr(bio, &bptr);
-    Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
+    
+    // Create a properly null-terminated copy
+    char *result = Tcl_Alloc(bptr->length + 1);
+    memcpy(result, bptr->data, bptr->length);
+    result[bptr->length] = '\0';
+    
+    Tcl_SetResult(interp, result, TCL_DYNAMIC);
     BIO_free_all(bio);
     return TCL_OK;
 }
