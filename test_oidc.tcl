@@ -263,6 +263,9 @@ run_test "OIDC Command Availability" {
     set required_commands {
         "::tossl::oidc::discover"
         "::tossl::oidc::generate_nonce"
+        "::tossl::oidc::fetch_jwks"
+        "::tossl::oidc::get_jwk"
+        "::tossl::oidc::validate_jwks"
     }
     
     foreach cmd $required_commands {
@@ -272,6 +275,119 @@ run_test "OIDC Command Availability" {
     }
     
     puts "   All required OIDC commands are available"
+}
+
+# Test 11: JWKS Validation
+run_test "JWKS Validation" {
+    set jwks_data {
+    {
+      "keys": [
+        {
+          "kty": "RSA",
+          "kid": "test-key-1",
+          "n": "test-n-value",
+          "e": "AQAB"
+        },
+        {
+          "kty": "EC",
+          "kid": "test-key-2",
+          "crv": "P-256",
+          "x": "test-x",
+          "y": "test-y"
+        }
+      ]
+    }
+    }
+    
+    set result [tossl::oidc::validate_jwks -jwks $jwks_data]
+    
+    if {![dict get $result valid]} {
+        error "JWKS validation failed"
+    }
+    
+    if {[dict get $result keys_count] != 2} {
+        error "Expected 2 keys, got [dict get $result keys_count]"
+    }
+    
+    if {[dict get $result valid_keys] != 2} {
+        error "Expected 2 valid keys, got [dict get $result valid_keys]"
+    }
+    
+    puts "   JWKS validation passed: [dict get $result keys_count] keys, [dict get $result valid_keys] valid"
+}
+
+# Test 12: JWK Retrieval
+run_test "JWK Retrieval" {
+    set jwks_data {
+    {
+      "keys": [
+        {
+          "kty": "RSA",
+          "kid": "test-key-1",
+          "n": "test-n-value",
+          "e": "AQAB"
+        }
+      ]
+    }
+    }
+    
+    set jwk [tossl::oidc::get_jwk -jwks $jwks_data -kid "test-key-1"]
+    
+    if {[string first "test-key-1" $jwk] == -1} {
+        error "Retrieved JWK does not contain expected kid"
+    }
+    
+    if {[string first "RSA" $jwk] == -1} {
+        error "Retrieved JWK does not contain expected kty"
+    }
+    
+    puts "   JWK retrieval passed: $jwk"
+}
+
+# Test 13: JWKS Error Handling
+run_test "JWKS Error Handling" {
+    # Test invalid JSON
+    if {![catch {
+        tossl::oidc::validate_jwks -jwks "invalid json"
+    } result]} {
+        error "Should have failed with invalid JSON"
+    }
+    
+    # Test missing keys field
+    if {![catch {
+        tossl::oidc::validate_jwks -jwks "{}"
+    } result]} {
+        error "Should have failed with missing keys field"
+    }
+    
+    # Test empty keys array
+    if {![catch {
+        tossl::oidc::validate_jwks -jwks '{"keys":[]}'
+    } result]} {
+        error "Should have failed with empty keys array"
+    }
+    
+    # Test non-existent kid
+    set jwks_data {
+    {
+      "keys": [
+        {
+          "kty": "RSA",
+          "kid": "test-key-1",
+          "n": "test-n-value",
+          "e": "AQAB"
+        }
+      ]
+    }
+    }
+    
+    if {![catch {
+        tossl::oidc::get_jwk -jwks $jwks_data -kid "non-existent"
+    } result]} {
+        error "Should have failed with non-existent kid"
+    }
+    
+    puts "   All error cases handled correctly"
 }
 
 puts ""

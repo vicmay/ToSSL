@@ -786,10 +786,278 @@ int OidcGenerateNonceCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     return TCL_OK;
 }
 
+// Parse OIDC JWKS
+static OidcJwks *parse_oidc_jwks(const char *response_data) {
+    OidcJwks *jwks = calloc(1, sizeof(OidcJwks));
+    if (!jwks) return NULL;
+    
+    json_object *json = json_tokener_parse(response_data);
+    if (!json) {
+        jwks->error = strdup("Invalid JSON response");
+        return jwks;
+    }
+    
+    json_object *keys_obj;
+    if (json_object_object_get_ex(json, "keys", &keys_obj)) {
+        if (json_object_get_type(keys_obj) == json_type_array) {
+            int keys_count = json_object_array_length(keys_obj);
+            jwks->keys = malloc(keys_count * sizeof(char *));
+            if (!jwks->keys) {
+                jwks->error = strdup("Memory allocation failed");
+                json_object_put(json);
+                return jwks;
+            }
+            
+            for (int i = 0; i < keys_count; i++) {
+                json_object *key_obj = json_object_array_get_idx(keys_obj, i);
+                if (json_object_get_type(key_obj) == json_type_object) {
+                    jwks->keys[i] = strdup(json_object_to_json_string(key_obj));
+                } else {
+                    jwks->keys[i] = NULL;
+                }
+            }
+            jwks->keys_count = keys_count;
+        }
+    } else {
+        jwks->error = strdup("Missing 'keys' field in JWKS");
+    }
+    
+    json_object_put(json);
+    return jwks;
+}
+
+// Perform JWKS HTTP request
+static char *perform_jwks_request(const char *jwks_url) {
+    CURL *curl = curl_easy_init();
+    if (!curl) return NULL;
+    
+    char *response_data = malloc(1);
+    response_data[0] = '\0';
+    
+    curl_easy_setopt(curl, CURLOPT_URL, jwks_url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, oidc_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "ToSSL-OIDC-Client/1.0");
+    
+    CURLcode res = curl_easy_perform(curl);
+    
+    long http_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    curl_easy_cleanup(curl);
+    
+    if (res != CURLE_OK || http_code != 200) {
+        free(response_data);
+        return NULL;
+    }
+    
+    return response_data;
+}
+
+// JWKS Fetch Command
+int OidcFetchJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-jwks_uri <jwks_url>");
+        return TCL_ERROR;
+    }
+    
+    const char *jwks_url = Tcl_GetString(objv[2]);
+    
+    // Check cache first
+    for (int i = 0; i < jwks_cache_count; i++) {
+        if (jwks_cache[i] && jwks_cache[i]->keys_count > 0) {
+            // Return cached result
+            Tcl_Obj *result = Tcl_NewDictObj();
+            
+            Tcl_Obj *keys_list = Tcl_NewListObj(0, NULL);
+            for (int j = 0; j < jwks_cache[i]->keys_count; j++) {
+                if (jwks_cache[i]->keys[j]) {
+                    Tcl_ListObjAppendElement(interp, keys_list, 
+                                           Tcl_NewStringObj(jwks_cache[i]->keys[j], -1));
+                }
+            }
+            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("keys", -1), keys_list);
+            
+            Tcl_SetObjResult(interp, result);
+            return TCL_OK;
+        }
+    }
+    
+    // Perform JWKS request
+    char *response_data = perform_jwks_request(jwks_url);
+    if (!response_data) {
+        Tcl_SetResult(interp, "Failed to fetch JWKS", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse JWKS response
+    OidcJwks *jwks = parse_oidc_jwks(response_data);
+    free(response_data);
+    
+    if (!jwks) {
+        Tcl_SetResult(interp, "Failed to parse JWKS", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (jwks->error) {
+        Tcl_SetResult(interp, jwks->error, TCL_STATIC);
+        free_oidc_jwks(jwks);
+        return TCL_ERROR;
+    }
+    
+    // Cache the result
+    if (jwks_cache_count >= jwks_cache_capacity) {
+        jwks_cache_capacity = jwks_cache_capacity == 0 ? 10 : jwks_cache_capacity * 2;
+        jwks_cache = realloc(jwks_cache, jwks_cache_capacity * sizeof(OidcJwks *));
+    }
+    
+    jwks_cache[jwks_cache_count++] = jwks;
+    
+    // Create result dict
+    Tcl_Obj *result = Tcl_NewDictObj();
+    
+    Tcl_Obj *keys_list = Tcl_NewListObj(0, NULL);
+    for (int i = 0; i < jwks->keys_count; i++) {
+        if (jwks->keys[i]) {
+            Tcl_ListObjAppendElement(interp, keys_list, 
+                                   Tcl_NewStringObj(jwks->keys[i], -1));
+        }
+    }
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("keys", -1), keys_list);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// Get specific JWK by key ID
+int OidcGetJwkCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-jwks <jwks_data> -kid <key_id>");
+        return TCL_ERROR;
+    }
+    
+    const char *jwks_data = Tcl_GetString(objv[2]);
+    const char *kid = Tcl_GetString(objv[4]);
+    
+    // Parse JWKS data
+    json_object *jwks_json = json_tokener_parse(jwks_data);
+    if (!jwks_json) {
+        Tcl_SetResult(interp, "Invalid JWKS data", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    json_object *keys_obj;
+    if (!json_object_object_get_ex(jwks_json, "keys", &keys_obj)) {
+        Tcl_SetResult(interp, "Missing 'keys' field in JWKS", TCL_STATIC);
+        json_object_put(jwks_json);
+        return TCL_ERROR;
+    }
+    
+    if (json_object_get_type(keys_obj) != json_type_array) {
+        Tcl_SetResult(interp, "Invalid 'keys' field format", TCL_STATIC);
+        json_object_put(jwks_json);
+        return TCL_ERROR;
+    }
+    
+    // Search for key with matching kid
+    int keys_count = json_object_array_length(keys_obj);
+    for (int i = 0; i < keys_count; i++) {
+        json_object *key_obj = json_object_array_get_idx(keys_obj, i);
+        if (json_object_get_type(key_obj) == json_type_object) {
+            json_object *key_kid;
+            if (json_object_object_get_ex(key_obj, "kid", &key_kid)) {
+                if (strcmp(json_object_get_string(key_kid), kid) == 0) {
+                    // Found matching key
+                    Tcl_SetResult(interp, json_object_to_json_string(key_obj), TCL_VOLATILE);
+                    json_object_put(jwks_json);
+                    return TCL_OK;
+                }
+            }
+        }
+    }
+    
+    json_object_put(jwks_json);
+    Tcl_SetResult(interp, "Key with specified 'kid' not found", TCL_STATIC);
+    return TCL_ERROR;
+}
+
+// Validate JWKS structure
+int OidcValidateJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-jwks <jwks_data>");
+        return TCL_ERROR;
+    }
+    
+    const char *jwks_data = Tcl_GetString(objv[2]);
+    
+    // Parse JWKS data
+    json_object *jwks_json = json_tokener_parse(jwks_data);
+    if (!jwks_json) {
+        Tcl_SetResult(interp, "Invalid JSON format", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    json_object *keys_obj;
+    if (!json_object_object_get_ex(jwks_json, "keys", &keys_obj)) {
+        Tcl_SetResult(interp, "Missing 'keys' field", TCL_STATIC);
+        json_object_put(jwks_json);
+        return TCL_ERROR;
+    }
+    
+    if (json_object_get_type(keys_obj) != json_type_array) {
+        Tcl_SetResult(interp, "Invalid 'keys' field format", TCL_STATIC);
+        json_object_put(jwks_json);
+        return TCL_ERROR;
+    }
+    
+    int keys_count = json_object_array_length(keys_obj);
+    if (keys_count == 0) {
+        Tcl_SetResult(interp, "No keys found in JWKS", TCL_STATIC);
+        json_object_put(jwks_json);
+        return TCL_ERROR;
+    }
+    
+    // Validate each key
+    int valid_keys = 0;
+    for (int i = 0; i < keys_count; i++) {
+        json_object *key_obj = json_object_array_get_idx(keys_obj, i);
+        if (json_object_get_type(key_obj) == json_type_object) {
+            json_object *kty, *kid, *use, *alg;
+            
+            // Check for required fields
+            if (json_object_object_get_ex(key_obj, "kty", &kty) &&
+                json_object_object_get_ex(key_obj, "kid", &kid)) {
+                valid_keys++;
+            }
+        }
+    }
+    
+    json_object_put(jwks_json);
+    
+    if (valid_keys == 0) {
+        Tcl_SetResult(interp, "No valid keys found in JWKS", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("keys_count", -1), Tcl_NewIntObj(keys_count));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid_keys", -1), Tcl_NewIntObj(valid_keys));
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
 // Initialize OIDC module
 int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::discover", OidcDiscoverCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::generate_nonce", OidcGenerateNonceCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::fetch_jwks", OidcFetchJwksCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::get_jwk", OidcGetJwkCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::validate_jwks", OidcValidateJwksCmd, NULL, NULL);
     
     return TCL_OK;
 } 

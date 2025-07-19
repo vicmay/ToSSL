@@ -24,12 +24,12 @@ This document outlines the implementation plan for adding OpenID Connect (OIDC) 
 
 ## Implementation Plan
 
-### **Phase 1: OIDC Discovery (Priority: High) - 1-2 days**
+### **Phase 1: OIDC Discovery (Priority: High) - ✅ COMPLETED**
 
 #### **1.1 OIDC Discovery Endpoint**
-Implement RFC 8414 (OAuth 2.0 Authorization Server Metadata) support.
+✅ **COMPLETED** - RFC 8414 (OAuth 2.0 Authorization Server Metadata) support implemented.
 
-**New Commands:**
+**Implemented Commands:**
 ```tcl
 # Discover OIDC provider configuration
 tossl::oidc::discover -issuer <issuer_url>
@@ -68,13 +68,33 @@ tossl::oidc::discover -issuer <issuer_url>
 # - issuer
 ```
 
-**Implementation Tasks:**
-- [ ] Add `tossl_oidc.c` source file
-- [ ] Implement OIDC discovery HTTP request
-- [ ] Parse and validate discovery response
-- [ ] Cache discovery results for performance
-- [ ] Add error handling for discovery failures
-- [ ] Add validation of required OIDC endpoints
+**Completed Tasks:**
+- ✅ Added `tossl_oidc.c` source file
+- ✅ Implemented OIDC discovery HTTP request
+- ✅ Parse and validate discovery response
+- ✅ Cache discovery results for performance
+- ✅ Add error handling for discovery failures
+- ✅ Add validation of required OIDC endpoints
+- ✅ Added comprehensive test suite (10 tests, all passing)
+- ✅ Added complete documentation
+- ✅ Integrated with existing OAuth2 infrastructure
+
+#### **1.2 OIDC Nonce Generation**
+✅ **COMPLETED** - Cryptographically secure nonce generation for CSRF protection.
+
+**Implemented Commands:**
+```tcl
+# Generate cryptographically secure nonce
+tossl::oidc::generate_nonce
+```
+
+**Completed Tasks:**
+- ✅ Cryptographically secure random generation (OpenSSL RAND_bytes)
+- ✅ Base64url encoding for URL safety
+- ✅ Proper length (43 characters)
+- ✅ Unique for each call
+- ✅ Entropy validation
+- ✅ Integration with OAuth2 flows
 
 #### **1.2 JWKS (JSON Web Key Set) Support**
 Implement RFC 7517 (JSON Web Key Set) for public key discovery.
