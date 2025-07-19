@@ -1718,6 +1718,242 @@ int OidcExtractUserClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Ob
     return TCL_OK;
 }
 
+// Generate logout URL
+int OidcLogoutUrlCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 5 || objc > 9) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-id_token_hint <id_token> -end_session_endpoint <url> ?-post_logout_redirect_uri <uri>? ?-state <state>?");
+        return TCL_ERROR;
+    }
+    
+    const char *id_token_hint = NULL;
+    const char *end_session_endpoint = NULL;
+    const char *post_logout_redirect_uri = NULL;
+    const char *state = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-id_token_hint") == 0) {
+            id_token_hint = value;
+        } else if (strcmp(arg, "-end_session_endpoint") == 0) {
+            end_session_endpoint = value;
+        } else if (strcmp(arg, "-post_logout_redirect_uri") == 0) {
+            post_logout_redirect_uri = value;
+        } else if (strcmp(arg, "-state") == 0) {
+            state = value;
+        }
+    }
+    
+    if (!id_token_hint || !end_session_endpoint) {
+        Tcl_SetResult(interp, "Missing required parameters: -id_token_hint, -end_session_endpoint", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Build logout URL
+    char logout_url[4096];
+    int written = snprintf(logout_url, sizeof(logout_url), "%s?id_token_hint=%s", 
+                          end_session_endpoint, id_token_hint);
+    
+    if (post_logout_redirect_uri) {
+        written += snprintf(logout_url + written, sizeof(logout_url) - written, 
+                           "&post_logout_redirect_uri=%s", post_logout_redirect_uri);
+    }
+    
+    if (state) {
+        written += snprintf(logout_url + written, sizeof(logout_url) - written, 
+                           "&state=%s", state);
+    }
+    
+    if (written >= sizeof(logout_url)) {
+        Tcl_SetResult(interp, "Logout URL too long", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    Tcl_SetResult(interp, logout_url, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+// Perform end session request
+static char *perform_end_session_request(const char *end_session_endpoint, 
+                                        const char *id_token_hint,
+                                        const char *post_logout_redirect_uri,
+                                        const char *state) {
+    CURL *curl = curl_easy_init();
+    if (!curl) return NULL;
+    
+    // Build POST data
+    char post_data[4096];
+    int written = snprintf(post_data, sizeof(post_data), "id_token_hint=%s", id_token_hint);
+    
+    if (post_logout_redirect_uri) {
+        written += snprintf(post_data + written, sizeof(post_data) - written, 
+                           "&post_logout_redirect_uri=%s", post_logout_redirect_uri);
+    }
+    
+    if (state) {
+        written += snprintf(post_data + written, sizeof(post_data) - written, 
+                           "&state=%s", state);
+    }
+    
+    if (written >= sizeof(post_data)) {
+        curl_easy_cleanup(curl);
+        return NULL;
+    }
+    
+    struct curl_slist *headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
+    headers = curl_slist_append(headers, "Accept: application/json");
+    
+    char *response_data = NULL;
+    
+    curl_easy_setopt(curl, CURLOPT_URL, end_session_endpoint);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, oidc_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "ToSSL-OIDC-Client/1.0");
+    
+    CURLcode res = curl_easy_perform(curl);
+    
+    long http_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    
+    if (res != CURLE_OK || (http_code != 200 && http_code != 302)) {
+        free(response_data);
+        return NULL;
+    }
+    
+    return response_data;
+}
+
+// End session command
+int OidcEndSessionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 5 || objc > 9) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-id_token_hint <id_token> -end_session_endpoint <url> ?-post_logout_redirect_uri <uri>? ?-state <state>?");
+        return TCL_ERROR;
+    }
+    
+    const char *id_token_hint = NULL;
+    const char *end_session_endpoint = NULL;
+    const char *post_logout_redirect_uri = NULL;
+    const char *state = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-id_token_hint") == 0) {
+            id_token_hint = value;
+        } else if (strcmp(arg, "-end_session_endpoint") == 0) {
+            end_session_endpoint = value;
+        } else if (strcmp(arg, "-post_logout_redirect_uri") == 0) {
+            post_logout_redirect_uri = value;
+        } else if (strcmp(arg, "-state") == 0) {
+            state = value;
+        }
+    }
+    
+    if (!id_token_hint || !end_session_endpoint) {
+        Tcl_SetResult(interp, "Missing required parameters: -id_token_hint, -end_session_endpoint", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Perform end session request
+    char *response_data = perform_end_session_request(end_session_endpoint, 
+                                                     id_token_hint,
+                                                     post_logout_redirect_uri,
+                                                     state);
+    
+    if (!response_data) {
+        Tcl_SetResult(interp, "Failed to perform end session request", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Create result
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("success", -1), Tcl_NewBooleanObj(1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("response", -1), Tcl_NewStringObj(response_data, -1));
+    
+    free(response_data);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// Validate logout response
+int OidcValidateLogoutResponseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 3) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-response <response_data>");
+        return TCL_ERROR;
+    }
+    
+    const char *response_data = Tcl_GetString(objv[2]);
+    
+    // Check if response is empty (successful logout)
+    if (strlen(response_data) == 0) {
+        Tcl_Obj *result = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(1));
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("empty_response", -1));
+        Tcl_SetObjResult(interp, result);
+        return TCL_OK;
+    }
+    
+    // Try to parse as JSON (some providers return JSON responses)
+    json_object *json = json_tokener_parse(response_data);
+    if (json) {
+        json_object *error_obj, *error_description_obj;
+        
+        // Check for error response
+        if (json_object_object_get_ex(json, "error", &error_obj)) {
+            Tcl_Obj *result = Tcl_NewDictObj();
+            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(0));
+            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("error_response", -1));
+            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("error", -1), Tcl_NewStringObj(json_object_get_string(error_obj), -1));
+            
+            if (json_object_object_get_ex(json, "error_description", &error_description_obj)) {
+                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("error_description", -1), 
+                               Tcl_NewStringObj(json_object_get_string(error_description_obj), -1));
+            }
+            
+            json_object_put(json);
+            Tcl_SetObjResult(interp, result);
+            return TCL_OK;
+        }
+        
+        // Valid JSON response (success)
+        Tcl_Obj *result = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(1));
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("json_response", -1));
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("response", -1), Tcl_NewStringObj(response_data, -1));
+        
+        json_object_put(json);
+        Tcl_SetObjResult(interp, result);
+        return TCL_OK;
+    }
+    
+    // Non-JSON response (treat as success)
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("type", -1), Tcl_NewStringObj("text_response", -1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("response", -1), Tcl_NewStringObj(response_data, -1));
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
 // Initialize OIDC module
 int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::discover", OidcDiscoverCmd, NULL, NULL);
@@ -1729,6 +1965,9 @@ int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::userinfo", OidcUserinfoCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_userinfo", OidcValidateUserinfoCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::extract_user_claims", OidcExtractUserClaimsCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::logout_url", OidcLogoutUrlCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::end_session", OidcEndSessionCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::validate_logout_response", OidcValidateLogoutResponseCmd, NULL, NULL);
     
     return TCL_OK;
 } 

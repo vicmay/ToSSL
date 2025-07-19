@@ -270,6 +270,9 @@ run_test "OIDC Command Availability" {
         "::tossl::oidc::userinfo"
         "::tossl::oidc::validate_userinfo"
         "::tossl::oidc::extract_user_claims"
+        "::tossl::oidc::logout_url"
+        "::tossl::oidc::end_session"
+        "::tossl::oidc::validate_logout_response"
     }
     
     foreach cmd $required_commands {
@@ -642,6 +645,123 @@ run_test "UserInfo Error Handling" {
     
     puts "   Invalid JSON handling passed"
     puts "   Missing subject handling passed"
+}
+
+# Test 19: OIDC Logout URL Generation
+run_test "OIDC Logout URL Generation" {
+    set id_token_hint "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.test_token"
+    set end_session_endpoint "https://accounts.google.com/o/oauth2/v2/logout"
+    
+    # Test basic logout URL
+    set logout_url [tossl::oidc::logout_url \
+        -id_token_hint $id_token_hint \
+        -end_session_endpoint $end_session_endpoint]
+    
+    if {![string match "*id_token_hint=*" $logout_url]} {
+        error "Logout URL missing id_token_hint parameter"
+    }
+    
+    if {![string match "*$end_session_endpoint*" $logout_url]} {
+        error "Logout URL missing end session endpoint"
+    }
+    
+    # Test logout URL with redirect URI
+    set logout_url_with_redirect [tossl::oidc::logout_url \
+        -id_token_hint $id_token_hint \
+        -end_session_endpoint $end_session_endpoint \
+        -post_logout_redirect_uri "https://myapp.com/logout"]
+    
+    if {![string match "*post_logout_redirect_uri=*" $logout_url_with_redirect]} {
+        error "Logout URL missing post_logout_redirect_uri parameter"
+    }
+    
+    # Test logout URL with state
+    set logout_url_with_state [tossl::oidc::logout_url \
+        -id_token_hint $id_token_hint \
+        -end_session_endpoint $end_session_endpoint \
+        -post_logout_redirect_uri "https://myapp.com/logout" \
+        -state "logout_state_123"]
+    
+    if {![string match "*state=*" $logout_url_with_state]} {
+        error "Logout URL missing state parameter"
+    }
+    
+    puts "   Basic logout URL generation passed"
+    puts "   Redirect URI support passed"
+    puts "   State parameter support passed"
+}
+
+# Test 20: OIDC Logout Response Validation
+run_test "OIDC Logout Response Validation" {
+    # Test empty response
+    set result [tossl::oidc::validate_logout_response -response ""]
+    if {![dict get $result valid]} {
+        error "Empty response should be valid"
+    }
+    
+    if {[dict get $result type] != "empty_response"} {
+        error "Empty response type should be 'empty_response'"
+    }
+    
+    # Test JSON response
+    set json_response "{\"status\": \"success\", \"message\": \"User logged out successfully\"}"
+    set result [tossl::oidc::validate_logout_response -response $json_response]
+    if {![dict get $result valid]} {
+        error "JSON response should be valid"
+    }
+    
+    if {[dict get $result type] != "json_response"} {
+        error "JSON response type should be 'json_response'"
+    }
+    
+    # Test error response
+    set error_response "{\"error\": \"invalid_token\", \"error_description\": \"The provided token is invalid\"}"
+    set result [tossl::oidc::validate_logout_response -response $error_response]
+    if {[dict get $result valid]} {
+        error "Error response should not be valid"
+    }
+    
+    if {[dict get $result type] != "error_response"} {
+        error "Error response type should be 'error_response'"
+    }
+    
+    if {[dict get $result error] != "invalid_token"} {
+        error "Error response should contain correct error code"
+    }
+    
+    # Test text response
+    set text_response "User successfully logged out"
+    set result [tossl::oidc::validate_logout_response -response $text_response]
+    if {![dict get $result valid]} {
+        error "Text response should be valid"
+    }
+    
+    if {[dict get $result type] != "text_response"} {
+        error "Text response type should be 'text_response'"
+    }
+    
+    puts "   Empty response validation passed"
+    puts "   JSON response validation passed"
+    puts "   Error response validation passed"
+    puts "   Text response validation passed"
+}
+
+# Test 21: OIDC Logout Error Handling
+run_test "OIDC Logout Error Handling" {
+    # Test missing required parameters
+    if {![catch {
+        tossl::oidc::logout_url -end_session_endpoint "https://example.com/logout"
+    } result]} {
+        error "Should have failed with missing id_token_hint"
+    }
+    
+    if {![catch {
+        tossl::oidc::logout_url -id_token_hint "test_token"
+    } result]} {
+        error "Should have failed with missing end_session_endpoint"
+    }
+    
+    puts "   Parameter validation passed"
 }
 
 puts ""

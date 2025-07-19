@@ -193,12 +193,9 @@ tossl::oidc::extract_user_claims -userinfo <userinfo_data> -claims {name email p
 
 **Note:** Caching for UserInfo responses will be implemented in a future enhancement.
 
-### **Phase 4: OIDC Logout (Priority: Medium) - 1 day**
+✅ **COMPLETED** - OIDC Logout (RP-Initiated Logout 1.0) support implemented.
 
-#### **4.1 End Session Endpoint**
-Implement OpenID Connect RP-Initiated Logout 1.0.
-
-**New Commands:**
+**Implemented Commands:**
 ```tcl
 # Initiate OIDC logout
 tossl::oidc::end_session -id_token_hint <id_token> -end_session_endpoint <url> ?-post_logout_redirect_uri <uri>? ?-state <state>?
@@ -210,13 +207,17 @@ tossl::oidc::logout_url -id_token_hint <id_token> -end_session_endpoint <url> ?-
 tossl::oidc::validate_logout_response -response <response_data>
 ```
 
-**Implementation Tasks:**
-- [ ] Implement end session endpoint requests
-- [ ] Add id_token_hint parameter support
-- [ ] Add post_logout_redirect_uri parameter support
-- [ ] Add state parameter for logout CSRF protection
-- [ ] Add logout response validation
-- [ ] Add error handling for logout failures
+**Completed Tasks:**
+- ✅ Implement end session endpoint requests with POST method
+- ✅ Add id_token_hint parameter support for better logout experience
+- ✅ Add post_logout_redirect_uri parameter support for redirect after logout
+- ✅ Add state parameter for logout CSRF protection
+- ✅ Add comprehensive logout response validation
+- ✅ Add error handling for logout failures
+- ✅ Support multiple response types (empty, JSON, text, error)
+- ✅ Add complete documentation with examples
+- ✅ Add comprehensive test suite
+- ✅ Integrate with existing OIDC infrastructure
 
 ### **Phase 5: OIDC Provider Presets (Priority: Low) - 1 day**
 
