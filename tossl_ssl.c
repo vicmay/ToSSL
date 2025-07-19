@@ -748,12 +748,31 @@ int SslSetCertPinningCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
 
 // tossl::ssl::set_ocsp_stapling -ctx ctx -enable enable
 int SslSetOcspStaplingCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 4) {
+    if (objc < 4) {
         Tcl_WrongNumArgs(interp, 1, objv, "-ctx ctx -enable enable");
         return TCL_ERROR;
     }
-    const char *ctx_name = Tcl_GetString(objv[2]);
-    const char *enable = Tcl_GetString(objv[3]);
+    
+    const char *ctx_name = NULL, *enable = NULL;
+    
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *option = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(option, "-ctx") == 0) {
+            ctx_name = value;
+        } else if (strcmp(option, "-enable") == 0) {
+            enable = value;
+        }
+    }
+    
+    if (!ctx_name || !enable) {
+        Tcl_SetResult(interp, "Missing required parameters", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
     // Find SSL context
     SSL_CTX *ctx = NULL;
     for (int i = 0; i < ssl_context_count; i++) {
