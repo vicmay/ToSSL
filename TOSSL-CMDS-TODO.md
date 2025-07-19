@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 151/190 (79.5%)
-- **Documentation Created**: 151/190 (79.5%)
+- **Tests Created**: 152/190 (80.0%)
+- **Documentation Created**: 152/190 (80.0%)
 
 ## Command Status Tracking
 
@@ -207,7 +207,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ca::sign` | ✅ | tests/test_ca_sign.tcl | ✅ | doc/ca_sign.md | |
 | `::tossl::ca::generate` | ✅ | tests/test_ca_generate.tcl | ✅ | doc/ca_generate.md | |
 | `::tossl::jwt::decode` | ✅ | tests/test_jwt_decode.tcl | ✅ | doc/jwt_decode.md | |
-| `::tossl::jwt::create` | ❌ | | ❌ | | |
+| `::tossl::jwt::create` | ✅ | tests/test_jwt_create.tcl | ✅ | doc/jwt_create.md | |
 | `::tossl::jwt::verify` | ❌ | | ❌ | | |
 | `::tossl::jwt::validate` | ❌ | | ❌ | | |
 | `::tossl::jwt::extract_claims` | ❌ | | ❌ | | |
