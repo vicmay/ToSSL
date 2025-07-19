@@ -348,14 +348,15 @@ int modern_key_size(EVP_PKEY *pkey) {
 
 // FIPS support functions
 int modern_enable_fips(void) {
-    OSSL_PROVIDER *fips = OSSL_PROVIDER_load(NULL, "fips");
+    // Use the safe provider loading function
+    extern OSSL_PROVIDER *safe_load_fips_provider(void);
+    OSSL_PROVIDER *fips = safe_load_fips_provider();
     if (!fips) {
         return 0;
     }
     
     // Enable FIPS mode
     if (!EVP_default_properties_enable_fips(NULL, 1)) {
-        OSSL_PROVIDER_unload(fips);
         return 0;
     }
     
@@ -366,10 +367,10 @@ int modern_check_fips_status(char **status_info) {
     char *info = malloc(256);
     if (!info) return 0;
     
-    // Check if FIPS provider is loaded
-    OSSL_PROVIDER *fips = OSSL_PROVIDER_load(NULL, "fips");
+    // Check if FIPS provider is loaded using safe function
+    extern OSSL_PROVIDER *safe_load_fips_provider(void);
+    OSSL_PROVIDER *fips = safe_load_fips_provider();
     if (fips) {
-        OSSL_PROVIDER_unload(fips);
         snprintf(info, 256, "FIPS provider available: yes, FIPS mode: enabled");
     } else {
         snprintf(info, 256, "FIPS provider available: no, FIPS mode: disabled");

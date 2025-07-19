@@ -42,22 +42,40 @@ int GetFdFromChannel(Tcl_Interp *interp, const char *chanName) {
 // Global variables for OpenSSL providers
 static OSSL_PROVIDER *default_provider = NULL;
 static OSSL_PROVIDER *legacy_provider = NULL;
+static OSSL_PROVIDER *fips_provider = NULL;
 static int openssl_initialized = 0;
+
+// Provider management functions
+OSSL_PROVIDER *safe_load_default_provider(void) {
+    if (!default_provider) {
+        default_provider = OSSL_PROVIDER_load(NULL, "default");
+    }
+    return default_provider;
+}
+
+OSSL_PROVIDER *safe_load_legacy_provider(void) {
+    if (!legacy_provider) {
+        legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
+    }
+    return legacy_provider;
+}
+
+OSSL_PROVIDER *safe_load_fips_provider(void) {
+    if (!fips_provider) {
+        fips_provider = OSSL_PROVIDER_load(NULL, "fips");
+    }
+    return fips_provider;
+}
 
 // OpenSSL cleanup function
 static void openssl_cleanup(void) {
-    if (legacy_provider) {
-        OSSL_PROVIDER_unload(legacy_provider);
-        legacy_provider = NULL;
-    }
-    if (default_provider) {
-        OSSL_PROVIDER_unload(default_provider);
-        default_provider = NULL;
-    }
-    if (openssl_initialized) {
-        OPENSSL_cleanup();
-        openssl_initialized = 0;
-    }
+    // Let OpenSSL handle its own cleanup
+    // Don't manually unload providers or call OPENSSL_cleanup
+    // This prevents conflicts with OpenSSL's internal cleanup
+    fips_provider = NULL;
+    legacy_provider = NULL;
+    default_provider = NULL;
+    openssl_initialized = 0;
 }
 
 // Main initialization function
@@ -77,21 +95,15 @@ int Tossl_Init(Tcl_Interp *interp) {
     }
     
     // Load default provider only if not already loaded
-    if (!default_provider) {
-        default_provider = OSSL_PROVIDER_load(NULL, "default");
-        if (!default_provider) {
-            Tcl_SetResult(interp, "Failed to load OpenSSL default provider", TCL_STATIC);
-            return TCL_ERROR;
-        }
+    if (!safe_load_default_provider()) {
+        Tcl_SetResult(interp, "Failed to load OpenSSL default provider", TCL_STATIC);
+        return TCL_ERROR;
     }
     
     // Load legacy provider for backward compatibility only if not already loaded
-    if (!legacy_provider) {
-        legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
-        if (!legacy_provider) {
-            // Legacy provider is optional, just log a warning
-            // Tcl_SetResult(interp, "Warning: Failed to load OpenSSL legacy provider", TCL_STATIC);
-        }
+    if (!safe_load_legacy_provider()) {
+        // Legacy provider is optional, just log a warning
+        // Tcl_SetResult(interp, "Warning: Failed to load OpenSSL legacy provider", TCL_STATIC);
     }
     
     // Create namespace
