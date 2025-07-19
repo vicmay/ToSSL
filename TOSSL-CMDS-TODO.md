@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 153/190 (80.5%)
-- **Documentation Created**: 153/190 (80.5%)
+- **Tests Created**: 154/190 (81.1%)
+- **Documentation Created**: 154/190 (81.1%)
 
 ## Command Status Tracking
 
@@ -212,7 +212,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::jwt::validate` | ✅ | tests/test_jwt_validate.tcl | ✅ | doc/jwt_validate.md | JWT claim validation |
 | `::tossl::jwt::extract_claims` | ✅ | tests/test_jwt_extract_claims.tcl | ✅ | doc/jwt_extract_claims.md | JWT claim extraction without verification |
 | `::tossl::base64::decode` | ✅ | tests/test_base64_decode.tcl | ✅ | doc/base64_decode.md | |
-| `::tossl::base64::encode` | ❌ | | ❌ | | |
+| `::tossl::base64::encode` | ✅ | tests/test_base64_encode.tcl | ✅ | doc/base64_encode.md | |
 | `::tossl::hex::decode` | ❌ | | ❌ | | |
 | `::tossl::hex::encode` | ❌ | | ❌ | | |
 | `::tossl::x25519::derive` | ❌ | | ❌ | | |
