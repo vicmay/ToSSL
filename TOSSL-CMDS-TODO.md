@@ -226,7 +226,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::rsa::generate` | ✅ | tests/test_rsa_generate.tcl | ✅ | doc/rsa_generate.md | |
 | `::tossl::ed25519::verify` | ✅ | tests/test_ed25519_verify.tcl | ✅ | doc/ed25519_verify.md | |
 | `::tossl::ed25519::sign` | ✅ | tests/test_ed25519_sign.tcl | ✅ | doc/ed25519_sign.md | |
-| `::tossl::ed25519::generate` | ❌ | | ❌ | | |
+| `::tossl::ed25519::generate` | ✅ | tests/test_ed25519_generate.tcl | ✅ | doc/ed25519_generate.md | |
 
 ## Legend
 - ❌ = Not started
