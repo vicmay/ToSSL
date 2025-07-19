@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 137/190 (72.1%)
-- **Documentation Created**: 137/190 (72.1%)
+- **Tests Created**: 138/190 (72.6%)
+- **Documentation Created**: 138/190 (72.6%)
 
 ## Command Status Tracking
 
@@ -176,7 +176,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ssl::cipher_info` | ✅ | tests/test_ssl_cipher_info.tcl | ✅ | doc/ssl_cipher_info.md | |
 | `::tossl::ssl::get_peer_cert` | ✅ | tests/test_ssl_get_peer_cert.tcl | ✅ | doc/ssl_get_peer_cert.md | |
 | `::tossl::ssl::set_ocsp_stapling` | ✅ | tests/test_ssl_set_ocsp_stapling.tcl | ✅ | doc/ssl_set_ocsp_stapling.md | |
-| `::tossl::ssl::connect` | ❌ | | ❌ | | |
+| `::tossl::ssl::connect` | ✅ | tests/test_ssl_connect.tcl | ✅ | doc/ssl_connect.md | |
 | `::tossl::ssl::set_cert_pinning` | ❌ | | ❌ | | |
 | `::tossl::ssl::write` | ❌ | | ❌ | | |
 | `::tossl::ssl::alpn_selected` | ❌ | | ❌ | | |
