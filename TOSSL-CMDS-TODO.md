@@ -203,7 +203,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::keywrap::wrap` | ✅ | tests/test_keywrap_wrap.tcl | ✅ | doc/keywrap_wrap.md | |
 | `::tossl::cipher::analyze` | ✅ | tests/test_cipher_analyze.tcl | ✅ | doc/cipher_analyze.md | |
 | `::tossl::cipher::list` | ✅ | tests/test_cipher_list.tcl | ✅ | doc/cipher_list.md | |
-| `::tossl::cipher::info` | ❌ | | ❌ | | |
+| `::tossl::cipher::info` | ✅ | tests/test_cipher_info.tcl | ✅ | doc/cipher_info.md | |
 | `::tossl::ca::sign` | ❌ | | ❌ | | |
 | `::tossl::ca::generate` | ❌ | | ❌ | | |
 | `::tossl::jwt::decode` | ❌ | | ❌ | | |
