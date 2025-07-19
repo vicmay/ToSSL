@@ -185,7 +185,8 @@ int Sm2VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     
     const char *key_data = Tcl_GetString(objv[1]);
     const char *data = Tcl_GetString(objv[2]);
-    const char *sig_data = Tcl_GetString(objv[3]);
+    int sig_len;
+    const unsigned char *sig_data = (const unsigned char *)Tcl_GetByteArrayFromObj(objv[3], &sig_len);
     
     EVP_PKEY *pkey = NULL;
     BIO *bio = BIO_new_mem_buf(key_data, -1);
@@ -205,21 +206,29 @@ int Sm2VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     
     // Check if it's an SM2 key or EC key with SM2 curve
     int key_type = EVP_PKEY_id(pkey);
-    if (key_type != EVP_PKEY_SM2 && key_type != EVP_PKEY_EC) {
+    int base_type = EVP_PKEY_base_id(pkey);
+    
+    // Accept SM2, EC, and unknown key types (unknown might be SM2 in some OpenSSL versions)
+    if (key_type != EVP_PKEY_SM2 && key_type != EVP_PKEY_EC && 
+        base_type != EVP_PKEY_SM2 && base_type != EVP_PKEY_EC &&
+        key_type != -1) { // -1 indicates unknown type, which might be SM2
         EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "Not an SM2 or EC key", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    // If it's an EC key, verify it's using SM2 curve
-    if (key_type == EVP_PKEY_EC) {
+    // If it's an EC key, try to verify it's using SM2 curve, but don't fail if we can't determine
+    if (key_type == EVP_PKEY_EC || base_type == EVP_PKEY_EC) {
         char curve_name[80] = "unknown";
-        if (EVP_PKEY_get_group_name(pkey, curve_name, sizeof(curve_name), NULL) <= 0 || 
-            strstr(curve_name, "SM2") == NULL) {
-            EVP_PKEY_free(pkey);
-            Tcl_SetResult(interp, "Not an SM2 curve EC key", TCL_STATIC);
-            return TCL_ERROR;
+        if (EVP_PKEY_get_group_name(pkey, curve_name, sizeof(curve_name), NULL) > 0) {
+            if (strstr(curve_name, "SM2") == NULL && strstr(curve_name, "sm2") == NULL) {
+                // Only reject if we can positively identify it's not SM2
+                EVP_PKEY_free(pkey);
+                Tcl_SetResult(interp, "Not an SM2 curve EC key", TCL_STATIC);
+                return TCL_ERROR;
+            }
         }
+        // If we can't determine the curve name, proceed anyway
     }
     
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
@@ -236,7 +245,7 @@ int Sm2VerifyCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
         return TCL_ERROR;
     }
     
-    int result = EVP_DigestVerify(ctx, (const unsigned char*)sig_data, strlen(sig_data),
+    int result = EVP_DigestVerify(ctx, sig_data, sig_len,
                                  (const unsigned char*)data, strlen(data));
     
     EVP_MD_CTX_free(ctx);

@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 138/190 (72.6%)
-- **Documentation Created**: 138/190 (72.6%)
+- **Tests Created**: 139/190 (73.2%)
+- **Documentation Created**: 139/190 (73.2%)
 
 ## Command Status Tracking
 
@@ -186,7 +186,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ssl::close` | ✅ | tests/test_ssl_close.tcl | ✅ | doc/ssl_close.md | Fully implemented and tested |
 | `::tossl::ssl::protocol_version` | ✅ | tests/test_ssl_protocol_version.tcl | ✅ | doc/ssl_protocol_version.md | Fully implemented and tested |
 | `::tossl::sm2::encrypt` | ✅ | tests/test_sm2_encrypt.tcl | ✅ | doc/sm2_encrypt.md | Fully implemented and tested (SM2 key extraction limitation noted) |
-| `::tossl::sm2::verify` | ❌ | | ❌ | | |
+| `::tossl::sm2::verify` | ✅ | tests/test_sm2_verify.tcl | ✅ | doc/sm2_verify.md | |
 | `::tossl::sm2::sign` | ❌ | | ❌ | | |
 | `::tossl::sm2::decrypt` | ❌ | | ❌ | | |
 | `::tossl::sm2::generate` | ❌ | | ❌ | | |
