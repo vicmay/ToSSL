@@ -47,7 +47,8 @@ puts [tossl::base64::encode ""]  ;# Output: (empty string)
 
 # Unicode data
 set unicode_data "Hello, 世界!"
-set b64 [tossl::base64::encode $unicode_data]
+set utf8_bytes [encoding convertto utf-8 $unicode_data]
+set b64 [tossl::base64::encode $utf8_bytes]
 puts $b64  ;# Output: SGVsbG8sIOS4reWbvQ==
 ```
 
@@ -76,7 +77,7 @@ The command follows RFC 4648 padding rules:
 - Uses `BIO_FLAGS_BASE64_NO_NL` flag to avoid newlines in output.
 - Automatically handles padding according to RFC 4648.
 - Compatible with standard base64 encoding as used in HTTP, email, and other protocols.
-- Handles Unicode strings properly by treating input as string data.
+- Works with byte arrays - use `encoding convertto utf-8` for Unicode strings.
 - No size limitations - can handle arbitrarily large data.
 
 ## Related Commands

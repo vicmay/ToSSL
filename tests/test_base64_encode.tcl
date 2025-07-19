@@ -37,7 +37,7 @@ if {$encoded_special eq $expected_special} {
 # Test binary data
 set binary_data [binary format H* "deadbeef"]
 set encoded_binary [tossl::base64::encode $binary_data]
-set expected_binary "w57CrcK+w68="
+set expected_binary "3q2+7w=="
 if {$encoded_binary eq $expected_binary} {
     puts "base64 encode (binary data)... OK"
 } else {
@@ -79,12 +79,18 @@ if {$tossl_encoded eq $tcl_encoded} {
     incr ::errors
 }
 
-# Test with Unicode characters (base64 works on bytes, not Unicode)
+# Test with Unicode characters (proper UTF-8 handling)
 set unicode_data "Hello, 世界!"
-set encoded_unicode [tossl::base64::encode $unicode_data]
-set decoded_unicode [tossl::base64::decode $encoded_unicode]
-# Note: base64 encoding works on bytes, so Unicode may not roundtrip perfectly
-puts "base64 encode (unicode): encoded=$encoded_unicode, decoded=$decoded_unicode"
+set utf8_bytes [encoding convertto utf-8 $unicode_data]
+set encoded_unicode [tossl::base64::encode $utf8_bytes]
+set decoded_bytes [tossl::base64::decode $encoded_unicode]
+set decoded_unicode [encoding convertfrom utf-8 $decoded_bytes]
+if {$decoded_unicode eq $unicode_data} {
+    puts "base64 encode (unicode)... OK"
+} else {
+    puts stderr "FAIL: base64 encode (unicode): $decoded_unicode vs $unicode_data"
+    incr ::errors
+}
 
 # Test with large data
 set large_data [string repeat "abcdefghijklmnopqrstuvwxyz" 10]
