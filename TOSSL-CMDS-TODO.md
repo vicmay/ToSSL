@@ -205,8 +205,8 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::cipher::list` | ✅ | tests/test_cipher_list.tcl | ✅ | doc/cipher_list.md | |
 | `::tossl::cipher::info` | ✅ | tests/test_cipher_info.tcl | ✅ | doc/cipher_info.md | |
 | `::tossl::ca::sign` | ✅ | tests/test_ca_sign.tcl | ✅ | doc/ca_sign.md | |
-| `::tossl::ca::generate` | ❌ | | ❌ | | |
-| `::tossl::jwt::decode` | ❌ | | ❌ | | |
+| `::tossl::ca::generate` | ✅ | tests/test_ca_generate.tcl | ✅ | doc/ca_generate.md | |
+| `::tossl::jwt::decode` | ✅ | tests/test_jwt_decode.tcl | ✅ | doc/jwt_decode.md | |
 | `::tossl::jwt::create` | ❌ | | ❌ | | |
 | `::tossl::jwt::verify` | ❌ | | ❌ | | |
 | `::tossl::jwt::validate` | ❌ | | ❌ | | |
