@@ -10,6 +10,11 @@ int RsaGenerateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
     
     int bits = 2048;
     if (objc == 3) {
+        const char *opt = Tcl_GetString(objv[1]);
+        if (strcmp(opt, "-bits") != 0) {
+            Tcl_SetResult(interp, "Expected -bits option", TCL_STATIC);
+            return TCL_ERROR;
+        }
         if (Tcl_GetIntFromObj(interp, objv[2], &bits) != TCL_OK) {
             return TCL_ERROR;
         }
