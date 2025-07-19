@@ -1,30 +1,12 @@
 #include "tossl.h"
 
-// Global variables for SSL/TLS handles (unused in current implementation)
-#ifdef __GNUC__
-__attribute__((unused))
-#endif
-static SslContextHandle *ssl_contexts = NULL;
-#ifdef __GNUC__
-__attribute__((unused))
-#endif
-static SslSocketHandle *ssl_sockets = NULL;
-#ifdef __GNUC__
-__attribute__((unused))
-#endif
-static SslSessionHandle *ssl_sessions = NULL;
-#ifdef __GNUC__
-__attribute__((unused))
-#endif
-static int ssl_context_count = 0;
-#ifdef __GNUC__
-__attribute__((unused))
-#endif
-static int ssl_socket_count = 0;
-#ifdef __GNUC__
-__attribute__((unused))
-#endif
-static int ssl_session_count = 0;
+// Global variables for OpenSSL providers
+static OSSL_PROVIDER *default_provider = NULL;
+static OSSL_PROVIDER *legacy_provider = NULL;
+static OSSL_PROVIDER *fips_provider = NULL;
+static int openssl_initialized = 0;
+static int cleanup_in_progress = 0;
+static int tossl_initialized = 0;
 
 // Utility function to get file descriptor from Tcl channel
 int GetFdFromChannel(Tcl_Interp *interp, const char *chanName) {
@@ -39,14 +21,11 @@ int GetFdFromChannel(Tcl_Interp *interp, const char *chanName) {
     return fd;
 }
 
-// Global variables for OpenSSL providers
-static OSSL_PROVIDER *default_provider = NULL;
-static OSSL_PROVIDER *legacy_provider = NULL;
-static OSSL_PROVIDER *fips_provider = NULL;
-static int openssl_initialized = 0;
-
 // Provider management functions
 OSSL_PROVIDER *safe_load_default_provider(void) {
+    if (cleanup_in_progress) {
+        return NULL;
+    }
     if (!default_provider) {
         default_provider = OSSL_PROVIDER_load(NULL, "default");
     }
@@ -54,6 +33,9 @@ OSSL_PROVIDER *safe_load_default_provider(void) {
 }
 
 OSSL_PROVIDER *safe_load_legacy_provider(void) {
+    if (cleanup_in_progress) {
+        return NULL;
+    }
     if (!legacy_provider) {
         legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
     }
@@ -61,6 +43,9 @@ OSSL_PROVIDER *safe_load_legacy_provider(void) {
 }
 
 OSSL_PROVIDER *safe_load_fips_provider(void) {
+    if (cleanup_in_progress) {
+        return NULL;
+    }
     if (!fips_provider) {
         fips_provider = OSSL_PROVIDER_load(NULL, "fips");
     }
@@ -69,9 +54,18 @@ OSSL_PROVIDER *safe_load_fips_provider(void) {
 
 // OpenSSL cleanup function
 static void openssl_cleanup(void) {
-    // Let OpenSSL handle its own cleanup
-    // Don't manually unload providers or call OPENSSL_cleanup
-    // This prevents conflicts with OpenSSL's internal cleanup
+    // Prevent multiple cleanup calls
+    static int cleanup_called = 0;
+    if (cleanup_called) {
+        return;
+    }
+    cleanup_called = 1;
+    
+    // Set cleanup flag to prevent new OpenSSL operations
+    cleanup_in_progress = 1;
+    
+    // Let OpenSSL handle its own cleanup completely
+    // Don't manually unload providers - let OpenSSL do it
     fips_provider = NULL;
     legacy_provider = NULL;
     default_provider = NULL;
@@ -84,8 +78,19 @@ int Tossl_Init(Tcl_Interp *interp) {
         return TCL_ERROR;
     }
     
+    // Prevent initialization during cleanup
+    if (cleanup_in_progress) {
+        Tcl_SetResult(interp, "ToSSL is being cleaned up", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Prevent multiple initializations
+    if (tossl_initialized) {
+        return TCL_OK;
+    }
+    
     // Initialize OpenSSL 3.x only once
-    if (!openssl_initialized) {
+    if (!openssl_initialized && !cleanup_in_progress) {
         OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, NULL);
         OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, NULL);
         openssl_initialized = 1;
@@ -95,15 +100,21 @@ int Tossl_Init(Tcl_Interp *interp) {
     }
     
     // Load default provider only if not already loaded
-    if (!safe_load_default_provider()) {
-        Tcl_SetResult(interp, "Failed to load OpenSSL default provider", TCL_STATIC);
-        return TCL_ERROR;
+    if (!default_provider) {
+        default_provider = OSSL_PROVIDER_load(NULL, "default");
+        if (!default_provider) {
+            Tcl_SetResult(interp, "Failed to load OpenSSL default provider", TCL_STATIC);
+            return TCL_ERROR;
+        }
     }
     
     // Load legacy provider for backward compatibility only if not already loaded
-    if (!safe_load_legacy_provider()) {
-        // Legacy provider is optional, just log a warning
-        // Tcl_SetResult(interp, "Warning: Failed to load OpenSSL legacy provider", TCL_STATIC);
+    if (!legacy_provider) {
+        legacy_provider = OSSL_PROVIDER_load(NULL, "legacy");
+        if (!legacy_provider) {
+            // Legacy provider is optional, just log a warning
+            // Tcl_SetResult(interp, "Warning: Failed to load OpenSSL legacy provider", TCL_STATIC);
+        }
     }
     
     // Create namespace
@@ -276,11 +287,6 @@ int Tossl_Init(Tcl_Interp *interp) {
     Tcl_PkgProvide(interp, "tossl", "0.1");
     TosslRegisterSslCommands(interp);
     
-    // Initialize HTTP module
-    if (Tossl_HttpInit(interp) != TCL_OK) {
-        return TCL_ERROR;
-    }
-    
     // Initialize ACME module
     if (Tossl_AcmeInit(interp) != TCL_OK) {
         return TCL_ERROR;
@@ -357,6 +363,7 @@ int Tossl_Init(Tcl_Interp *interp) {
     // Perfect forward secrecy testing commands
     Tcl_CreateObjCommand(interp, "tossl::pfs::test", Tossl_PfsTestCmd, NULL, NULL);
     
+    tossl_initialized = 1;
     return TCL_OK;
 }
 

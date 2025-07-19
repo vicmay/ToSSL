@@ -96,18 +96,6 @@ typedef struct {
     char *error_description;
 } OidcIdTokenValidation;
 
-// Global discovery cache (currently disabled to avoid memory issues)
-// TODO: Implement proper URL-based caching
-static OidcDiscovery **discovery_cache = NULL;
-static int discovery_cache_count = 0;
-static int discovery_cache_capacity = 0;
-
-// Global JWKS cache (currently disabled to avoid memory issues)
-// TODO: Implement proper URL-based caching
-static OidcJwks **jwks_cache = NULL;
-static int jwks_cache_count = 0;
-static int jwks_cache_capacity = 0;
-
 // Free OIDC discovery configuration
 static void free_oidc_discovery(OidcDiscovery *discovery) {
     if (!discovery) return;
@@ -415,12 +403,18 @@ static size_t oidc_write_callback(void *contents, size_t size, size_t nmemb, voi
     size_t realsize = size * nmemb;
     char **response_data = (char **)userp;
     
-    char *ptr = realloc(*response_data, strlen(*response_data) + realsize + 1);
+    // Handle NULL or uninitialized response_data
+    if (!response_data) return 0;
+    
+    // Get current length safely
+    size_t current_len = (*response_data) ? strlen(*response_data) : 0;
+    
+    char *ptr = realloc(*response_data, current_len + realsize + 1);
     if (!ptr) return 0;
     
     *response_data = ptr;
-    memcpy(&((*response_data)[strlen(*response_data)]), contents, realsize);
-    (*response_data)[strlen(*response_data) + realsize] = 0;
+    memcpy(&((*response_data)[current_len]), contents, realsize);
+    (*response_data)[current_len + realsize] = 0;
     
     return realsize;
 }
