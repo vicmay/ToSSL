@@ -253,6 +253,11 @@ int Tossl_Init(Tcl_Interp *interp) {
         return TCL_ERROR;
     }
     
+    // Initialize OIDC module
+    if (Tossl_OidcInit(interp) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
     // Provider management commands
     Tcl_CreateObjCommand(interp, "tossl::provider::load", ProviderLoadCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::provider::unload", ProviderUnloadCmd, NULL, NULL);
