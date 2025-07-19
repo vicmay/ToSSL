@@ -218,7 +218,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::x25519::derive` | ✅ | tests/test_x25519_derive.tcl | ✅ | doc/x25519_derive.md | |
 | `::tossl::x25519::generate` | ✅ | tests/test_x25519_generate.tcl | ✅ | doc/x25519_generate.md | |
 | `::tossl::rsa::verify` | ✅ | tests/test_rsa_verify.tcl | ✅ | doc/rsa_verify.md | |
-| `::tossl::rsa::sign` | ❌ | | ❌ | | |
+| `::tossl::rsa::sign` | ✅ | tests/test_rsa_sign.tcl | ✅ | doc/rsa_sign.md | |
 | `::tossl::rsa::encrypt` | ❌ | | ❌ | | |
 | `::tossl::rsa::components` | ❌ | | ❌ | | |
 | `::tossl::rsa::validate` | ❌ | | ❌ | | |
