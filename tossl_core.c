@@ -114,20 +114,28 @@ int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         return TCL_ERROR;
     }
     
-    // Get the data as a string first to handle Unicode properly
+    // Get the data as UTF-8 bytes to handle Unicode properly
     const char *data_str = Tcl_GetString(objv[1]);
-    int data_len = strlen(data_str);
+    
+    // Convert to UTF-8 bytes for proper Unicode handling
+    Tcl_DString utf8_dstring;
+    Tcl_DStringInit(&utf8_dstring);
+    Tcl_UtfToExternalDString(NULL, data_str, -1, &utf8_dstring);
+    
+    int utf8_len = Tcl_DStringLength(&utf8_dstring);
+    const char *utf8_data = Tcl_DStringValue(&utf8_dstring);
     
     BIO *bio = BIO_new(BIO_s_mem());
     BIO *b64 = BIO_new(BIO_f_base64());
     bio = BIO_push(b64, bio);
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    BIO_write(bio, data_str, data_len);
+    BIO_write(bio, utf8_data, utf8_len);
     BIO_flush(bio);
     BUF_MEM *bptr;
     BIO_get_mem_ptr(bio, &bptr);
     Tcl_SetResult(interp, bptr->data, TCL_VOLATILE);
     BIO_free_all(bio);
+    Tcl_DStringFree(&utf8_dstring);
     return TCL_OK;
 }
 
@@ -176,6 +184,7 @@ int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     }
     
     if (total_len > 0) {
+        // Always return as byte array - this is the most correct approach for base64
         Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)buffer, total_len));
     } else {
         Tcl_SetResult(interp, "", TCL_STATIC);

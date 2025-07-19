@@ -46,6 +46,12 @@ set decoded [tossl::base64::decode $b64_binary]
 set hex [binary encode hex $decoded]
 puts $hex  ;# Output: deadbeef
 
+# Unicode text
+set b64_unicode "0J/Rg9GB0YLRj9C7INGG0L7RgdGB0Y8g0LfQsNCx0YvQu9C4INGC0YLRg9GB"
+set decoded_bytes [tossl::base64::decode $b64_unicode]
+set decoded [encoding convertfrom utf-8 $decoded_bytes]
+puts $decoded  ;# Output: Я щось забув тут
+
 # Empty string
 tossl::base64::decode ""  ;# Returns empty byte array
 ```
@@ -71,6 +77,7 @@ tossl::base64::decode ""  ;# Returns empty byte array
 - Compatible with standard base64 encoding as used in HTTP, email, and other protocols.
 - No size limitations - can handle arbitrarily large data.
 - Dynamically allocates memory based on input size.
+- Returns data as a byte array - use `encoding convertfrom utf-8` for Unicode strings.
 
 ## Related Commands
 
