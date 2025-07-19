@@ -31,8 +31,8 @@ For each TOSSL command, the following tasks must be completed:
 
 ## Progress Summary
 - **Total Commands**: 190
-- **Tests Created**: 150/190 (78.9%)
-- **Documentation Created**: 150/190 (78.9%)
+- **Tests Created**: 151/190 (79.5%)
+- **Documentation Created**: 151/190 (79.5%)
 
 ## Command Status Tracking
 
@@ -198,7 +198,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::asn1::parse` | ✅ | tests/test_asn1_parse.tcl | ✅ | doc/asn1_parse.md | |
 | `::tossl::keywrap::info` | ✅ | tests/test_keywrap_info.tcl | ✅ | doc/keywrap_info.md | |
 | `::tossl::keywrap::kekgen` | ✅ | tests/test_keywrap_kekgen.tcl | ✅ | doc/keywrap_kekgen.md | |
-| `::tossl::keywrap::unwrap` | ❌ | | ❌ | | |
+| `::tossl::keywrap::unwrap` | ✅ | tests/test_keywrap_unwrap.tcl | ✅ | doc/keywrap_unwrap.md | Known implementation issues documented |
 | `::tossl::keywrap::algorithms` | ❌ | | ❌ | | |
 | `::tossl::keywrap::wrap` | ❌ | | ❌ | | |
 | `::tossl::cipher::analyze` | ❌ | | ❌ | | |
