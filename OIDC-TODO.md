@@ -166,12 +166,9 @@ tossl::oidc::validate_claim_format -claim <claim_name> -value <claim_value>
 - [ ] Add timestamp validation
 - [ ] Add boolean claim validation
 
-### **Phase 3: UserInfo Endpoint (Priority: Medium) - 1 day**
+✅ **COMPLETED** - UserInfo Endpoint (RFC 7662) support implemented.
 
-#### **3.1 UserInfo Endpoint Support**
-Implement RFC 7662 (UserInfo Endpoint) support.
-
-**New Commands:**
+**Implemented Commands:**
 ```tcl
 # Fetch user information from UserInfo endpoint
 tossl::oidc::userinfo -access_token <token> -userinfo_url <url> ?-headers <headers>?
@@ -183,13 +180,18 @@ tossl::oidc::validate_userinfo -userinfo <userinfo_data> -expected_subject <subj
 tossl::oidc::extract_user_claims -userinfo <userinfo_data> -claims {name email picture}
 ```
 
-**Implementation Tasks:**
-- [ ] Implement UserInfo endpoint HTTP requests
-- [ ] Add Bearer token authentication for UserInfo requests
-- [ ] Parse and validate UserInfo JSON responses
-- [ ] Add subject validation between ID token and UserInfo
-- [ ] Add error handling for UserInfo failures
-- [ ] Add caching for UserInfo responses (with appropriate TTL)
+**Completed Tasks:**
+- ✅ Implement UserInfo endpoint HTTP requests with Bearer token authentication
+- ✅ Parse and validate UserInfo JSON responses
+- ✅ Add subject validation between ID token and UserInfo
+- ✅ Add comprehensive error handling for UserInfo failures
+- ✅ Support all standard OpenID Connect claims
+- ✅ Add claims extraction with proper type handling (string, boolean, number, object)
+- ✅ Add complete documentation with examples
+- ✅ Add comprehensive test suite
+- ✅ Integrate with existing OIDC infrastructure
+
+**Note:** Caching for UserInfo responses will be implemented in a future enhancement.
 
 ### **Phase 4: OIDC Logout (Priority: Medium) - 1 day**
 

@@ -1267,6 +1267,457 @@ int OidcValidateIdTokenCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj 
     return TCL_OK;
 }
 
+// UserInfo response structure
+typedef struct {
+    char *sub;
+    char *name;
+    char *given_name;
+    char *family_name;
+    char *middle_name;
+    char *nickname;
+    char *preferred_username;
+    char *profile;
+    char *picture;
+    char *website;
+    char *email;
+    char *email_verified;
+    char *gender;
+    char *birthdate;
+    char *zoneinfo;
+    char *locale;
+    char *phone_number;
+    char *phone_number_verified;
+    char *address;
+    char *updated_at;
+    char *error;
+    char *error_description;
+} OidcUserinfo;
+
+// Free UserInfo response
+static void free_oidc_userinfo(OidcUserinfo *userinfo) {
+    if (!userinfo) return;
+    
+    if (userinfo->sub) free(userinfo->sub);
+    if (userinfo->name) free(userinfo->name);
+    if (userinfo->given_name) free(userinfo->given_name);
+    if (userinfo->family_name) free(userinfo->family_name);
+    if (userinfo->middle_name) free(userinfo->middle_name);
+    if (userinfo->nickname) free(userinfo->nickname);
+    if (userinfo->preferred_username) free(userinfo->preferred_username);
+    if (userinfo->profile) free(userinfo->profile);
+    if (userinfo->picture) free(userinfo->picture);
+    if (userinfo->website) free(userinfo->website);
+    if (userinfo->email) free(userinfo->email);
+    if (userinfo->email_verified) free(userinfo->email_verified);
+    if (userinfo->gender) free(userinfo->gender);
+    if (userinfo->birthdate) free(userinfo->birthdate);
+    if (userinfo->zoneinfo) free(userinfo->zoneinfo);
+    if (userinfo->locale) free(userinfo->locale);
+    if (userinfo->phone_number) free(userinfo->phone_number);
+    if (userinfo->phone_number_verified) free(userinfo->phone_number_verified);
+    if (userinfo->address) free(userinfo->address);
+    if (userinfo->updated_at) free(userinfo->updated_at);
+    if (userinfo->error) free(userinfo->error);
+    if (userinfo->error_description) free(userinfo->error_description);
+    
+    free(userinfo);
+}
+
+// Perform UserInfo request
+static char *perform_userinfo_request(const char *userinfo_url, const char *access_token) {
+    CURL *curl = curl_easy_init();
+    if (!curl) return NULL;
+    
+    struct curl_slist *headers = NULL;
+    char auth_header[1024];
+    snprintf(auth_header, sizeof(auth_header), "Authorization: Bearer %s", access_token);
+    headers = curl_slist_append(headers, auth_header);
+    headers = curl_slist_append(headers, "Accept: application/json");
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    
+    char *response_data = NULL;
+    size_t response_size = 0;
+    
+    curl_easy_setopt(curl, CURLOPT_URL, userinfo_url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, oidc_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "ToSSL-OIDC-Client/1.0");
+    
+    CURLcode res = curl_easy_perform(curl);
+    
+    long http_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    
+    if (res != CURLE_OK || http_code != 200) {
+        free(response_data);
+        return NULL;
+    }
+    
+    return response_data;
+}
+
+// Parse UserInfo response
+static OidcUserinfo *parse_oidc_userinfo(const char *response_data) {
+    OidcUserinfo *userinfo = calloc(1, sizeof(OidcUserinfo));
+    if (!userinfo) return NULL;
+    
+    json_object *json = json_tokener_parse(response_data);
+    if (!json) {
+        userinfo->error = strdup("Invalid JSON response");
+        return userinfo;
+    }
+    
+    json_object *sub_obj, *name_obj, *given_name_obj, *family_name_obj, *middle_name_obj;
+    json_object *nickname_obj, *preferred_username_obj, *profile_obj, *picture_obj, *website_obj;
+    json_object *email_obj, *email_verified_obj, *gender_obj, *birthdate_obj, *zoneinfo_obj;
+    json_object *locale_obj, *phone_number_obj, *phone_number_verified_obj, *address_obj, *updated_at_obj;
+    
+    // Parse standard claims
+    if (json_object_object_get_ex(json, "sub", &sub_obj)) {
+        userinfo->sub = strdup(json_object_get_string(sub_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "name", &name_obj)) {
+        userinfo->name = strdup(json_object_get_string(name_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "given_name", &given_name_obj)) {
+        userinfo->given_name = strdup(json_object_get_string(given_name_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "family_name", &family_name_obj)) {
+        userinfo->family_name = strdup(json_object_get_string(family_name_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "middle_name", &middle_name_obj)) {
+        userinfo->middle_name = strdup(json_object_get_string(middle_name_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "nickname", &nickname_obj)) {
+        userinfo->nickname = strdup(json_object_get_string(nickname_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "preferred_username", &preferred_username_obj)) {
+        userinfo->preferred_username = strdup(json_object_get_string(preferred_username_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "profile", &profile_obj)) {
+        userinfo->profile = strdup(json_object_get_string(profile_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "picture", &picture_obj)) {
+        userinfo->picture = strdup(json_object_get_string(picture_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "website", &website_obj)) {
+        userinfo->website = strdup(json_object_get_string(website_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "email", &email_obj)) {
+        userinfo->email = strdup(json_object_get_string(email_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "email_verified", &email_verified_obj)) {
+        userinfo->email_verified = strdup(json_object_get_string(email_verified_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "gender", &gender_obj)) {
+        userinfo->gender = strdup(json_object_get_string(gender_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "birthdate", &birthdate_obj)) {
+        userinfo->birthdate = strdup(json_object_get_string(birthdate_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "zoneinfo", &zoneinfo_obj)) {
+        userinfo->zoneinfo = strdup(json_object_get_string(zoneinfo_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "locale", &locale_obj)) {
+        userinfo->locale = strdup(json_object_get_string(locale_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "phone_number", &phone_number_obj)) {
+        userinfo->phone_number = strdup(json_object_get_string(phone_number_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "phone_number_verified", &phone_number_verified_obj)) {
+        userinfo->phone_number_verified = strdup(json_object_get_string(phone_number_verified_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "address", &address_obj)) {
+        userinfo->address = strdup(json_object_to_json_string(address_obj));
+    }
+    
+    if (json_object_object_get_ex(json, "updated_at", &updated_at_obj)) {
+        userinfo->updated_at = strdup(json_object_get_string(updated_at_obj));
+    }
+    
+    json_object_put(json);
+    return userinfo;
+}
+
+// Fetch UserInfo from endpoint
+int OidcUserinfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 5 && objc != 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-access_token <token> -userinfo_url <url> ?-headers <headers>?");
+        return TCL_ERROR;
+    }
+    
+    const char *access_token = NULL;
+    const char *userinfo_url = NULL;
+    const char *headers = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-access_token") == 0) {
+            access_token = value;
+        } else if (strcmp(arg, "-userinfo_url") == 0) {
+            userinfo_url = value;
+        } else if (strcmp(arg, "-headers") == 0) {
+            headers = value;
+        }
+    }
+    
+    if (!access_token || !userinfo_url) {
+        Tcl_SetResult(interp, "Missing required parameters: -access_token, -userinfo_url", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Perform UserInfo request
+    char *response_data = perform_userinfo_request(userinfo_url, access_token);
+    if (!response_data) {
+        Tcl_SetResult(interp, "Failed to fetch UserInfo", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse UserInfo response
+    OidcUserinfo *userinfo = parse_oidc_userinfo(response_data);
+    free(response_data);
+    
+    if (!userinfo) {
+        Tcl_SetResult(interp, "Failed to parse UserInfo", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    if (userinfo->error) {
+        Tcl_SetResult(interp, userinfo->error, TCL_STATIC);
+        free_oidc_userinfo(userinfo);
+        return TCL_ERROR;
+    }
+    
+    // Create result dict
+    Tcl_Obj *result = Tcl_NewDictObj();
+    
+    if (userinfo->sub) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("sub", -1), Tcl_NewStringObj(userinfo->sub, -1));
+    }
+    
+    if (userinfo->name) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("name", -1), Tcl_NewStringObj(userinfo->name, -1));
+    }
+    
+    if (userinfo->given_name) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("given_name", -1), Tcl_NewStringObj(userinfo->given_name, -1));
+    }
+    
+    if (userinfo->family_name) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("family_name", -1), Tcl_NewStringObj(userinfo->family_name, -1));
+    }
+    
+    if (userinfo->middle_name) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("middle_name", -1), Tcl_NewStringObj(userinfo->middle_name, -1));
+    }
+    
+    if (userinfo->nickname) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("nickname", -1), Tcl_NewStringObj(userinfo->nickname, -1));
+    }
+    
+    if (userinfo->preferred_username) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("preferred_username", -1), Tcl_NewStringObj(userinfo->preferred_username, -1));
+    }
+    
+    if (userinfo->profile) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("profile", -1), Tcl_NewStringObj(userinfo->profile, -1));
+    }
+    
+    if (userinfo->picture) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("picture", -1), Tcl_NewStringObj(userinfo->picture, -1));
+    }
+    
+    if (userinfo->website) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("website", -1), Tcl_NewStringObj(userinfo->website, -1));
+    }
+    
+    if (userinfo->email) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("email", -1), Tcl_NewStringObj(userinfo->email, -1));
+    }
+    
+    if (userinfo->email_verified) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("email_verified", -1), Tcl_NewStringObj(userinfo->email_verified, -1));
+    }
+    
+    if (userinfo->gender) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("gender", -1), Tcl_NewStringObj(userinfo->gender, -1));
+    }
+    
+    if (userinfo->birthdate) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("birthdate", -1), Tcl_NewStringObj(userinfo->birthdate, -1));
+    }
+    
+    if (userinfo->zoneinfo) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("zoneinfo", -1), Tcl_NewStringObj(userinfo->zoneinfo, -1));
+    }
+    
+    if (userinfo->locale) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("locale", -1), Tcl_NewStringObj(userinfo->locale, -1));
+    }
+    
+    if (userinfo->phone_number) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("phone_number", -1), Tcl_NewStringObj(userinfo->phone_number, -1));
+    }
+    
+    if (userinfo->phone_number_verified) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("phone_number_verified", -1), Tcl_NewStringObj(userinfo->phone_number_verified, -1));
+    }
+    
+    if (userinfo->address) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("address", -1), Tcl_NewStringObj(userinfo->address, -1));
+    }
+    
+    if (userinfo->updated_at) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("updated_at", -1), Tcl_NewStringObj(userinfo->updated_at, -1));
+    }
+    
+    // Cleanup
+    free_oidc_userinfo(userinfo);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// Validate UserInfo response
+int OidcValidateUserinfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-userinfo <userinfo_data> -expected_subject <subject>");
+        return TCL_ERROR;
+    }
+    
+    const char *userinfo_data = Tcl_GetString(objv[2]);
+    const char *expected_subject = Tcl_GetString(objv[4]);
+    
+    // Parse UserInfo data
+    json_object *userinfo_json = json_tokener_parse(userinfo_data);
+    if (!userinfo_json) {
+        Tcl_SetResult(interp, "Invalid UserInfo data", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    json_object *sub_obj;
+    if (!json_object_object_get_ex(userinfo_json, "sub", &sub_obj)) {
+        Tcl_SetResult(interp, "Missing 'sub' field in UserInfo", TCL_STATIC);
+        json_object_put(userinfo_json);
+        return TCL_ERROR;
+    }
+    
+    const char *actual_subject = json_object_get_string(sub_obj);
+    if (strcmp(actual_subject, expected_subject) != 0) {
+        Tcl_SetResult(interp, "Subject mismatch in UserInfo", TCL_STATIC);
+        json_object_put(userinfo_json);
+        return TCL_ERROR;
+    }
+    
+    json_object_put(userinfo_json);
+    
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("subject", -1), Tcl_NewStringObj(actual_subject, -1));
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// Extract specific user claims
+int OidcExtractUserClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 5 || objc % 2 != 1) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-userinfo <userinfo_data> -claims {claim1 claim2 ...}");
+        return TCL_ERROR;
+    }
+    
+    const char *userinfo_data = Tcl_GetString(objv[2]);
+    
+    // Parse claims list
+    Tcl_Obj *claims_list = objv[4];
+    int claims_count;
+    Tcl_Obj **claims_array;
+    if (Tcl_ListObjGetElements(interp, claims_list, &claims_count, &claims_array) != TCL_OK) {
+        return TCL_ERROR;
+    }
+    
+    // Parse UserInfo data
+    json_object *userinfo_json = json_tokener_parse(userinfo_data);
+    if (!userinfo_json) {
+        Tcl_SetResult(interp, "Invalid UserInfo data", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Create result dict
+    Tcl_Obj *result = Tcl_NewDictObj();
+    
+    for (int i = 0; i < claims_count; i++) {
+        const char *claim_name = Tcl_GetString(claims_array[i]);
+        json_object *claim_value;
+        
+        if (json_object_object_get_ex(userinfo_json, claim_name, &claim_value)) {
+            json_type value_type = json_object_get_type(claim_value);
+            
+            switch (value_type) {
+                case json_type_string:
+                    Tcl_DictObjPut(interp, result, Tcl_NewStringObj(claim_name, -1), 
+                                   Tcl_NewStringObj(json_object_get_string(claim_value), -1));
+                    break;
+                case json_type_boolean:
+                    Tcl_DictObjPut(interp, result, Tcl_NewStringObj(claim_name, -1), 
+                                   Tcl_NewBooleanObj(json_object_get_boolean(claim_value)));
+                    break;
+                case json_type_int:
+                    Tcl_DictObjPut(interp, result, Tcl_NewStringObj(claim_name, -1), 
+                                   Tcl_NewLongObj(json_object_get_int64(claim_value)));
+                    break;
+                case json_type_double:
+                    Tcl_DictObjPut(interp, result, Tcl_NewStringObj(claim_name, -1), 
+                                   Tcl_NewDoubleObj(json_object_get_double(claim_value)));
+                    break;
+                case json_type_object:
+                case json_type_array:
+                    Tcl_DictObjPut(interp, result, Tcl_NewStringObj(claim_name, -1), 
+                                   Tcl_NewStringObj(json_object_to_json_string(claim_value), -1));
+                    break;
+                default:
+                    // Skip null or unknown types
+                    break;
+            }
+        }
+    }
+    
+    json_object_put(userinfo_json);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
 // Initialize OIDC module
 int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::discover", OidcDiscoverCmd, NULL, NULL);
@@ -1275,6 +1726,9 @@ int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::get_jwk", OidcGetJwkCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_jwks", OidcValidateJwksCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_id_token", OidcValidateIdTokenCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::userinfo", OidcUserinfoCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::validate_userinfo", OidcValidateUserinfoCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::extract_user_claims", OidcExtractUserClaimsCmd, NULL, NULL);
     
     return TCL_OK;
 } 

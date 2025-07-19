@@ -267,6 +267,9 @@ run_test "OIDC Command Availability" {
         "::tossl::oidc::get_jwk"
         "::tossl::oidc::validate_jwks"
         "::tossl::oidc::validate_id_token"
+        "::tossl::oidc::userinfo"
+        "::tossl::oidc::validate_userinfo"
+        "::tossl::oidc::extract_user_claims"
     }
     
     foreach cmd $required_commands {
@@ -524,6 +527,121 @@ run_test "ID Token Claims Extraction" {
     }
     
     puts "   Claims extraction working correctly"
+}
+
+# Test 16: UserInfo Endpoint
+run_test "UserInfo Endpoint" {
+    set userinfo_data {
+    {
+      "sub": "1234567890",
+      "name": "John Doe",
+      "given_name": "John",
+      "family_name": "Doe",
+      "email": "john.doe@example.com",
+      "email_verified": true,
+      "picture": "https://example.com/john.jpg"
+    }
+    }
+    
+    # Test UserInfo validation
+    set result [tossl::oidc::validate_userinfo \
+        -userinfo $userinfo_data \
+        -expected_subject "1234567890"]
+    
+    if {![dict get $result valid]} {
+        error "UserInfo validation failed"
+    }
+    
+    if {[dict get $result subject] != "1234567890"} {
+        error "Subject mismatch in UserInfo validation"
+    }
+    
+    # Test UserInfo validation with wrong subject
+    if {![catch {
+        tossl::oidc::validate_userinfo \
+            -userinfo $userinfo_data \
+            -expected_subject "wrong_subject"
+    } result]} {
+        error "UserInfo validation should have failed with wrong subject"
+    }
+    
+    puts "   UserInfo validation passed"
+    puts "   Subject validation passed"
+}
+
+# Test 17: UserInfo Claims Extraction
+run_test "UserInfo Claims Extraction" {
+    set userinfo_data {
+    {
+      "sub": "1234567890",
+      "name": "John Doe",
+      "given_name": "John",
+      "family_name": "Doe",
+      "email": "john.doe@example.com",
+      "email_verified": true,
+      "picture": "https://example.com/john.jpg"
+    }
+    }
+    
+    # Test claims extraction
+    set result [tossl::oidc::extract_user_claims \
+        -userinfo $userinfo_data \
+        -claims {name email picture}]
+    
+    if {[dict get $result name] != "John Doe"} {
+        error "Name claim not extracted correctly"
+    }
+    
+    if {[dict get $result email] != "john.doe@example.com"} {
+        error "Email claim not extracted correctly"
+    }
+    
+    if {[dict get $result picture] != "https://example.com/john.jpg"} {
+        error "Picture claim not extracted correctly"
+    }
+    
+    # Test boolean claim extraction
+    set result [tossl::oidc::extract_user_claims \
+        -userinfo $userinfo_data \
+        -claims {email_verified}]
+    
+    if {![dict get $result email_verified]} {
+        error "Boolean claim not extracted correctly"
+    }
+    
+    puts "   Claims extraction working correctly"
+    puts "   Boolean claims extraction working correctly"
+}
+
+# Test 18: UserInfo Error Handling
+run_test "UserInfo Error Handling" {
+    # Test invalid JSON
+    if {![catch {
+        tossl::oidc::validate_userinfo \
+            -userinfo "invalid json" \
+            -expected_subject "1234567890"
+    } result]} {
+        error "Should have failed with invalid JSON"
+    }
+    
+    # Test missing subject
+    set userinfo_no_sub {
+    {
+      "name": "John Doe",
+      "email": "john.doe@example.com"
+    }
+    }
+    
+    if {![catch {
+        tossl::oidc::validate_userinfo \
+            -userinfo $userinfo_no_sub \
+            -expected_subject "1234567890"
+    } result]} {
+        error "Should have failed with missing subject"
+    }
+    
+    puts "   Invalid JSON handling passed"
+    puts "   Missing subject handling passed"
 }
 
 puts ""
