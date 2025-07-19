@@ -14,6 +14,7 @@ typedef struct {
     char *handle_name;
     Tcl_Interp *interp; // Store interpreter for callback
     char *alpn_callback; // Store callback name
+    char *cert_pins; // Space-separated base64 pins, or NULL
 } TOSSL_SSL_CTX;
 
 // SSL connection handle
@@ -31,6 +32,7 @@ static int ssl_connection_count = 0;
 
 // Forward declarations
 static TOSSL_SSL_CTX *FindTosslCtxBySslCtx(SSL_CTX *ctx);
+static TOSSL_SSL_CTX *FindTosslCtxByName(const char *handle_name);
 static int TosslAlpnSelectCb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
                              const unsigned char *in, unsigned int inlen, void *arg);
 
@@ -107,6 +109,7 @@ int SslContextCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     handle->handle_name = strdup(handle_name);
     handle->interp = interp;
     handle->alpn_callback = NULL;
+    handle->cert_pins = NULL; // Initialize pins to NULL
     
     // Add to global list
     ssl_contexts = realloc(ssl_contexts, ssl_context_count * sizeof(TOSSL_SSL_CTX));
@@ -208,6 +211,65 @@ int SslConnectCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         close(sock);
         Tcl_SetResult(interp, "SSL handshake failed", TCL_STATIC);
         return TCL_ERROR;
+    }
+    // Enforce certificate pinning if configured
+    TOSSL_SSL_CTX *ctx_handle = FindTosslCtxByName(ctx_name);
+    if (ctx_handle && ctx_handle->cert_pins && strlen(ctx_handle->cert_pins) > 0) {
+        // Get peer certificate
+        X509 *cert = SSL_get1_peer_certificate(ssl);
+        if (!cert) {
+            SSL_free(ssl);
+            close(sock);
+            Tcl_SetResult(interp, "No peer certificate for pinning", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        // Calculate SHA-256 fingerprint (DER encoding)
+        unsigned char fingerprint[EVP_MAX_MD_SIZE];
+        unsigned int fingerprint_len;
+        unsigned char *der = NULL;
+        int der_len = i2d_X509(cert, &der);
+        if (der_len > 0) {
+            EVP_Digest(der, der_len, fingerprint, &fingerprint_len, EVP_sha256(), NULL);
+            OPENSSL_free(der);
+        } else {
+            X509_free(cert);
+            SSL_free(ssl);
+            close(sock);
+            Tcl_SetResult(interp, "Failed to encode certificate for pinning", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        // Convert to base64
+        BIO *bio = BIO_new(BIO_s_mem());
+        BIO *b64 = BIO_new(BIO_f_base64());
+        bio = BIO_push(b64, bio);
+        BIO_write(bio, fingerprint, fingerprint_len);
+        BIO_flush(bio);
+        BUF_MEM *bptr;
+        BIO_get_mem_ptr(bio, &bptr);
+        char *fingerprint_b64 = malloc(bptr->length + 1);
+        memcpy(fingerprint_b64, bptr->data, bptr->length);
+        fingerprint_b64[bptr->length] = '\0';
+        // Check if fingerprint matches any pin
+        int pin_match = 0;
+        char *pins_copy = strdup(ctx_handle->cert_pins);
+        char *token = strtok(pins_copy, " ");
+        while (token) {
+            if (strcmp(token, fingerprint_b64) == 0) {
+                pin_match = 1;
+                break;
+            }
+            token = strtok(NULL, " ");
+        }
+        free(pins_copy);
+        free(fingerprint_b64);
+        BIO_free_all(bio);
+        X509_free(cert);
+        if (!pin_match) {
+            SSL_free(ssl);
+            close(sock);
+            Tcl_SetResult(interp, "Certificate pinning failed: no matching pin", TCL_STATIC);
+            return TCL_ERROR;
+        }
     }
     
     // Create handle
@@ -722,26 +784,44 @@ int SslCipherInfoCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
 
 // tossl::ssl::set_cert_pinning -ctx ctx -pins pins
 int SslSetCertPinningCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 4) {
+    if (objc < 4) {
         Tcl_WrongNumArgs(interp, 1, objv, "-ctx ctx -pins pins");
         return TCL_ERROR;
     }
-    const char *ctx_name = Tcl_GetString(objv[2]);
-    // pins parameter is not currently used but kept for future implementation
-    // const char *pins = Tcl_GetString(objv[3]);
-    // Find SSL context
-    SSL_CTX *ctx = NULL;
-    for (int i = 0; i < ssl_context_count; i++) {
-        if (strcmp(ssl_contexts[i].handle_name, ctx_name) == 0) {
-            ctx = ssl_contexts[i].ctx;
-            break;
+    
+    const char *ctx_name = NULL, *pins = NULL;
+    
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *option = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(option, "-ctx") == 0) {
+            ctx_name = value;
+        } else if (strcmp(option, "-pins") == 0) {
+            pins = value;
         }
     }
-    if (!ctx) {
+    
+    if (!ctx_name || !pins) {
+        Tcl_SetResult(interp, "Missing required parameters", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Find SSL context struct
+    TOSSL_SSL_CTX *ctx_handle = FindTosslCtxByName(ctx_name);
+    if (!ctx_handle) {
         Tcl_SetResult(interp, "SSL context not found", TCL_STATIC);
         return TCL_ERROR;
     }
-    // Store pins for later verification (stub)
+    // Free previous pins if any
+    if (ctx_handle->cert_pins) {
+        free(ctx_handle->cert_pins);
+        ctx_handle->cert_pins = NULL;
+    }
+    // Store new pins (make a copy)
+    ctx_handle->cert_pins = strdup(pins);
     Tcl_SetResult(interp, "ok", TCL_STATIC);
     return TCL_OK;
 }
@@ -1066,6 +1146,15 @@ int SslVerifyCertPinningCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj
 static TOSSL_SSL_CTX *FindTosslCtxBySslCtx(SSL_CTX *ctx) {
     for (int i = 0; i < ssl_context_count; i++) {
         if (ssl_contexts[i].ctx == ctx) return &ssl_contexts[i];
+    }
+    return NULL;
+}
+// Helper: Find TOSSL_SSL_CTX by handle name
+static TOSSL_SSL_CTX *FindTosslCtxByName(const char *handle_name) {
+    for (int i = 0; i < ssl_context_count; i++) {
+        if (strcmp(ssl_contexts[i].handle_name, handle_name) == 0) {
+            return &ssl_contexts[i];
+        }
     }
     return NULL;
 }
