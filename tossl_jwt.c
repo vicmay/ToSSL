@@ -826,7 +826,6 @@ int JwtValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
     char *token_copy = strdup(token);
     char *header_part = NULL;
     char *payload_part = NULL;
-    char *signature_part = NULL;
     
     // Find first dot
     char *first_dot = strchr(token_copy, '.');
@@ -849,7 +848,7 @@ int JwtValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
     payload_part = first_dot + 1;
     
     // Signature part (may be empty)
-    signature_part = second_dot + 1;
+
     
     if (!header_part || !payload_part) {
         Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
@@ -937,17 +936,48 @@ int JwtValidateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
     return TCL_OK;
 }
 
-// JWT claims extraction command
+// JWT claims extraction command with signature verification
 int JwtExtractClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc != 3) {
-        Tcl_WrongNumArgs(interp, 1, objv, "-token <jwt_string>");
+    if (objc < 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-token <jwt_string> -key <key> -alg <algorithm>");
         return TCL_ERROR;
     }
     
-    const char *token = Tcl_GetString(objv[2]);
+    const char *token_str = NULL;
+    const char *key_str = NULL;
+    const char *alg_str = NULL;
     
-    // Parse JWT manually to handle empty signature
-    char *token_copy = strdup(token);
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) {
+            Tcl_SetResult(interp, "Missing value for option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+        
+        const char *option = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(option, "-token") == 0) {
+            token_str = value;
+        } else if (strcmp(option, "-key") == 0) {
+            key_str = value;
+        } else if (strcmp(option, "-alg") == 0) {
+            alg_str = value;
+        } else {
+            Tcl_SetResult(interp, "Unknown option", TCL_STATIC);
+            return TCL_ERROR;
+        }
+    }
+    
+    if (!token_str || !key_str || !alg_str) {
+        Tcl_SetResult(interp, "Missing required parameters: -token, -key, and -alg are all required", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    JwtAlgorithm alg = parse_algorithm(alg_str);
+    
+    // Split token into parts manually to handle empty signature
+    char *token_copy = strdup(token_str);
     char *header_part = NULL;
     char *payload_part = NULL;
     char *signature_part = NULL;
@@ -955,8 +985,8 @@ int JwtExtractClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     // Find first dot
     char *first_dot = strchr(token_copy, '.');
     if (!first_dot) {
-        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         return TCL_ERROR;
     }
     *first_dot = '\0';
@@ -965,8 +995,8 @@ int JwtExtractClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     // Find second dot
     char *second_dot = strchr(first_dot + 1, '.');
     if (!second_dot) {
-        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         return TCL_ERROR;
     }
     *second_dot = '\0';
@@ -976,17 +1006,70 @@ int JwtExtractClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     signature_part = second_dot + 1;
     
     if (!header_part || !payload_part) {
-        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    // Decode payload
+    // Create data that was signed
+    char *data_to_verify = malloc(strlen(header_part) + strlen(payload_part) + 2);
+    sprintf(data_to_verify, "%s.%s", header_part, payload_part);
+    
+    // Verify signature based on algorithm
+    int is_valid = 0;
+    EVP_PKEY *pkey = NULL;
+    
+    if (alg == JWT_ALG_NONE) {
+        is_valid = (strlen(signature_part) == 0);
+    } else if (alg == JWT_ALG_HS256 || alg == JWT_ALG_HS384 || alg == JWT_ALG_HS512) {
+        is_valid = hmac_verify(data_to_verify, signature_part, key_str, alg);
+    } else if (alg == JWT_ALG_RS256 || alg == JWT_ALG_RS384 || alg == JWT_ALG_RS512) {
+        BIO *bio = BIO_new_mem_buf(key_str, -1);
+        if (bio) {
+            pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+            if (!pkey) {
+                BIO_seek(bio, 0);
+                pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+            }
+            BIO_free(bio);
+        }
+        
+        if (pkey) {
+            is_valid = rsa_verify(data_to_verify, signature_part, pkey, alg);
+            EVP_PKEY_free(pkey);
+        }
+    } else if (alg == JWT_ALG_ES256 || alg == JWT_ALG_ES384 || alg == JWT_ALG_ES512) {
+        BIO *bio = BIO_new_mem_buf(key_str, -1);
+        if (bio) {
+            pkey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+            if (!pkey) {
+                BIO_seek(bio, 0);
+                pkey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+            }
+            BIO_free(bio);
+        }
+        
+        if (pkey) {
+            is_valid = ec_verify(data_to_verify, signature_part, pkey, alg);
+            EVP_PKEY_free(pkey);
+        }
+    }
+    
+    free(data_to_verify);
+    
+    // If signature verification failed, return error
+    if (!is_valid) {
+        free(token_copy);
+        Tcl_SetResult(interp, "JWT signature verification failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Decode payload only after successful verification
     size_t payload_len;
     unsigned char *payload_data = base64url_decode(payload_part, &payload_len);
     if (!payload_data) {
-        Tcl_SetResult(interp, "Failed to decode JWT payload", TCL_STATIC);
         free(token_copy);
+        Tcl_SetResult(interp, "Failed to decode JWT payload", TCL_STATIC);
         return TCL_ERROR;
     }
     

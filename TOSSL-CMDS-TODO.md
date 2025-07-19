@@ -210,7 +210,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::jwt::create` | ✅ | tests/test_jwt_create.tcl | ✅ | doc/jwt_create.md | |
 | `::tossl::jwt::verify` | ✅ | tests/test_jwt_verify.tcl | ✅ | doc/jwt_verify.md | JWT signature verification |
 | `::tossl::jwt::validate` | ✅ | tests/test_jwt_validate.tcl | ✅ | doc/jwt_validate.md | JWT claim validation |
-| `::tossl::jwt::extract_claims` | ❌ | | ❌ | | |
+| `::tossl::jwt::extract_claims` | ✅ | tests/test_jwt_extract_claims.tcl | ✅ | doc/jwt_extract_claims.md | JWT claim extraction without verification |
 | `::tossl::base64::decode` | ❌ | | ❌ | | |
 | `::tossl::base64::encode` | ❌ | | ❌ | | |
 | `::tossl::hex::decode` | ❌ | | ❌ | | |

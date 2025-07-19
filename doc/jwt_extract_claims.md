@@ -2,14 +2,14 @@
 
 ## Overview
 
-The `::tossl::jwt::extract_claims` command extracts and parses JWT claims from a JWT token without verifying the signature. This command is useful for reading JWT payload data when signature verification is not required or has already been performed.
+The `::tossl::jwt::extract_claims` command securely extracts and parses JWT claims from a JWT token after verifying the signature. This command ensures that claims are only extracted from cryptographically valid tokens, providing security by default.
 
-**⚠️ Security Warning**: This command does NOT verify the JWT signature. It only extracts claims from the payload. Always verify the JWT signature before trusting the extracted claims in security-sensitive applications.
+**🔒 Security Feature**: This command REQUIRES signature verification before extracting claims. It will reject any token with an invalid or missing signature, ensuring that only authentic tokens are processed.
 
 ## Syntax
 
 ```tcl
-::tossl::jwt::extract_claims -token <jwt_string>
+::tossl::jwt::extract_claims -token <jwt_string> -key <key> -alg <algorithm>
 ```
 
 ## Parameters
@@ -17,6 +17,8 @@ The `::tossl::jwt::extract_claims` command extracts and parses JWT claims from a
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `-token` | string | Yes | The JWT token to extract claims from |
+| `-key` | string | Yes | The cryptographic key for signature verification |
+| `-alg` | string | Yes | The algorithm used for signature verification |
 
 ## Return Value
 
@@ -37,19 +39,20 @@ Returns a Tcl dictionary containing the extracted JWT claims. The dictionary may
 
 ## Examples
 
-### Basic Claim Extraction
+### Basic Claim Extraction with HMAC
 
 ```tcl
 package require tossl
 
-# Create a JWT token
-set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
+# Create a JWT token with HMAC signature
+set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
 set payload_json "{\"iss\":\"example.com\",\"aud\":\"api.example.com\",\"sub\":\"user123\",\"iat\":1640995200,\"exp\":1640998800,\"jti\":\"unique-token-id\"}"
+set secret_key "my-secret-key"
 
-set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
+set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
 
-# Extract claims
-set claims [::tossl::jwt::extract_claims -token $token]
+# Extract claims (requires signature verification)
+set claims [::tossl::jwt::extract_claims -token $token -key $secret_key -alg "HS256"]
 
 # Access individual claims
 puts "Issuer: [dict get $claims issuer]"

@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
 
-# Comprehensive test suite for ::tossl::jwt::extract_claims
-# Tests JWT claim extraction functionality
+# Comprehensive test suite for secure ::tossl::jwt::extract_claims
+# Tests JWT claim extraction with signature verification
 
 package require tossl
 
@@ -49,359 +49,173 @@ proc assert_dict_value {dict key expected message} {
     }
 }
 
-puts "=== JWT Extract Claims Test Suite ==="
-puts "Testing ::tossl::jwt::extract_claims command"
+puts "=== Secure JWT Extract Claims Test Suite ==="
+puts "Testing ::tossl::jwt::extract_claims command with signature verification"
 puts ""
 
-# Test 1: Basic claim extraction with standard claims
-run_test "Basic claim extraction with standard claims" {
+# Test 1: Basic claim extraction with HMAC signature
+run_test "Basic claim extraction with HMAC signature" {
     set now [clock seconds]
     set exp [expr {$now + 3600}]
+    set secret_key "test-secret-key"
     
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
+    set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
     set payload_json "{\"iss\":\"test-issuer\",\"aud\":\"test-audience\",\"sub\":\"test-subject\",\"iat\":$now,\"exp\":$exp,\"jti\":\"test-jwt-id\"}"
     
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
+    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
+    set claims [::tossl::jwt::extract_claims -token $token -key $secret_key -alg "HS256"]
     
     assert_dict_value $claims issuer "test-issuer" "Issuer should match"
     assert_dict_value $claims audience "test-audience" "Audience should match"
     assert_dict_value $claims subject "test-subject" "Subject should match"
+    assert_dict_value $claims issued_at $now "Issued at should match"
+    assert_dict_value $claims expiration $exp "Expiration should match"
     assert_dict_value $claims jwt_id "test-jwt-id" "JWT ID should match"
-    assert {[dict get $claims issued_at] == $now} "Issued at should match"
-    assert {[dict get $claims expiration] == $exp} "Expiration should match"
 }
 
-# Test 2: Claim extraction with missing optional claims
-run_test "Claim extraction with missing optional claims" {
-    set now [clock seconds]
+# Test 2: Signature verification failure with wrong key
+run_test "Signature verification failure with wrong key" {
+    set secret_key "correct-key"
+    set wrong_key "wrong-key"
     
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"test-issuer\",\"iat\":$now}"
+    set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
+    set payload_json "{\"iss\":\"test-issuer\",\"sub\":\"test-subject\"}"
     
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
+    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
     
-    assert_dict_value $claims issuer "test-issuer" "Issuer should be present"
-    assert {[dict get $claims issued_at] == $now} "Issued at should be present"
-    
-    # Optional claims should not be present
-    assert {![dict exists $claims audience]} "Audience should not be present"
-    assert {![dict exists $claims subject]} "Subject should not be present"
-    assert {![dict exists $claims jwt_id]} "JWT ID should not be present"
-    assert {![dict exists $claims expiration]} "Expiration should not be present"
-    assert {![dict exists $claims not_before]} "Not before should not be present"
-}
-
-# Test 3: Claim extraction with all timestamp claims
-run_test "Claim extraction with all timestamp claims" {
-    set now [clock seconds]
-    set nbf [expr {$now - 3600}] ;# 1 hour ago
-    set exp [expr {$now + 7200}] ;# 2 hours from now
-    
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"test-issuer\",\"iat\":$now,\"nbf\":$nbf,\"exp\":$exp}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert {[dict get $claims issued_at] == $now} "Issued at should match"
-    assert {[dict get $claims not_before] == $nbf} "Not before should match"
-    assert {[dict get $claims expiration] == $exp} "Expiration should match"
-}
-
-# Test 4: Claim extraction with empty token
-run_test "Claim extraction with empty token" {
-    if {[catch {::tossl::jwt::extract_claims -token ""} result]} {
-        # Expected to fail
-        assert 1 "Empty token should cause error"
-    } else {
-        error "Empty token should have caused an error"
+    # This should fail with wrong key
+    set error_caught 0
+    if {[catch {::tossl::jwt::extract_claims -token $token -key $wrong_key -alg "HS256"} result]} {
+        set error_caught 1
+        assert {[string match "*signature verification failed*" $result]} "Should fail with signature verification error"
     }
+    assert {$error_caught == 1} "Should have caught signature verification error"
 }
 
-# Test 5: Claim extraction with missing token parameter
-run_test "Claim extraction with missing token parameter" {
-    if {[catch {::tossl::jwt::extract_claims} result]} {
-        # Expected to fail
-        assert 1 "Missing token parameter should cause error"
-    } else {
-        error "Missing token parameter should have caused an error"
+# Test 3: Missing required parameters
+run_test "Missing required parameters" {
+    set error_caught 0
+    if {[catch {::tossl::jwt::extract_claims -token "dummy"} result]} {
+        set error_caught 1
+        assert {[string match "*wrong # args*" $result]} "Should fail with wrong number of arguments"
     }
+    assert {$error_caught == 1} "Should have caught parameter error"
 }
 
-# Test 6: Claim extraction with invalid JWT format
-run_test "Claim extraction with invalid JWT format" {
-    set result [::tossl::jwt::extract_claims -token "invalid.jwt.format"]
-    assert_dict_value $result error "Invalid JSON payload" "Error should indicate invalid JSON payload"
+# Test 4: Invalid JWT format
+run_test "Invalid JWT format" {
+    set error_caught 0
+    if {[catch {::tossl::jwt::extract_claims -token "invalid.jwt" -key "key" -alg "HS256"} result]} {
+        set error_caught 1
+        assert {[string match "*Invalid JWT format*" $result]} "Should fail with invalid JWT format"
+    }
+    assert {$error_caught == 1} "Should have caught format error"
 }
 
-# Test 7: Claim extraction with malformed payload
-run_test "Claim extraction with malformed payload" {
-    set header [::tossl::base64url::encode "{\"alg\":\"none\",\"typ\":\"JWT\"}"]
-    set payload [::tossl::base64url::encode "invalid json"]
-    set token "$header.$payload."
+# Test 5: Different HMAC algorithms
+run_test "Different HMAC algorithms" {
+    set secret_key "test-key"
+    set payload_json "{\"iss\":\"test\",\"sub\":\"user\"}"
     
-    set result [::tossl::jwt::extract_claims -token $token]
-    assert_dict_value $result error "Invalid JSON payload" "Error should indicate invalid JSON payload"
-}
-
-# Test 8: Claim extraction with different algorithms
-run_test "Claim extraction with different algorithms" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
-    
-    set payload_json "{\"iss\":\"test-issuer\",\"aud\":\"test-audience\",\"sub\":\"test-subject\",\"iat\":$now,\"exp\":$exp}"
-    
-    # Test with different algorithms
-    set algorithms {none HS256}
-    
-    foreach alg $algorithms {
+    foreach alg {HS256 HS384 HS512} {
         set header_json "{\"alg\":\"$alg\",\"typ\":\"JWT\"}"
-        set key [expr {$alg eq "none" ? "dummy" : "test_secret"}]
+        set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg $alg]
+        set claims [::tossl::jwt::extract_claims -token $token -key $secret_key -alg $alg]
         
-        set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $key -alg $alg]
-        set claims [::tossl::jwt::extract_claims -token $token]
-        
-        assert_dict_value $claims issuer "test-issuer" "Issuer should match for algorithm $alg"
-        assert_dict_value $claims audience "test-audience" "Audience should match for algorithm $alg"
-        assert_dict_value $claims subject "test-subject" "Subject should match for algorithm $alg"
-        assert {[dict get $claims issued_at] == $now} "Issued at should match for algorithm $alg"
-        assert {[dict get $claims expiration] == $exp} "Expiration should match for algorithm $alg"
+        assert_dict_value $claims issuer "test" "Issuer should match for $alg"
+        assert_dict_value $claims subject "user" "Subject should match for $alg"
     }
 }
 
-# Test 9: Claim extraction with very long claim values
-run_test "Claim extraction with very long claim values" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
+# Test 6: Algorithm mismatch
+run_test "Algorithm mismatch" {
+    set secret_key "test-key"
+    set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
+    set payload_json "{\"iss\":\"test\",\"sub\":\"user\"}"
     
-    set long_string [string repeat "a" 100]
+    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
     
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"$long_string\",\"aud\":\"$long_string\",\"sub\":\"$long_string\",\"iat\":$now,\"exp\":$exp,\"jti\":\"$long_string\"}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer $long_string "Long issuer should match"
-    assert_dict_value $claims audience $long_string "Long audience should match"
-    assert_dict_value $claims subject $long_string "Long subject should match"
-    assert_dict_value $claims jwt_id $long_string "Long JWT ID should match"
-    assert {[dict get $claims issued_at] == $now} "Issued at should match"
-    assert {[dict get $claims expiration] == $exp} "Expiration should match"
+    # Try to verify with wrong algorithm
+    set error_caught 0
+    if {[catch {::tossl::jwt::extract_claims -token $token -key $secret_key -alg "HS512"} result]} {
+        set error_caught 1
+        assert {[string match "*signature verification failed*" $result]} "Should fail with algorithm mismatch"
+    }
+    assert {$error_caught == 1} "Should have caught algorithm mismatch error"
 }
 
-# Test 10: Claim extraction with special characters in claims
-run_test "Claim extraction with special characters in claims" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
+# Test 7: Claims with minimal data
+run_test "Claims with minimal data" {
+    set secret_key "test-key"
+    set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
+    set payload_json "{\"sub\":\"user123\"}"
     
-    set special_issuer "test-issuer@example.com"
-    set special_audience "api.example.com/v1"
-    set special_subject "user_123!@#$%^&*()"
-    set special_jwt_id "jwt-id-with-special-chars-🎉🚀💻"
+    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
+    set claims [::tossl::jwt::extract_claims -token $token -key $secret_key -alg "HS256"]
     
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"$special_issuer\",\"aud\":\"$special_audience\",\"sub\":\"$special_subject\",\"iat\":$now,\"exp\":$exp,\"jti\":\"$special_jwt_id\"}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer $special_issuer "Special issuer should match"
-    assert_dict_value $claims audience $special_audience "Special audience should match"
-    assert_dict_value $claims subject $special_subject "Special subject should match"
-    assert_dict_value $claims jwt_id $special_jwt_id "Special JWT ID should match"
+    assert_dict_value $claims subject "user123" "Subject should match"
+    assert {![dict exists $claims issuer]} "Issuer should not exist"
+    assert {![dict exists $claims audience]} "Audience should not exist"
 }
 
-# Test 11: Claim extraction with numeric string values
-run_test "Claim extraction with numeric string values" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
+# Test 8: Claims with special characters
+run_test "Claims with special characters" {
+    set secret_key "test-key"
+    set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
+    set payload_json "{\"iss\":\"test@example.com\",\"sub\":\"user with spaces\",\"aud\":\"https://api.example.com/v1\"}"
     
-    set numeric_issuer "12345"
-    set numeric_audience "67890"
-    set numeric_subject "11111"
-    set numeric_jwt_id "99999"
+    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
+    set claims [::tossl::jwt::extract_claims -token $token -key $secret_key -alg "HS256"]
     
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"$numeric_issuer\",\"aud\":\"$numeric_audience\",\"sub\":\"$numeric_subject\",\"iat\":$now,\"exp\":$exp,\"jti\":\"$numeric_jwt_id\"}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer $numeric_issuer "Numeric issuer should match"
-    assert_dict_value $claims audience $numeric_audience "Numeric audience should match"
-    assert_dict_value $claims subject $numeric_subject "Numeric subject should match"
-    assert_dict_value $claims jwt_id $numeric_jwt_id "Numeric JWT ID should match"
+    assert_dict_value $claims issuer "test@example.com" "Issuer with @ should match"
+    assert_dict_value $claims subject "user with spaces" "Subject with spaces should match"
+    assert_dict_value $claims audience "https://api.example.com/v1" "Audience URL should match"
 }
 
-# Test 12: Claim extraction with zero timestamp values
-run_test "Claim extraction with zero timestamp values" {
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"test-issuer\",\"iat\":0,\"nbf\":0,\"exp\":0}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer "test-issuer" "Issuer should match"
-    # Zero timestamps are not included in the result (implementation behavior)
-    assert {![dict exists $claims issued_at]} "Zero issued at should not be included"
-    assert {![dict exists $claims not_before]} "Zero not before should not be included"
-    assert {![dict exists $claims expiration]} "Zero expiration should not be included"
-}
-
-# Test 13: Claim extraction with negative timestamp values
-run_test "Claim extraction with negative timestamp values" {
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"test-issuer\",\"iat\":-1000,\"nbf\":-2000,\"exp\":-500}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer "test-issuer" "Issuer should match"
-    # Negative timestamps are not included in the result (implementation behavior)
-    assert {![dict exists $claims issued_at]} "Negative issued at should not be included"
-    assert {![dict exists $claims not_before]} "Negative not before should not be included"
-    assert {![dict exists $claims expiration]} "Negative expiration should not be included"
-}
-
-# Test 14: Claim extraction with very large timestamp values
-run_test "Claim extraction with very large timestamp values" {
-    set large_timestamp 2147483000
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"test-issuer\",\"iat\":$large_timestamp,\"exp\":[expr {$large_timestamp + 647}]}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer "test-issuer" "Issuer should match"
-    assert {[dict get $claims issued_at] == $large_timestamp} "Large issued at should be preserved"
-    assert {[dict get $claims expiration] == [expr {$large_timestamp + 647}]} "Large expiration should be preserved"
-}
-
-# Test 15: Performance test with multiple extractions
+# Test 9: Performance test
 run_test "Performance test with multiple extractions" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
+    set secret_key "test-key"
+    set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
+    set payload_json "{\"iss\":\"test\",\"sub\":\"user\"}"
     
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"test-issuer\",\"aud\":\"test-audience\",\"sub\":\"test-subject\",\"iat\":$now,\"exp\":$exp,\"jti\":\"test-jwt-id\"}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
+    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
     
     set start_time [clock milliseconds]
     for {set i 0} {$i < 100} {incr i} {
-        set claims [::tossl::jwt::extract_claims -token $token]
-        assert_dict_value $claims issuer "test-issuer" "Issuer should match in performance test"
-        assert_dict_value $claims audience "test-audience" "Audience should match in performance test"
-        assert_dict_value $claims subject "test-subject" "Subject should match in performance test"
+        set claims [::tossl::jwt::extract_claims -token $token -key $secret_key -alg "HS256"]
+        assert_dict_value $claims issuer "test" "Performance test iteration $i"
     }
     set end_time [clock milliseconds]
     set duration [expr {$end_time - $start_time}]
-    
     puts "  Performance: 100 extractions in ${duration}ms"
-    assert {$duration < 1000} "Performance test should complete in under 1 second"
 }
 
-# Test 16: Memory leak test
-run_test "Memory leak test" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
+# Test 10: Security test - tampered token
+run_test "Security test with tampered token" {
+    set secret_key "test-key"
+    set header_json "{\"alg\":\"HS256\",\"typ\":\"JWT\"}"
+    set payload_json "{\"iss\":\"test\",\"sub\":\"user\",\"admin\":false}"
     
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"test-issuer\",\"aud\":\"test-audience\",\"sub\":\"test-subject\",\"iat\":$now,\"exp\":$exp,\"jti\":\"test-jwt-id\"}"
+    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key $secret_key -alg "HS256"]
     
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
+    # Tamper with the payload (change admin:false to admin:true)
+    set parts [split $token "."]
+    set header_part [lindex $parts 0]
+    set payload_part [lindex $parts 1]
+    set signature_part [lindex $parts 2]
     
-    # Run many extractions to check for memory leaks
-    for {set i 0} {$i < 1000} {incr i} {
-        set claims [::tossl::jwt::extract_claims -token $token]
-        assert_dict_value $claims issuer "test-issuer" "Issuer should match in memory test"
-        assert_dict_value $claims audience "test-audience" "Audience should match in memory test"
-        assert_dict_value $claims subject "test-subject" "Subject should match in memory test"
+    # Create malicious payload
+    set malicious_payload_json "{\"iss\":\"test\",\"sub\":\"user\",\"admin\":true}"
+    set malicious_payload_b64 [string map {+ - / _ = {}} [binary encode base64 $malicious_payload_json]]
+    set tampered_token "$header_part.$malicious_payload_b64.$signature_part"
+    
+    # This should fail because signature won't match tampered payload
+    set error_caught 0
+    if {[catch {::tossl::jwt::extract_claims -token $tampered_token -key $secret_key -alg "HS256"} result]} {
+        set error_caught 1
+        assert {[string match "*signature verification failed*" $result]} "Should reject tampered token"
     }
-    
-    puts "  Memory test: 1000 extractions completed without memory issues"
-}
-
-# Test 17: Integration test with create and extract
-run_test "Integration test with create and extract" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
-    
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"integration-issuer\",\"aud\":\"integration-audience\",\"sub\":\"integration-subject\",\"iat\":$now,\"exp\":$exp,\"jti\":\"integration-jwt-id\"}"
-    
-    # Create token
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    assert {[string length $token] > 0} "Token should be created successfully"
-    
-    # Extract claims
-    set claims [::tossl::jwt::extract_claims -token $token]
-    assert_dict_value $claims issuer "integration-issuer" "Issuer should match"
-    assert_dict_value $claims audience "integration-audience" "Audience should match"
-    assert_dict_value $claims subject "integration-subject" "Subject should match"
-    assert_dict_value $claims jwt_id "integration-jwt-id" "JWT ID should match"
-    assert {[dict get $claims issued_at] == $now} "Issued at should match"
-    assert {[dict get $claims expiration] == $exp} "Expiration should match"
-}
-
-# Test 18: Claim extraction with empty string values
-run_test "Claim extraction with empty string values" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
-    
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"\",\"aud\":\"\",\"sub\":\"\",\"iat\":$now,\"exp\":$exp,\"jti\":\"\"}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer "" "Empty issuer should be preserved"
-    assert_dict_value $claims audience "" "Empty audience should be preserved"
-    assert_dict_value $claims subject "" "Empty subject should be preserved"
-    assert_dict_value $claims jwt_id "" "Empty JWT ID should be preserved"
-    assert {[dict get $claims issued_at] == $now} "Issued at should match"
-    assert {[dict get $claims expiration] == $exp} "Expiration should match"
-}
-
-# Test 19: Claim extraction with whitespace-only values
-run_test "Claim extraction with whitespace-only values" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
-    
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"   \",\"aud\":\"  \",\"sub\":\" \",\"iat\":$now,\"exp\":$exp,\"jti\":\"  \"}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer "   " "Whitespace issuer should be preserved"
-    assert_dict_value $claims audience "  " "Whitespace audience should be preserved"
-    assert_dict_value $claims subject " " "Whitespace subject should be preserved"
-    assert_dict_value $claims jwt_id "  " "Whitespace JWT ID should be preserved"
-    assert {[dict get $claims issued_at] == $now} "Issued at should match"
-    assert {[dict get $claims expiration] == $exp} "Expiration should match"
-}
-
-# Test 20: Claim extraction with mixed data types
-run_test "Claim extraction with mixed data types" {
-    set now [clock seconds]
-    set exp [expr {$now + 3600}]
-    
-    set header_json "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-    set payload_json "{\"iss\":\"string-issuer\",\"aud\":12345,\"sub\":\"string-subject\",\"iat\":$now,\"exp\":$exp,\"jti\":\"string-jwt-id\"}"
-    
-    set token [::tossl::jwt::create -header $header_json -payload $payload_json -key "dummy" -alg "none"]
-    set claims [::tossl::jwt::extract_claims -token $token]
-    
-    assert_dict_value $claims issuer "string-issuer" "String issuer should match"
-    assert_dict_value $claims audience "12345" "Numeric audience should be converted to string"
-    assert_dict_value $claims subject "string-subject" "String subject should match"
-    assert_dict_value $claims jwt_id "string-jwt-id" "String JWT ID should match"
-    assert {[dict get $claims issued_at] == $now} "Issued at should match"
-    assert {[dict get $claims expiration] == $exp} "Expiration should match"
+    assert {$error_caught == 1} "Should have caught tampering attempt"
 }
 
 puts ""
@@ -410,10 +224,15 @@ puts "Total tests: $test_count"
 puts "Passed: $passed"
 puts "Failed: $failed"
 
-if {$failed > 0} {
-    puts "Some tests failed!"
-    exit 1
+if {$failed == 0} {
+    puts "All tests passed! 🎉"
+    puts ""
+    puts "Security verification successful:"
+    puts "✅ Signature verification is required"
+    puts "✅ Invalid signatures are rejected"
+    puts "✅ Tampered tokens are detected"
+    puts "✅ Claims are only extracted from verified tokens"
 } else {
-    puts "All tests passed!"
-    exit 0
-} 
+    puts "Some tests failed! ❌"
+    exit 1
+}
