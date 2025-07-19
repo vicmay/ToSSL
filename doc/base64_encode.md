@@ -76,6 +76,8 @@ The command follows RFC 4648 padding rules:
 - Uses `BIO_FLAGS_BASE64_NO_NL` flag to avoid newlines in output.
 - Automatically handles padding according to RFC 4648.
 - Compatible with standard base64 encoding as used in HTTP, email, and other protocols.
+- Handles Unicode strings properly by treating input as string data.
+- No size limitations - can handle arbitrarily large data.
 
 ## Related Commands
 

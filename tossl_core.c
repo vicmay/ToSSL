@@ -113,13 +113,16 @@ int Base64EncodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         Tcl_WrongNumArgs(interp, 1, objv, "data");
         return TCL_ERROR;
     }
-    int data_len;
-    unsigned char *data = (unsigned char *)Tcl_GetByteArrayFromObj(objv[1], &data_len);
+    
+    // Get the data as a string first to handle Unicode properly
+    const char *data_str = Tcl_GetString(objv[1]);
+    int data_len = strlen(data_str);
+    
     BIO *bio = BIO_new(BIO_s_mem());
     BIO *b64 = BIO_new(BIO_f_base64());
     bio = BIO_push(b64, bio);
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    BIO_write(bio, data, data_len);
+    BIO_write(bio, data_str, data_len);
     BIO_flush(bio);
     BUF_MEM *bptr;
     BIO_get_mem_ptr(bio, &bptr);
@@ -136,17 +139,49 @@ int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         return TCL_ERROR;
     }
     const char *data = Tcl_GetString(objv[1]);
-    BIO *bio = BIO_new_mem_buf(data, -1);
+    int data_len = strlen(data);
+    
+    // Handle empty input
+    if (data_len == 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(NULL, 0));
+        return TCL_OK;
+    }
+    
+    BIO *bio = BIO_new_mem_buf(data, data_len);
     BIO *b64 = BIO_new(BIO_f_base64());
     bio = BIO_push(b64, bio);
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    unsigned char buffer[1024];
-    int len = BIO_read(bio, buffer, sizeof(buffer));
-    if (len > 0) {
-        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(buffer, len));
+    
+    // Calculate expected output size (base64 decode: 4 chars -> 3 bytes)
+    int expected_len = (data_len / 4) * 3;
+    if (data_len % 4 != 0) {
+        expected_len += 3; // Handle partial blocks
+    }
+    
+    // Allocate buffer dynamically
+    char *buffer = Tcl_Alloc(expected_len);
+    if (!buffer) {
+        BIO_free_all(bio);
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int total_len = 0;
+    int len;
+    
+    // Read data in chunks
+    while ((len = BIO_read(bio, (unsigned char *)buffer + total_len, expected_len - total_len)) > 0) {
+        total_len += len;
+        if (total_len >= expected_len) break;
+    }
+    
+    if (total_len > 0) {
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)buffer, total_len));
     } else {
         Tcl_SetResult(interp, "", TCL_STATIC);
     }
+    
+    Tcl_Free(buffer);
     BIO_free_all(bio);
     return TCL_OK;
 }
@@ -218,24 +253,50 @@ int Base64UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         modified[inlen + i] = '=';
     }
     modified[inlen + pad] = '\0';
-    BIO *bio = BIO_new_mem_buf(modified, -1);
+    BIO *bio = BIO_new_mem_buf(modified, buflen);
     BIO *b64 = BIO_new(BIO_f_base64());
     bio = BIO_push(b64, bio);
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    unsigned char buffer[1024];
-    int len = BIO_read(bio, buffer, sizeof(buffer));
-    if (len > 0) {
+    
+    // Calculate expected output size
+    int expected_len = (buflen / 4) * 3;
+    if (buflen % 4 != 0) {
+        expected_len += 3;
+    }
+    
+    // Allocate buffer dynamically
+    char *buffer = Tcl_Alloc(expected_len);
+    if (!buffer) {
+        Tcl_Free(modified);
+        BIO_free_all(bio);
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    int total_len = 0;
+    int len;
+    
+    // Read data in chunks
+    while ((len = BIO_read(bio, (unsigned char *)buffer + total_len, expected_len - total_len)) > 0) {
+        total_len += len;
+        if (total_len >= expected_len) break;
+    }
+    
+    if (total_len > 0) {
         // Trim trailing null bytes
-        while (len > 0 && buffer[len - 1] == '\0') {
-            len--;
+        while (total_len > 0 && buffer[total_len - 1] == '\0') {
+            total_len--;
         }
-        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(buffer, len));
+        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)buffer, total_len));
     } else {
+        Tcl_Free(buffer);
         Tcl_Free(modified);
         BIO_free_all(bio);
         Tcl_SetResult(interp, "Invalid base64url input", TCL_STATIC);
         return TCL_ERROR;
     }
+    
+    Tcl_Free(buffer);
     BIO_free_all(bio);
     Tcl_Free(modified);
     return TCL_OK;

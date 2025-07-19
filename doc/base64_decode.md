@@ -69,6 +69,8 @@ tossl::base64::decode ""  ;# Returns empty byte array
 - Automatically removes trailing padding bytes from the output.
 - Handles both padded and unpadded base64 strings.
 - Compatible with standard base64 encoding as used in HTTP, email, and other protocols.
+- No size limitations - can handle arbitrarily large data.
+- Dynamically allocates memory based on input size.
 
 ## Related Commands
 
