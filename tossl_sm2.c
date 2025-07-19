@@ -263,7 +263,8 @@ int Sm2EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     }
     
     const char *key_data = Tcl_GetString(objv[1]);
-    const char *data = Tcl_GetString(objv[2]);
+    int data_len;
+    const unsigned char *data = (const unsigned char *)Tcl_GetByteArrayFromObj(objv[2], &data_len);
     
     EVP_PKEY *pkey = NULL;
     BIO *bio = BIO_new_mem_buf(key_data, -1);
@@ -311,7 +312,7 @@ int Sm2EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     }
     
     size_t out_len;
-    if (EVP_PKEY_encrypt(ctx, NULL, &out_len, (const unsigned char*)data, strlen(data)) <= 0) {
+    if (EVP_PKEY_encrypt(ctx, NULL, &out_len, data, data_len) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         EVP_PKEY_free(pkey);
         Tcl_SetResult(interp, "Failed to calculate encrypted length", TCL_STATIC);
@@ -326,7 +327,7 @@ int Sm2EncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    if (EVP_PKEY_encrypt(ctx, out, &out_len, (const unsigned char*)data, strlen(data)) <= 0) {
+    if (EVP_PKEY_encrypt(ctx, out, &out_len, data, data_len) <= 0) {
         free(out);
         EVP_PKEY_CTX_free(ctx);
         EVP_PKEY_free(pkey);
