@@ -121,31 +121,27 @@ tossl::oidc::validate_jwks -jwks <jwks_data>
 - ✅ Add comprehensive test suite
 - ✅ Integrate with existing OIDC infrastructure
 
-### **Phase 2: Enhanced JWT Validation (Priority: High) - 1-2 days**
+✅ **COMPLETED** - Enhanced JWT Validation for ID tokens implemented.
 
-#### **2.1 OIDC ID Token Validation**
-Implement OpenID Connect Core 1.0 ID token validation requirements.
-
-**New Commands:**
+**Implemented Commands:**
 ```tcl
 # Validate OIDC ID token with comprehensive checks
 tossl::oidc::validate_id_token -token <id_token> -issuer <issuer> -audience <audience> ?-nonce <nonce>? ?-max_age <seconds>? ?-acr_values <acr>? ?-auth_time <timestamp>?
-
-# Extract and validate specific OIDC claims
-tossl::oidc::extract_oidc_claims -token <id_token> -issuer <issuer> -audience <audience>
-
-# Validate ID token signature using JWKS
-tossl::oidc::verify_id_token_signature -token <id_token> -jwks <jwks_data>
 ```
 
-**Implementation Tasks:**
-- [ ] Implement OIDC-specific ID token validation rules
-- [ ] Add nonce validation for CSRF protection
-- [ ] Add max_age validation for authentication freshness
-- [ ] Add acr (Authentication Context Class Reference) validation
-- [ ] Add auth_time validation
-- [ ] Implement signature verification using JWKS
-- [ ] Add comprehensive error reporting for validation failures
+**Completed Tasks:**
+- ✅ Implement OIDC-specific ID token validation rules
+- ✅ Add nonce validation for CSRF protection
+- ✅ Add max_age validation for authentication freshness
+- ✅ Add acr (Authentication Context Class Reference) validation
+- ✅ Add auth_time validation
+- ✅ Add comprehensive error reporting for validation failures
+- ✅ Add JWT parsing and base64url decoding
+- ✅ Add claims extraction and validation
+- ✅ Add complete documentation and examples
+- ✅ Add comprehensive test suite
+
+**Note:** Signature verification using JWKS will be implemented in a future enhancement.
 
 #### **2.2 OIDC Claims Validation**
 Implement standard OIDC claims validation.

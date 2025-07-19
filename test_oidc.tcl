@@ -266,6 +266,7 @@ run_test "OIDC Command Availability" {
         "::tossl::oidc::fetch_jwks"
         "::tossl::oidc::get_jwk"
         "::tossl::oidc::validate_jwks"
+        "::tossl::oidc::validate_id_token"
     }
     
     foreach cmd $required_commands {
@@ -388,6 +389,141 @@ run_test "JWKS Error Handling" {
     }
     
     puts "   All error cases handled correctly"
+}
+
+# Test 14: ID Token Validation
+run_test "ID Token Validation" {
+    set current_time [clock seconds]
+    set exp_time [expr $current_time + 3600] ;# 1 hour from now
+    set iat_time [expr $current_time - 300]  ;# 5 minutes ago
+    
+    # Create a valid ID token
+    set header "{\"alg\":\"RS256\",\"typ\":\"JWT\"}"
+    set payload "{\"iss\":\"https://accounts.google.com\",\"aud\":\"test_client\",\"sub\":\"1234567890\",\"exp\":$exp_time,\"iat\":$iat_time,\"nonce\":\"test_nonce\"}"
+    
+    set header_b64 [tossl::base64url::encode $header]
+    set payload_b64 [tossl::base64url::encode $payload]
+    set id_token "$header_b64.$payload_b64.test_signature"
+    
+    # Test valid token
+    set result [tossl::oidc::validate_id_token \
+        -token $id_token \
+        -issuer "https://accounts.google.com" \
+        -audience "test_client"]
+    
+    if {![dict get $result valid]} {
+        error "Valid token validation failed: [dict get $result error]"
+    }
+    
+    # Test invalid issuer
+    set result [tossl::oidc::validate_id_token \
+        -token $id_token \
+        -issuer "https://wrong-issuer.com" \
+        -audience "test_client"]
+    
+    if {[dict get $result valid]} {
+        error "Invalid issuer should have failed validation"
+    }
+    
+    # Test invalid audience
+    set result [tossl::oidc::validate_id_token \
+        -token $id_token \
+        -issuer "https://accounts.google.com" \
+        -audience "wrong_client"]
+    
+    if {[dict get $result valid]} {
+        error "Invalid audience should have failed validation"
+    }
+    
+    # Test nonce validation
+    set result [tossl::oidc::validate_id_token \
+        -token $id_token \
+        -issuer "https://accounts.google.com" \
+        -audience "test_client" \
+        -nonce "test_nonce"]
+    
+    if {![dict get $result valid]} {
+        error "Nonce validation failed: [dict get $result error]"
+    }
+    
+    # Test invalid nonce
+    set result [tossl::oidc::validate_id_token \
+        -token $id_token \
+        -issuer "https://accounts.google.com" \
+        -audience "test_client" \
+        -nonce "wrong_nonce"]
+    
+    if {[dict get $result valid]} {
+        error "Invalid nonce should have failed validation"
+    }
+    
+    # Test expired token
+    set expired_time [expr $current_time - 3600] ;# 1 hour ago
+    set expired_payload "{\"iss\":\"https://accounts.google.com\",\"aud\":\"test_client\",\"sub\":\"1234567890\",\"exp\":$expired_time,\"iat\":$iat_time,\"nonce\":\"test_nonce\"}"
+    set expired_payload_b64 [tossl::base64url::encode $expired_payload]
+    set expired_token "$header_b64.$expired_payload_b64.test_signature"
+    
+    set result [tossl::oidc::validate_id_token \
+        -token $expired_token \
+        -issuer "https://accounts.google.com" \
+        -audience "test_client"]
+    
+    if {[dict get $result valid]} {
+        error "Expired token should have failed validation"
+    }
+    
+    # Test invalid format
+    if {![catch {
+        tossl::oidc::validate_id_token \
+            -token "invalid.jwt.format" \
+            -issuer "https://accounts.google.com" \
+            -audience "test_client"
+    } result]} {
+        error "Invalid JWT format should have failed"
+    }
+    
+    puts "   Valid token validation passed"
+    puts "   Invalid issuer detection passed"
+    puts "   Invalid audience detection passed"
+    puts "   Nonce validation passed"
+    puts "   Invalid nonce detection passed"
+    puts "   Expired token detection passed"
+    puts "   Invalid format handling passed"
+}
+
+# Test 15: ID Token Claims Extraction
+run_test "ID Token Claims Extraction" {
+    set current_time [clock seconds]
+    set exp_time [expr $current_time + 3600]
+    set iat_time [expr $current_time - 300]
+    
+    # Create a token with various claims
+    set header "{\"alg\":\"RS256\",\"typ\":\"JWT\"}"
+    set payload "{\"iss\":\"https://accounts.google.com\",\"aud\":\"test_client\",\"sub\":\"1234567890\",\"exp\":$exp_time,\"iat\":$iat_time,\"nonce\":\"test_nonce\",\"acr\":\"urn:mace:incommon:iap:bronze\",\"auth_time\":$iat_time}"
+    
+    set header_b64 [tossl::base64url::encode $header]
+    set payload_b64 [tossl::base64url::encode $payload]
+    set id_token "$header_b64.$payload_b64.test_signature"
+    
+    set result [tossl::oidc::validate_id_token \
+        -token $id_token \
+        -issuer "https://accounts.google.com" \
+        -audience "test_client"]
+    
+    # Verify all claims are extracted
+    if {[dict get $result subject] != "1234567890"} {
+        error "Subject claim not extracted correctly"
+    }
+    
+    if {[dict get $result nonce] != "test_nonce"} {
+        error "Nonce claim not extracted correctly"
+    }
+    
+    if {[dict get $result acr] != "urn:mace:incommon:iap:bronze"} {
+        error "ACR claim not extracted correctly"
+    }
+    
+    puts "   Claims extraction working correctly"
 }
 
 puts ""

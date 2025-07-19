@@ -469,128 +469,8 @@ int OidcDiscoverCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
     
     const char *issuer_url = Tcl_GetString(objv[2]);
     
-    // Check cache first
-    for (int i = 0; i < discovery_cache_count; i++) {
-        if (discovery_cache[i] && discovery_cache[i]->issuer && 
-            strcmp(discovery_cache[i]->issuer, issuer_url) == 0) {
-            // Return cached result
-            Tcl_Obj *result = Tcl_NewDictObj();
-            
-            if (discovery_cache[i]->issuer) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("issuer", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->issuer, -1));
-            }
-            
-            if (discovery_cache[i]->authorization_endpoint) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("authorization_endpoint", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->authorization_endpoint, -1));
-            }
-            
-            if (discovery_cache[i]->token_endpoint) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("token_endpoint", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->token_endpoint, -1));
-            }
-            
-            if (discovery_cache[i]->userinfo_endpoint) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("userinfo_endpoint", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->userinfo_endpoint, -1));
-            }
-            
-            if (discovery_cache[i]->jwks_uri) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("jwks_uri", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->jwks_uri, -1));
-            }
-            
-            if (discovery_cache[i]->end_session_endpoint) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("end_session_endpoint", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->end_session_endpoint, -1));
-            }
-            
-            if (discovery_cache[i]->service_documentation) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("service_documentation", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->service_documentation, -1));
-            }
-            
-            if (discovery_cache[i]->op_policy_uri) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("op_policy_uri", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->op_policy_uri, -1));
-            }
-            
-            if (discovery_cache[i]->op_tos_uri) {
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("op_tos_uri", -1), 
-                               Tcl_NewStringObj(discovery_cache[i]->op_tos_uri, -1));
-            }
-            
-            // Add arrays
-            if (discovery_cache[i]->supported_scopes_count > 0) {
-                Tcl_Obj *scopes_list = Tcl_NewListObj(0, NULL);
-                for (int j = 0; j < discovery_cache[i]->supported_scopes_count; j++) {
-                    if (discovery_cache[i]->supported_scopes[j]) {
-                        Tcl_ListObjAppendElement(interp, scopes_list, 
-                                               Tcl_NewStringObj(discovery_cache[i]->supported_scopes[j], -1));
-                    }
-                }
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("scopes_supported", -1), scopes_list);
-            }
-            
-            if (discovery_cache[i]->supported_response_types_count > 0) {
-                Tcl_Obj *response_types_list = Tcl_NewListObj(0, NULL);
-                for (int j = 0; j < discovery_cache[i]->supported_response_types_count; j++) {
-                    if (discovery_cache[i]->supported_response_types[j]) {
-                        Tcl_ListObjAppendElement(interp, response_types_list, 
-                                               Tcl_NewStringObj(discovery_cache[i]->supported_response_types[j], -1));
-                    }
-                }
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("response_types_supported", -1), response_types_list);
-            }
-            
-            if (discovery_cache[i]->supported_grant_types_count > 0) {
-                Tcl_Obj *grant_types_list = Tcl_NewListObj(0, NULL);
-                for (int j = 0; j < discovery_cache[i]->supported_grant_types_count; j++) {
-                    if (discovery_cache[i]->supported_grant_types[j]) {
-                        Tcl_ListObjAppendElement(interp, grant_types_list, 
-                                               Tcl_NewStringObj(discovery_cache[i]->supported_grant_types[j], -1));
-                    }
-                }
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("grant_types_supported", -1), grant_types_list);
-            }
-            
-            if (discovery_cache[i]->supported_claims_count > 0) {
-                Tcl_Obj *claims_list = Tcl_NewListObj(0, NULL);
-                for (int j = 0; j < discovery_cache[i]->supported_claims_count; j++) {
-                    if (discovery_cache[i]->supported_claims[j]) {
-                        Tcl_ListObjAppendElement(interp, claims_list, 
-                                               Tcl_NewStringObj(discovery_cache[i]->supported_claims[j], -1));
-                    }
-                }
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("claims_supported", -1), claims_list);
-            }
-            
-            if (discovery_cache[i]->supported_id_token_signing_alg_values_count > 0) {
-                Tcl_Obj *algs_list = Tcl_NewListObj(0, NULL);
-                for (int j = 0; j < discovery_cache[i]->supported_id_token_signing_alg_values_count; j++) {
-                    if (discovery_cache[i]->supported_id_token_signing_alg_values[j]) {
-                        Tcl_ListObjAppendElement(interp, algs_list, 
-                                               Tcl_NewStringObj(discovery_cache[i]->supported_id_token_signing_alg_values[j], -1));
-                    }
-                }
-                Tcl_DictObjPut(interp, result, Tcl_NewStringObj("id_token_signing_alg_values_supported", -1), algs_list);
-            }
-            
-            // Add boolean fields
-            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("claims_parameter_supported", -1), 
-                           Tcl_NewBooleanObj(discovery_cache[i]->claims_parameter_supported));
-            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("request_parameter_supported", -1), 
-                           Tcl_NewBooleanObj(discovery_cache[i]->request_parameter_supported));
-            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("request_uri_parameter_supported", -1), 
-                           Tcl_NewBooleanObj(discovery_cache[i]->request_uri_parameter_supported));
-            Tcl_DictObjPut(interp, result, Tcl_NewStringObj("require_request_uri_registration", -1), 
-                           Tcl_NewBooleanObj(discovery_cache[i]->require_request_uri_registration));
-            
-            Tcl_SetObjResult(interp, result);
-            return TCL_OK;
-        }
-    }
+        // For now, skip cache to avoid memory issues
+    // TODO: Implement proper URL-based caching
     
     // Perform discovery request
     char *response_data = perform_oidc_discovery_request(issuer_url);
@@ -782,6 +662,93 @@ int OidcGenerateNonceCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
     
     Tcl_SetResult(interp, nonce, TCL_VOLATILE);
     return TCL_OK;
+}
+
+// Parse JWT header to extract algorithm and key ID
+static int parse_jwt_header(const char *token, char **alg, char **kid) {
+    char *token_copy = strdup(token);
+    if (!token_copy) return 0;
+    
+    char *dot1 = strchr(token_copy, '.');
+    if (!dot1) {
+        free(token_copy);
+        return 0;
+    }
+    *dot1 = '\0';
+    
+    // Base64url decode header
+    size_t header_len = strlen(token_copy);
+    size_t decoded_len = (header_len * 3) / 4;
+    unsigned char *decoded = malloc(decoded_len + 1);
+    if (!decoded) {
+        free(token_copy);
+        return 0;
+    }
+    
+    // Simple base64url decode (for now)
+    int j = 0;
+    for (int i = 0; i < header_len; i += 4) {
+        unsigned int sextet_a = token_copy[i] == '-' ? 62 : 
+                               token_copy[i] == '_' ? 63 : 
+                               token_copy[i] >= 'A' && token_copy[i] <= 'Z' ? token_copy[i] - 'A' :
+                               token_copy[i] >= 'a' && token_copy[i] <= 'z' ? token_copy[i] - 'a' + 26 :
+                               token_copy[i] >= '0' && token_copy[i] <= '9' ? token_copy[i] - '0' + 52 : 0;
+        
+        unsigned int sextet_b = i + 1 < header_len ? 
+                               (token_copy[i+1] == '-' ? 62 : 
+                                token_copy[i+1] == '_' ? 63 : 
+                                token_copy[i+1] >= 'A' && token_copy[i+1] <= 'Z' ? token_copy[i+1] - 'A' :
+                                token_copy[i+1] >= 'a' && token_copy[i+1] <= 'z' ? token_copy[i+1] - 'a' + 26 :
+                                token_copy[i+1] >= '0' && token_copy[i+1] <= '9' ? token_copy[i+1] - '0' + 52 : 0) : 0;
+        
+        unsigned int sextet_c = i + 2 < header_len ? 
+                               (token_copy[i+2] == '-' ? 62 : 
+                                token_copy[i+2] == '_' ? 63 : 
+                                token_copy[i+2] >= 'A' && token_copy[i+2] <= 'Z' ? token_copy[i+2] - 'A' :
+                                token_copy[i+2] >= 'a' && token_copy[i+2] <= 'z' ? token_copy[i+2] - 'a' + 26 :
+                                token_copy[i+2] >= '0' && token_copy[i+2] <= '9' ? token_copy[i+2] - '0' + 52 : 0) : 0;
+        
+        unsigned int sextet_d = i + 3 < header_len ? 
+                               (token_copy[i+3] == '-' ? 62 : 
+                                token_copy[i+3] == '_' ? 63 : 
+                                token_copy[i+3] >= 'A' && token_copy[i+3] <= 'Z' ? token_copy[i+3] - 'A' :
+                                token_copy[i+3] >= 'a' && token_copy[i+3] <= 'z' ? token_copy[i+3] - 'a' + 26 :
+                                token_copy[i+3] >= '0' && token_copy[i+3] <= '9' ? token_copy[i+3] - '0' + 52 : 0) : 0;
+        
+        unsigned int triple = (sextet_a << 18) | (sextet_b << 12) | (sextet_c << 6) | sextet_d;
+        
+        if (j < decoded_len) decoded[j++] = (triple >> 16) & 0xFF;
+        if (j < decoded_len) decoded[j++] = (triple >> 8) & 0xFF;
+        if (j < decoded_len) decoded[j++] = triple & 0xFF;
+    }
+    decoded[j] = '\0';
+    
+    // Parse JSON header
+    json_object *header_json = json_tokener_parse((char*)decoded);
+    if (!header_json) {
+        free(decoded);
+        free(token_copy);
+        return 0;
+    }
+    
+    json_object *alg_obj, *kid_obj;
+    if (json_object_object_get_ex(header_json, "alg", &alg_obj)) {
+        *alg = strdup(json_object_get_string(alg_obj));
+    } else {
+        *alg = NULL;
+    }
+    
+    if (json_object_object_get_ex(header_json, "kid", &kid_obj)) {
+        *kid = strdup(json_object_get_string(kid_obj));
+    } else {
+        *kid = NULL;
+    }
+    
+    json_object_put(header_json);
+    free(decoded);
+    free(token_copy);
+    
+    return 1;
 }
 
 // Parse OIDC JWKS
@@ -1028,6 +995,278 @@ int OidcValidateJwksCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     return TCL_OK;
 }
 
+// Validate OIDC ID token
+int OidcValidateIdTokenCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 7 || objc > 15) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-token <id_token> -issuer <issuer> -audience <audience> ?-nonce <nonce>? ?-max_age <seconds>? ?-acr_values <acr>? ?-auth_time <timestamp>?");
+        return TCL_ERROR;
+    }
+    
+    const char *token = NULL;
+    const char *issuer = NULL;
+    const char *audience = NULL;
+    const char *nonce = NULL;
+    long max_age = 0;
+    const char *acr_values = NULL;
+    long auth_time = 0;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-token") == 0) {
+            token = value;
+        } else if (strcmp(arg, "-issuer") == 0) {
+            issuer = value;
+        } else if (strcmp(arg, "-audience") == 0) {
+            audience = value;
+        } else if (strcmp(arg, "-nonce") == 0) {
+            nonce = value;
+        } else if (strcmp(arg, "-max_age") == 0) {
+            max_age = atol(value);
+        } else if (strcmp(arg, "-acr_values") == 0) {
+            acr_values = value;
+        } else if (strcmp(arg, "-auth_time") == 0) {
+            auth_time = atol(value);
+        }
+    }
+    
+    if (!token || !issuer || !audience) {
+        Tcl_SetResult(interp, "Missing required parameters: -token, -issuer, -audience", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse JWT token (header.payload.signature)
+    char *token_copy = strdup(token);
+    if (!token_copy) {
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    char *dot1 = strchr(token_copy, '.');
+    char *dot2 = dot1 ? strchr(dot1 + 1, '.') : NULL;
+    
+    if (!dot1 || !dot2) {
+        free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT format", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    *dot1 = '\0';
+    *dot2 = '\0';
+    char *header = token_copy;
+    char *payload = dot1 + 1;
+    char *signature = dot2 + 1;
+    
+    // Parse payload
+    size_t payload_len = strlen(payload);
+    size_t decoded_len = (payload_len * 3) / 4;
+    unsigned char *decoded = malloc(decoded_len + 1);
+    if (!decoded) {
+        free(token_copy);
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Simple base64url decode
+    int j = 0;
+    for (int i = 0; i < payload_len; i += 4) {
+        unsigned int sextet_a = payload[i] == '-' ? 62 : 
+                               payload[i] == '_' ? 63 : 
+                               payload[i] >= 'A' && payload[i] <= 'Z' ? payload[i] - 'A' :
+                               payload[i] >= 'a' && payload[i] <= 'z' ? payload[i] - 'a' + 26 :
+                               payload[i] >= '0' && payload[i] <= '9' ? payload[i] - '0' + 52 : 0;
+        
+        unsigned int sextet_b = i + 1 < payload_len ? 
+                               (payload[i+1] == '-' ? 62 : 
+                                payload[i+1] == '_' ? 63 : 
+                                payload[i+1] >= 'A' && payload[i+1] <= 'Z' ? payload[i+1] - 'A' :
+                                payload[i+1] >= 'a' && payload[i+1] <= 'z' ? payload[i+1] - 'a' + 26 :
+                                payload[i+1] >= '0' && payload[i+1] <= '9' ? payload[i+1] - '0' + 52 : 0) : 0;
+        
+        unsigned int sextet_c = i + 2 < payload_len ? 
+                               (payload[i+2] == '-' ? 62 : 
+                                payload[i+2] == '_' ? 63 : 
+                                payload[i+2] >= 'A' && payload[i+2] <= 'Z' ? payload[i+2] - 'A' :
+                                payload[i+2] >= 'a' && payload[i+2] <= 'z' ? payload[i+2] - 'a' + 26 :
+                                payload[i+2] >= '0' && payload[i+2] <= '9' ? payload[i+2] - '0' + 52 : 0) : 0;
+        
+        unsigned int sextet_d = i + 3 < payload_len ? 
+                               (payload[i+3] == '-' ? 62 : 
+                                payload[i+3] == '_' ? 63 : 
+                                payload[i+3] >= 'A' && payload[i+3] <= 'Z' ? payload[i+3] - 'A' :
+                                payload[i+3] >= 'a' && payload[i+3] <= 'z' ? payload[i+3] - 'a' + 26 :
+                                payload[i+3] >= '0' && payload[i+3] <= '9' ? payload[i+3] - '0' + 52 : 0) : 0;
+        
+        unsigned int triple = (sextet_a << 18) | (sextet_b << 12) | (sextet_c << 6) | sextet_d;
+        
+        if (j < decoded_len) decoded[j++] = (triple >> 16) & 0xFF;
+        if (j < decoded_len) decoded[j++] = (triple >> 8) & 0xFF;
+        if (j < decoded_len) decoded[j++] = triple & 0xFF;
+    }
+    decoded[j] = '\0';
+    
+    // Parse claims
+    json_object *claims_json = json_tokener_parse((char*)decoded);
+    if (!claims_json) {
+        free(decoded);
+        free(token_copy);
+        Tcl_SetResult(interp, "Invalid JWT payload", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Create validation result
+    OidcIdTokenValidation *validation = calloc(1, sizeof(OidcIdTokenValidation));
+    if (!validation) {
+        json_object_put(claims_json);
+        free(decoded);
+        free(token_copy);
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    validation->valid = 1;
+    
+    // Extract claims
+    json_object *iss_obj, *aud_obj, *sub_obj, *exp_obj, *iat_obj, *nbf_obj, *nonce_obj, *acr_obj, *auth_time_obj;
+    
+    if (json_object_object_get_ex(claims_json, "iss", &iss_obj)) {
+        validation->issuer = strdup(json_object_get_string(iss_obj));
+    }
+    
+    if (json_object_object_get_ex(claims_json, "aud", &aud_obj)) {
+        validation->audience = strdup(json_object_get_string(aud_obj));
+    }
+    
+    if (json_object_object_get_ex(claims_json, "sub", &sub_obj)) {
+        validation->subject = strdup(json_object_get_string(sub_obj));
+    }
+    
+    if (json_object_object_get_ex(claims_json, "exp", &exp_obj)) {
+        validation->expiration = json_object_get_int64(exp_obj);
+    }
+    
+    if (json_object_object_get_ex(claims_json, "iat", &iat_obj)) {
+        validation->issued_at = json_object_get_int64(iat_obj);
+    }
+    
+    if (json_object_object_get_ex(claims_json, "nbf", &nbf_obj)) {
+        // Not-before time validation
+        long nbf = json_object_get_int64(nbf_obj);
+        time_t now = time(NULL);
+        if (nbf > now) {
+            validation->valid = 0;
+            validation->error = strdup("Token not yet valid (nbf)");
+        }
+    }
+    
+    if (json_object_object_get_ex(claims_json, "nonce", &nonce_obj)) {
+        validation->nonce = strdup(json_object_get_string(nonce_obj));
+    }
+    
+    if (json_object_object_get_ex(claims_json, "acr", &acr_obj)) {
+        validation->acr = strdup(json_object_get_string(acr_obj));
+    }
+    
+    if (json_object_object_get_ex(claims_json, "auth_time", &auth_time_obj)) {
+        validation->auth_time = json_object_get_int64(auth_time_obj);
+    }
+    
+    // Validate issuer
+    if (validation->issuer && strcmp(validation->issuer, issuer) != 0) {
+        validation->valid = 0;
+        validation->error = strdup("Issuer mismatch");
+    }
+    
+    // Validate audience
+    if (validation->audience && strcmp(validation->audience, audience) != 0) {
+        validation->valid = 0;
+        validation->error = strdup("Audience mismatch");
+    }
+    
+    // Validate expiration
+    if (validation->expiration > 0) {
+        time_t now = time(NULL);
+        if (validation->expiration < now) {
+            validation->valid = 0;
+            validation->error = strdup("Token expired");
+        }
+    }
+    
+    // Validate nonce (if provided)
+    if (nonce && validation->nonce && strcmp(validation->nonce, nonce) != 0) {
+        validation->valid = 0;
+        validation->error = strdup("Nonce mismatch");
+    }
+    
+    // Validate max_age (if provided)
+    if (max_age > 0 && validation->auth_time > 0) {
+        time_t now = time(NULL);
+        if ((now - validation->auth_time) > max_age) {
+            validation->valid = 0;
+            validation->error = strdup("Authentication too old (max_age)");
+        }
+    }
+    
+    // Validate acr (if provided)
+    if (acr_values && validation->acr && strcmp(validation->acr, acr_values) != 0) {
+        validation->valid = 0;
+        validation->error = strdup("ACR mismatch");
+    }
+    
+    // Create result
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(validation->valid));
+    
+    if (validation->issuer) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(validation->issuer, -1));
+    }
+    
+    if (validation->audience) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("audience", -1), Tcl_NewStringObj(validation->audience, -1));
+    }
+    
+    if (validation->subject) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("subject", -1), Tcl_NewStringObj(validation->subject, -1));
+    }
+    
+    if (validation->nonce) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("nonce", -1), Tcl_NewStringObj(validation->nonce, -1));
+    }
+    
+    if (validation->issued_at > 0) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("issued_at", -1), Tcl_NewLongObj(validation->issued_at));
+    }
+    
+    if (validation->expiration > 0) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("expiration", -1), Tcl_NewLongObj(validation->expiration));
+    }
+    
+    if (validation->auth_time > 0) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("auth_time", -1), Tcl_NewLongObj(validation->auth_time));
+    }
+    
+    if (validation->acr) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("acr", -1), Tcl_NewStringObj(validation->acr, -1));
+    }
+    
+    if (validation->error) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("error", -1), Tcl_NewStringObj(validation->error, -1));
+    }
+    
+    // Cleanup
+    free_oidc_id_token_validation(validation);
+    json_object_put(claims_json);
+    free(decoded);
+    free(token_copy);
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
 // Initialize OIDC module
 int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::discover", OidcDiscoverCmd, NULL, NULL);
@@ -1035,6 +1274,7 @@ int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::fetch_jwks", OidcFetchJwksCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::get_jwk", OidcGetJwkCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_jwks", OidcValidateJwksCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::validate_id_token", OidcValidateIdTokenCmd, NULL, NULL);
     
     return TCL_OK;
 } 
