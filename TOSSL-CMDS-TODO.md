@@ -182,7 +182,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::ssl::alpn_selected` | ✅ | tests/test_ssl_alpn_selected.tcl | ✅ | doc/ssl_alpn_selected.md | Fully implemented and tested |
 | `::tossl::ssl::socket_info` | ✅ | tests/test_ssl_socket_info.tcl | ✅ | doc/ssl_socket_info.md | Fully implemented and tested |
 | `::tossl::ssl::context` | ✅ | tests/test_ssl_context.tcl | ✅ | doc/ssl_context.md | Fully implemented and tested |
-| `::tossl::ssl::check_cert_status` | ❌ | | ❌ | | |
+| `::tossl::ssl::check_cert_status` | ✅ | tests/test_ssl_check_cert_status.tcl | ✅ | doc/ssl_check_cert_status.md | Fully implemented and tested |
 | `::tossl::ssl::close` | ❌ | | ❌ | | |
 | `::tossl::ssl::protocol_version` | ❌ | | ❌ | | |
 | `::tossl::sm2::encrypt` | ❌ | | ❌ | | |
