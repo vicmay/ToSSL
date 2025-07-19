@@ -176,7 +176,8 @@ int Asn1TextToOidCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const
     
     const char *text = Tcl_GetString(objv[1]);
     
-    ASN1_OBJECT *obj = OBJ_txt2obj(text, 0);
+    // Try to convert text name to OID using OBJ_txt2obj with no_name = 1
+    ASN1_OBJECT *obj = OBJ_txt2obj(text, 1);
     if (!obj) {
         Tcl_SetResult(interp, "Invalid OID text", TCL_STATIC);
         return TCL_ERROR;
