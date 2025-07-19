@@ -6,7 +6,7 @@ Unwrap data using a key encryption key (KEK).
 
 `::tossl::keywrap::unwrap` decrypts previously wrapped data using a key encryption key (KEK). This command is the counterpart to `::tossl::keywrap::wrap` and is used to recover the original data from wrapped/crypted data.
 
-**⚠️ Important Note**: This command has known implementation issues that may prevent successful unwrapping in many cases. The command exists and handles errors appropriately, but the actual unwrapping functionality may not work correctly. This is a known limitation of the current implementation.
+
 
 ## Syntax
 
@@ -50,13 +50,8 @@ set original_data "Secret data to protect"
 set wrapped_data [tossl::keywrap::wrap aes-256-cbc $kek $original_data]
 
 # Unwrap the data
-# Note: This may fail due to known implementation issues
-if {[catch {
-    set unwrapped_data [tossl::keywrap::unwrap aes-256-cbc $kek $wrapped_data]
-    puts "Successfully unwrapped: $unwrapped_data"
-} err]} {
-    puts "Unwrap failed (known issue): $err"
-}
+set unwrapped_data [tossl::keywrap::unwrap aes-256-cbc $kek $wrapped_data]
+puts "Successfully unwrapped: $unwrapped_data"
 ```
 
 ### Error Handling
@@ -124,15 +119,10 @@ proc complete_key_wrapping_workflow {algorithm data} {
     set wrapped_data [tossl::keywrap::wrap $algorithm $kek $data]
     puts "Wrapped data: [string length $wrapped_data] bytes"
     
-    # Step 3: Attempt to unwrap (may fail due to known issues)
-    if {[catch {
-        set unwrapped_data [tossl::keywrap::unwrap $algorithm $kek $wrapped_data]
-        puts "Successfully unwrapped: $unwrapped_data"
-        return [dict create success 1 kek $kek wrapped $wrapped_data unwrapped $unwrapped_data]
-    } err]} {
-        puts "Unwrap failed (known issue): $err"
-        return [dict create success 0 kek $kek wrapped $wrapped_data error $err]
-    }
+    # Step 3: Unwrap the data
+    set unwrapped_data [tossl::keywrap::unwrap $algorithm $kek $wrapped_data]
+    puts "Successfully unwrapped: $unwrapped_data"
+    return [dict create success 1 kek $kek wrapped $wrapped_data unwrapped $unwrapped_data]
 }
 
 # Usage
@@ -153,7 +143,7 @@ The command may return the following errors:
 - **"Failed to create cipher context"**: OpenSSL cipher context creation failed
 - **"Failed to initialize key unwrapping"**: Cipher initialization failed
 - **"Failed to unwrap key"**: Decryption update failed
-- **"Failed to finalize key unwrapping"**: Decryption finalization failed (common due to implementation issues)
+- **"Failed to finalize key unwrapping"**: Decryption finalization failed
 - **"Memory allocation failed"**: System memory allocation failed
 
 ### Common Error Scenarios
@@ -187,50 +177,12 @@ if {[catch {tossl::keywrap::unwrap aes-256-cbc $wrong_kek $wrapped_data} err]} {
 
 ## Security Considerations
 
-### Implementation Limitations
-
-1. **Known Issues**: The current implementation has known issues that prevent successful unwrapping in many cases
-2. **Error Handling**: The command properly handles errors and provides meaningful error messages
-3. **Algorithm Validation**: The command validates algorithm support before attempting unwrapping
-
 ### Security Best Practices
 
 1. **Key Management**: Store KEKs securely and separately from wrapped data
 2. **Algorithm Selection**: Use strong algorithms (AES-256) for sensitive data
 3. **Error Handling**: Always handle unwrap failures gracefully
 4. **Data Validation**: Validate unwrapped data before use
-
-### Known Implementation Issues
-
-The current implementation has the following known issues:
-
-1. **Unwrap Failure**: Most unwrap operations fail with "Failed to finalize key unwrapping"
-2. **IV Handling**: Issues with initialization vector extraction and usage
-3. **Data Format**: Problems with the format of wrapped data structure
-4. **Algorithm Compatibility**: Some algorithms may not work correctly
-
-### Workarounds
-
-```tcl
-# Workaround: Use alternative encryption methods
-proc alternative_wrapping {algorithm data} {
-    set kek [tossl::keywrap::kekgen $algorithm]
-    
-    # Use general encryption instead of key wrapping
-    if {[string match "*cbc*" $algorithm]} {
-        set iv [tossl::rand::iv -alg $algorithm]
-        set wrapped [tossl::encrypt -alg $algorithm -key $kek -iv $iv $data]
-        return [dict create kek $kek iv $iv wrapped $wrapped]
-    } else {
-        set wrapped [tossl::encrypt -alg $algorithm -key $kek $data]
-        return [dict create kek $kek wrapped $wrapped]
-    }
-}
-
-# Usage
-set result [alternative_wrapping aes-256-cbc "Sensitive data"]
-puts "Alternative wrapping completed"
-```
 
 ## Integration with Other Commands
 
@@ -245,22 +197,13 @@ proc secure_key_workflow {algorithm sensitive_data} {
     # Step 2: Wrap data
     set wrapped_data [tossl::keywrap::wrap $algorithm $kek $sensitive_data]
     
-    # Step 3: Attempt unwrap (with known limitations)
-    set unwrap_success 0
-    set unwrapped_data ""
-    
-    if {[catch {
-        set unwrapped_data [tossl::keywrap::unwrap $algorithm $kek $wrapped_data]
-        set unwrap_success 1
-    } err]} {
-        puts "Unwrap failed (expected): $err"
-    }
+    # Step 3: Unwrap the data
+    set unwrapped_data [tossl::keywrap::unwrap $algorithm $kek $wrapped_data]
     
     return [dict create \
         algorithm $algorithm \
         kek $kek \
         wrapped_data $wrapped_data \
-        unwrap_success $unwrap_success \
         unwrapped_data $unwrapped_data]
 }
 ```
@@ -313,19 +256,4 @@ puts "Algorithm info: $info"
 - **OpenSSL 3.0+**: Full compatibility
 - **Algorithm Support**: Supports all AES variants available in the OpenSSL installation
 
-### Known Technical Issues
-
-1. **IV Handling**: Problems with initialization vector extraction from wrapped data
-2. **Data Format**: Issues with the binary format of wrapped data
-3. **Padding**: Problems with PKCS7 padding handling
-4. **Algorithm Mismatch**: Some algorithms may not work as expected
-
-### Future Improvements
-
-The following improvements are planned for future versions:
-
-1. **Fix IV Extraction**: Correct initialization vector handling
-2. **Data Format**: Standardize wrapped data format
-3. **Padding Support**: Improve PKCS7 padding handling
-4. **Algorithm Support**: Expand support for additional algorithms
-5. **Error Recovery**: Better error recovery mechanisms 
+ 

@@ -198,7 +198,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::asn1::parse` | ✅ | tests/test_asn1_parse.tcl | ✅ | doc/asn1_parse.md | |
 | `::tossl::keywrap::info` | ✅ | tests/test_keywrap_info.tcl | ✅ | doc/keywrap_info.md | |
 | `::tossl::keywrap::kekgen` | ✅ | tests/test_keywrap_kekgen.tcl | ✅ | doc/keywrap_kekgen.md | |
-| `::tossl::keywrap::unwrap` | ✅ | tests/test_keywrap_unwrap.tcl | ✅ | doc/keywrap_unwrap.md | Known implementation issues documented |
+| `::tossl::keywrap::unwrap` | ✅ | tests/test_keywrap_unwrap.tcl | ✅ | doc/keywrap_unwrap.md | |
 | `::tossl::keywrap::algorithms` | ❌ | | ❌ | | |
 | `::tossl::keywrap::wrap` | ❌ | | ❌ | | |
 | `::tossl::cipher::analyze` | ❌ | | ❌ | | |

@@ -8,7 +8,11 @@ int KeyWrapCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[
     }
     
     const char *kek_algorithm = Tcl_GetString(objv[1]);
-    const char *kek_key_data = Tcl_GetString(objv[2]);
+    
+    // Get KEK as byte array to handle binary data properly
+    int kek_len;
+    const unsigned char *kek_key_data = Tcl_GetByteArrayFromObj(objv[2], &kek_len);
+    
     const char *data = Tcl_GetString(objv[3]);
     
     const EVP_CIPHER *cipher = EVP_get_cipherbyname(kek_algorithm);
@@ -89,8 +93,14 @@ int KeyUnwrapCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     }
     
     const char *kek_algorithm = Tcl_GetString(objv[1]);
-    const char *kek_key_data = Tcl_GetString(objv[2]);
-    const char *wrapped_data = Tcl_GetString(objv[3]);
+    
+    // Get KEK as byte array to handle binary data properly
+    int kek_len;
+    const unsigned char *kek_key_data = Tcl_GetByteArrayFromObj(objv[2], &kek_len);
+    
+    // Get wrapped data as byte array to handle binary data properly
+    int wrapped_data_len;
+    const unsigned char *wrapped_data = Tcl_GetByteArrayFromObj(objv[3], &wrapped_data_len);
     
     const EVP_CIPHER *cipher = EVP_get_cipherbyname(kek_algorithm);
     if (!cipher) {
@@ -99,17 +109,16 @@ int KeyUnwrapCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const obj
     }
     
     int iv_len = EVP_CIPHER_iv_length(cipher);
-    int data_len = strlen(wrapped_data);
     
-    if (data_len <= iv_len) {
+    if (wrapped_data_len <= iv_len) {
         Tcl_SetResult(interp, "Invalid wrapped data length", TCL_STATIC);
         return TCL_ERROR;
     }
     
     // Extract IV and wrapped data
-    unsigned char *iv = (unsigned char*)wrapped_data;
-    unsigned char *encrypted_data = (unsigned char*)(wrapped_data + iv_len);
-    int encrypted_len = data_len - iv_len;
+    const unsigned char *iv = wrapped_data;
+    const unsigned char *encrypted_data = wrapped_data + iv_len;
+    int encrypted_len = wrapped_data_len - iv_len;
     
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {

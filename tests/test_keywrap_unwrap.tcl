@@ -276,12 +276,7 @@ puts "Total tests: $test_count"
 puts "Passed: $passed_count"
 puts "Failed: $failed_count"
 
-# Note about known issues
-puts "\n=== Known Issues ==="
-puts "The ::tossl::keywrap::unwrap command has known implementation issues"
-puts "that prevent successful unwrapping in many cases. The tests are designed"
-puts "to verify the command exists and handles errors appropriately, but"
-puts "actual unwrapping functionality may not work correctly."
+
 
 if {$failed_count > 0} {
     puts "\n❌ Some tests failed!"
