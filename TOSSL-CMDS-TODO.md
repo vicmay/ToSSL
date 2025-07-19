@@ -215,7 +215,7 @@ For each TOSSL command, the following tasks must be completed:
 | `::tossl::base64::encode` | ✅ | tests/test_base64_encode.tcl | ✅ | doc/base64_encode.md | |
 | `::tossl::hex::decode` | ✅ | tests/test_hex_decode.tcl | ✅ | doc/hex_decode.md | |
 | `::tossl::hex::encode` | ✅ | tests/test_hex_encode.tcl | ✅ | doc/hex_encode.md | |
-| `::tossl::x25519::derive` | ❌ | | ❌ | | |
+| `::tossl::x25519::derive` | ✅ | tests/test_x25519_derive.tcl | ✅ | doc/x25519_derive.md | |
 | `::tossl::x25519::generate` | ❌ | | ❌ | | |
 | `::tossl::rsa::verify` | ❌ | | ❌ | | |
 | `::tossl::rsa::sign` | ❌ | | ❌ | | |
