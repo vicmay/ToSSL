@@ -375,7 +375,7 @@ puts ""
 puts "=== Step 10: Using Access Token for API Calls ==="
 puts "Making API call to Google People API..."
 
-set api_response [tossl::http::get_enhanced \
+set api_response [tossl::http::get \
     "https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses" \
     -headers "Authorization: Bearer [dict get $tokens access_token]"]
 
@@ -680,7 +680,7 @@ if {[clock seconds] > $token_expiry} {
 **Solution**:
 ```tcl
 # Test connectivity
-set test_response [tossl::http::get_enhanced "https://accounts.google.com/.well-known/openid_configuration"]
+set test_response [tossl::http::get "https://accounts.google.com/.well-known/openid_configuration"]
 if {[dict get $test_response error] ne ""} {
     error "Cannot reach Google OIDC: [dict get $test_response error]"
 }
@@ -822,7 +822,7 @@ proc batch_api_calls {access_token endpoints} {
     set results {}
     
     foreach endpoint $endpoints {
-        set response [tossl::http::get_enhanced $endpoint \
+        set response [tossl::http::get $endpoint \
             -headers "Authorization: Bearer $access_token"]
         
         lappend results [dict create endpoint $endpoint response $response]
