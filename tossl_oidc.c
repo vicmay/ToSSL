@@ -2431,6 +2431,444 @@ int OidcValidateLogoutResponseCmd(ClientData cd, Tcl_Interp *interp, int objc, T
     return TCL_OK;
 }
 
+
+
+// Google OIDC Provider Configuration
+int OidcProviderGoogleCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 5 || objc > 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-client_id <id> -client_secret <secret> ?-redirect_uri <uri>?");
+        return TCL_ERROR;
+    }
+    
+    const char *client_id = NULL;
+    const char *client_secret = NULL;
+    const char *redirect_uri = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-client_id") == 0) {
+            client_id = value;
+        } else if (strcmp(arg, "-client_secret") == 0) {
+            client_secret = value;
+        } else if (strcmp(arg, "-redirect_uri") == 0) {
+            redirect_uri = value;
+        }
+    }
+    
+    if (!client_id || !client_secret) {
+        Tcl_SetResult(interp, "Missing required parameters: -client_id, -client_secret", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Google OIDC configuration
+    const char *issuer = "https://accounts.google.com";
+    
+    // Discover Google OIDC configuration
+    char discover_cmd[1024];
+    snprintf(discover_cmd, sizeof(discover_cmd), 
+             "tossl::oidc::discover -issuer \"%s\"", issuer);
+    
+    if (Tcl_Eval(interp, discover_cmd) != TCL_OK) {
+        // Discovery failed, but we can still return basic configuration
+        // Create basic provider configuration without discovery endpoints
+        Tcl_Obj *config = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("provider", -1), Tcl_NewStringObj("google", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_id", -1), Tcl_NewStringObj(client_id, -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_secret", -1), Tcl_NewStringObj(client_secret, -1));
+        
+        if (redirect_uri) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("redirect_uri", -1), Tcl_NewStringObj(redirect_uri, -1));
+        }
+        
+        // Add default scopes for Google
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("default_scopes", -1), 
+                       Tcl_NewStringObj("openid profile email", -1));
+        
+        // Add known Google endpoints (fallback)
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("authorization_endpoint", -1), 
+                       Tcl_NewStringObj("https://accounts.google.com/o/oauth2/v2/auth", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("token_endpoint", -1), 
+                       Tcl_NewStringObj("https://oauth2.googleapis.com/token", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("userinfo_endpoint", -1), 
+                       Tcl_NewStringObj("https://www.googleapis.com/oauth2/v3/userinfo", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("jwks_uri", -1), 
+                       Tcl_NewStringObj("https://www.googleapis.com/oauth2/v3/certs", -1));
+        
+        Tcl_SetObjResult(interp, config);
+        return TCL_OK;
+    }
+    
+    // Parse discovery result
+    Tcl_Obj *discovery_result = Tcl_GetObjResult(interp);
+    const char *discovery_json = Tcl_GetString(discovery_result);
+    
+    // Create provider configuration
+    Tcl_Obj *config = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("provider", -1), Tcl_NewStringObj("google", -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_id", -1), Tcl_NewStringObj(client_id, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_secret", -1), Tcl_NewStringObj(client_secret, -1));
+    
+    if (redirect_uri) {
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("redirect_uri", -1), Tcl_NewStringObj(redirect_uri, -1));
+    }
+    
+    // Add default scopes for Google
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("default_scopes", -1), 
+                   Tcl_NewStringObj("openid profile email", -1));
+    
+    // Parse discovery JSON and merge with config
+    json_object *discovery_obj = json_tokener_parse(discovery_json);
+    if (discovery_obj) {
+        json_object *auth_endpoint, *token_endpoint, *userinfo_endpoint, *jwks_uri, *end_session_endpoint;
+        
+        if (json_object_object_get_ex(discovery_obj, "authorization_endpoint", &auth_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("authorization_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(auth_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "token_endpoint", &token_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("token_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(token_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "userinfo_endpoint", &userinfo_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("userinfo_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(userinfo_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "jwks_uri", &jwks_uri)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("jwks_uri", -1), 
+                           Tcl_NewStringObj(json_object_get_string(jwks_uri), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "end_session_endpoint", &end_session_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("end_session_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(end_session_endpoint), -1));
+        }
+        
+        json_object_put(discovery_obj);
+    }
+    
+    Tcl_SetObjResult(interp, config);
+    return TCL_OK;
+}
+
+// Microsoft OIDC Provider Configuration
+int OidcProviderMicrosoftCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 5 || objc > 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-client_id <id> -client_secret <secret> ?-redirect_uri <uri>?");
+        return TCL_ERROR;
+    }
+    
+    const char *client_id = NULL;
+    const char *client_secret = NULL;
+    const char *redirect_uri = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-client_id") == 0) {
+            client_id = value;
+        } else if (strcmp(arg, "-client_secret") == 0) {
+            client_secret = value;
+        } else if (strcmp(arg, "-redirect_uri") == 0) {
+            redirect_uri = value;
+        }
+    }
+    
+    if (!client_id || !client_secret) {
+        Tcl_SetResult(interp, "Missing required parameters: -client_id, -client_secret", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Microsoft OIDC configuration
+    const char *issuer = "https://login.microsoftonline.com/common/v2.0";
+    
+    // Discover Microsoft OIDC configuration
+    char discover_cmd[1024];
+    snprintf(discover_cmd, sizeof(discover_cmd), 
+             "tossl::oidc::discover -issuer \"%s\"", issuer);
+    
+    if (Tcl_Eval(interp, discover_cmd) != TCL_OK) {
+        // Discovery failed, but we can still return basic configuration
+        // Create basic provider configuration without discovery endpoints
+        Tcl_Obj *config = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("provider", -1), Tcl_NewStringObj("microsoft", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_id", -1), Tcl_NewStringObj(client_id, -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_secret", -1), Tcl_NewStringObj(client_secret, -1));
+        
+        if (redirect_uri) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("redirect_uri", -1), Tcl_NewStringObj(redirect_uri, -1));
+        }
+        
+        // Add default scopes for Microsoft
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("default_scopes", -1), 
+                       Tcl_NewStringObj("openid profile email", -1));
+        
+        // Add known Microsoft endpoints (fallback)
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("authorization_endpoint", -1), 
+                       Tcl_NewStringObj("https://login.microsoftonline.com/common/oauth2/v2.0/authorize", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("token_endpoint", -1), 
+                       Tcl_NewStringObj("https://login.microsoftonline.com/common/oauth2/v2.0/token", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("userinfo_endpoint", -1), 
+                       Tcl_NewStringObj("https://graph.microsoft.com/oidc/userinfo", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("jwks_uri", -1), 
+                       Tcl_NewStringObj("https://login.microsoftonline.com/common/discovery/v2.0/keys", -1));
+        
+        Tcl_SetObjResult(interp, config);
+        return TCL_OK;
+    }
+    
+    // Parse discovery result
+    Tcl_Obj *discovery_result = Tcl_GetObjResult(interp);
+    const char *discovery_json = Tcl_GetString(discovery_result);
+    
+    // Create provider configuration
+    Tcl_Obj *config = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("provider", -1), Tcl_NewStringObj("microsoft", -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_id", -1), Tcl_NewStringObj(client_id, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_secret", -1), Tcl_NewStringObj(client_secret, -1));
+    
+    if (redirect_uri) {
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("redirect_uri", -1), Tcl_NewStringObj(redirect_uri, -1));
+    }
+    
+    // Add default scopes for Microsoft
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("default_scopes", -1), 
+                   Tcl_NewStringObj("openid profile email", -1));
+    
+    // Parse discovery JSON and merge with config
+    json_object *discovery_obj = json_tokener_parse(discovery_json);
+    if (discovery_obj) {
+        json_object *auth_endpoint, *token_endpoint, *userinfo_endpoint, *jwks_uri, *end_session_endpoint;
+        
+        if (json_object_object_get_ex(discovery_obj, "authorization_endpoint", &auth_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("authorization_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(auth_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "token_endpoint", &token_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("token_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(token_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "userinfo_endpoint", &userinfo_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("userinfo_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(userinfo_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "jwks_uri", &jwks_uri)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("jwks_uri", -1), 
+                           Tcl_NewStringObj(json_object_get_string(jwks_uri), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "end_session_endpoint", &end_session_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("end_session_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(end_session_endpoint), -1));
+        }
+        
+        json_object_put(discovery_obj);
+    }
+    
+    Tcl_SetObjResult(interp, config);
+    return TCL_OK;
+}
+
+// GitHub OIDC Provider Configuration
+int OidcProviderGithubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 5 || objc > 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-client_id <id> -client_secret <secret> ?-redirect_uri <uri>?");
+        return TCL_ERROR;
+    }
+    
+    const char *client_id = NULL;
+    const char *client_secret = NULL;
+    const char *redirect_uri = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-client_id") == 0) {
+            client_id = value;
+        } else if (strcmp(arg, "-client_secret") == 0) {
+            client_secret = value;
+        } else if (strcmp(arg, "-redirect_uri") == 0) {
+            redirect_uri = value;
+        }
+    }
+    
+    if (!client_id || !client_secret) {
+        Tcl_SetResult(interp, "Missing required parameters: -client_id, -client_secret", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // GitHub OIDC configuration
+    const char *issuer = "https://token.actions.githubusercontent.com";
+    
+    // Note: GitHub's OIDC discovery is limited, so we'll use known endpoints
+    Tcl_Obj *config = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("provider", -1), Tcl_NewStringObj("github", -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_id", -1), Tcl_NewStringObj(client_id, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_secret", -1), Tcl_NewStringObj(client_secret, -1));
+    
+    if (redirect_uri) {
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("redirect_uri", -1), Tcl_NewStringObj(redirect_uri, -1));
+    }
+    
+    // Add default scopes for GitHub
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("default_scopes", -1), 
+                   Tcl_NewStringObj("openid profile email", -1));
+    
+    // GitHub OAuth2 endpoints (GitHub doesn't fully support OIDC discovery)
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("authorization_endpoint", -1), 
+                   Tcl_NewStringObj("https://github.com/login/oauth/authorize", -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("token_endpoint", -1), 
+                   Tcl_NewStringObj("https://github.com/login/oauth/access_token", -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("userinfo_endpoint", -1), 
+                   Tcl_NewStringObj("https://api.github.com/user", -1));
+    
+    Tcl_SetObjResult(interp, config);
+    return TCL_OK;
+}
+
+// Generic OIDC Provider Configuration
+int OidcProviderCustomCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 7 || objc > 9) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-issuer <issuer> -client_id <id> -client_secret <secret> ?-redirect_uri <uri>?");
+        return TCL_ERROR;
+    }
+    
+    const char *issuer = NULL;
+    const char *client_id = NULL;
+    const char *client_secret = NULL;
+    const char *redirect_uri = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        const char *value = Tcl_GetString(objv[i + 1]);
+        
+        if (strcmp(arg, "-issuer") == 0) {
+            issuer = value;
+        } else if (strcmp(arg, "-client_id") == 0) {
+            client_id = value;
+        } else if (strcmp(arg, "-client_secret") == 0) {
+            client_secret = value;
+        } else if (strcmp(arg, "-redirect_uri") == 0) {
+            redirect_uri = value;
+        }
+    }
+    
+    if (!issuer || !client_id || !client_secret) {
+        Tcl_SetResult(interp, "Missing required parameters: -issuer, -client_id, -client_secret", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Discover OIDC configuration
+    char discover_cmd[1024];
+    snprintf(discover_cmd, sizeof(discover_cmd), 
+             "tossl::oidc::discover -issuer \"%s\"", issuer);
+    
+    if (Tcl_Eval(interp, discover_cmd) != TCL_OK) {
+        // Discovery failed, but we can still return basic configuration
+        // Create basic provider configuration without discovery endpoints
+        Tcl_Obj *config = Tcl_NewDictObj();
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("provider", -1), Tcl_NewStringObj("custom", -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_id", -1), Tcl_NewStringObj(client_id, -1));
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_secret", -1), Tcl_NewStringObj(client_secret, -1));
+        
+        if (redirect_uri) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("redirect_uri", -1), Tcl_NewStringObj(redirect_uri, -1));
+        }
+        
+        // Add default scopes
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("default_scopes", -1), 
+                       Tcl_NewStringObj("openid profile email", -1));
+        
+        // For custom providers, we can't provide fallback endpoints
+        // Users will need to configure these manually or ensure discovery works
+        
+        Tcl_SetObjResult(interp, config);
+        return TCL_OK;
+    }
+    
+    // Parse discovery result
+    Tcl_Obj *discovery_result = Tcl_GetObjResult(interp);
+    const char *discovery_json = Tcl_GetString(discovery_result);
+    
+    // Create provider configuration
+    Tcl_Obj *config = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("provider", -1), Tcl_NewStringObj("custom", -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("issuer", -1), Tcl_NewStringObj(issuer, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_id", -1), Tcl_NewStringObj(client_id, -1));
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("client_secret", -1), Tcl_NewStringObj(client_secret, -1));
+    
+    if (redirect_uri) {
+        Tcl_DictObjPut(interp, config, Tcl_NewStringObj("redirect_uri", -1), Tcl_NewStringObj(redirect_uri, -1));
+    }
+    
+    // Add default scopes
+    Tcl_DictObjPut(interp, config, Tcl_NewStringObj("default_scopes", -1), 
+                   Tcl_NewStringObj("openid profile email", -1));
+    
+    // Parse discovery JSON and merge with config
+    json_object *discovery_obj = json_tokener_parse(discovery_json);
+    if (discovery_obj) {
+        json_object *auth_endpoint, *token_endpoint, *userinfo_endpoint, *jwks_uri, *end_session_endpoint;
+        
+        if (json_object_object_get_ex(discovery_obj, "authorization_endpoint", &auth_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("authorization_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(auth_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "token_endpoint", &token_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("token_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(token_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "userinfo_endpoint", &userinfo_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("userinfo_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(userinfo_endpoint), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "jwks_uri", &jwks_uri)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("jwks_uri", -1), 
+                           Tcl_NewStringObj(json_object_get_string(jwks_uri), -1));
+        }
+        
+        if (json_object_object_get_ex(discovery_obj, "end_session_endpoint", &end_session_endpoint)) {
+            Tcl_DictObjPut(interp, config, Tcl_NewStringObj("end_session_endpoint", -1), 
+                           Tcl_NewStringObj(json_object_get_string(end_session_endpoint), -1));
+        }
+        
+        json_object_put(discovery_obj);
+    }
+    
+    Tcl_SetObjResult(interp, config);
+    return TCL_OK;
+}
+
 // Initialize OIDC module
 int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::discover", OidcDiscoverCmd, NULL, NULL);
@@ -2447,5 +2885,11 @@ int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::end_session", OidcEndSessionCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_logout_response", OidcValidateLogoutResponseCmd, NULL, NULL);
     
+    // Provider preset commands
+    Tcl_CreateObjCommand(interp, "tossl::oidc::provider::google", OidcProviderGoogleCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::provider::microsoft", OidcProviderMicrosoftCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::provider::github", OidcProviderGithubCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::provider::custom", OidcProviderCustomCmd, NULL, NULL);
+    
     return TCL_OK;
-} 
+}
