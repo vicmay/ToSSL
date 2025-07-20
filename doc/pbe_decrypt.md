@@ -510,8 +510,8 @@ set decrypted2 [decrypt_with_cache $key_cache $encrypted2]
 # Solution: Verify password and salt match encryption parameters
 
 # Issue: Empty result from decryption
-# Cause: Implementation bug with strlen() on binary data
-# Solution: This is a known implementation limitation
+# Cause: Wrong password, salt, or corrupted data
+# Solution: Verify password and salt match encryption parameters
 
 # Issue: Algorithm parameter seems to be ignored
 # Cause: Implementation always uses SHA-256 for key derivation
@@ -569,7 +569,7 @@ proc test_round_trip {algorithm password salt data} {
         return 1
     } else {
         puts "  Round-trip: FAILED"
-        puts "  Note: This may be due to known implementation issues"
+        puts "  Check password, salt, and data integrity"
         return 0
     }
 }
@@ -613,19 +613,23 @@ proc test_round_trip {algorithm password salt data} {
 
 3. **No Parameter Validation**: The implementation does not validate parameters. Empty passwords, salts, or invalid algorithms are accepted without error.
 
-4. **Critical Implementation Bug**: The implementation uses `strlen()` on binary data, causing truncation at the first null byte. This prevents proper round-trip encryption/decryption and is a significant security issue.
-
-5. **Use for Legacy Compatibility**: This command is primarily for compatibility with existing systems. For new applications, consider using:
+4. **Use for Legacy Compatibility**: This command is primarily for compatibility with existing systems. For new applications, consider using:
    - `::tossl::pbe::keyderive` with high iteration counts
    - `::tossl::pbkdf2` with 10000+ iterations
    - `::tossl::scrypt` or `::tossl::argon2` for modern applications
 
-6. **Salt Requirements**: Always use random, unique salts for each encryption operation.
+5. **Salt Requirements**: Always use random, unique salts for each encryption operation.
 
-7. **Password Strength**: Use strong, complex passwords to compensate for the single iteration.
+6. **Password Strength**: Use strong, complex passwords to compensate for the single iteration.
 
-8. **Data Sensitivity**: Consider the sensitivity of your data when choosing between PBE and more secure alternatives.
+7. **Data Sensitivity**: Consider the sensitivity of your data when choosing between PBE and more secure alternatives.
 
-9. **Binary Data Limitation**: Due to the strlen() bug, this command cannot reliably decrypt binary data that contains null bytes.
+8. **Testing Required**: Always test round-trip encryption/decryption with your specific data to ensure compatibility.
 
-10. **Testing Required**: Always test round-trip encryption/decryption with your specific data to ensure compatibility. 
+## Recent Fixes
+
+**✅ Fixed in Latest Version**: The critical `strlen()` bug that caused truncation of binary data has been resolved. The implementation now properly handles:
+- Binary data with null bytes
+- Unicode data with multi-byte characters  
+- Round-trip encryption/decryption
+- All data types without truncation 

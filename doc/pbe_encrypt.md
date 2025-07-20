@@ -549,15 +549,17 @@ proc debug_pbe_encrypt {algorithm password salt data} {
 
 3. **No Parameter Validation**: The implementation does not validate parameters. Empty passwords, salts, or invalid algorithms are accepted without error.
 
-4. **Decrypt Compatibility Issue**: The corresponding `::tossl::pbe::decrypt` command has a bug where it uses `strlen()` on binary data, causing truncation. This prevents proper round-trip encryption/decryption.
-
-5. **Use for Legacy Compatibility**: This command is primarily for compatibility with existing systems. For new applications, consider using:
+4. **Use for Legacy Compatibility**: This command is primarily for compatibility with existing systems. For new applications, consider using:
    - `::tossl::pbe::keyderive` with high iteration counts
    - `::tossl::pbkdf2` with 10000+ iterations
    - `::tossl::scrypt` or `::tossl::argon2` for modern applications
 
-6. **Salt Requirements**: Always use random, unique salts for each encryption operation.
+5. **Salt Requirements**: Always use random, unique salts for each encryption operation.
 
-7. **Password Strength**: Use strong, complex passwords to compensate for the single iteration.
+6. **Password Strength**: Use strong, complex passwords to compensate for the single iteration.
 
-8. **Data Sensitivity**: Consider the sensitivity of your data when choosing between PBE and more secure alternatives. 
+7. **Data Sensitivity**: Consider the sensitivity of your data when choosing between PBE and more secure alternatives.
+
+## Recent Fixes
+
+**✅ Fixed in Latest Version**: The corresponding `::tossl::pbe::decrypt` command has been fixed to properly handle binary data and Unicode strings. Round-trip encryption/decryption now works correctly for all data types. 
