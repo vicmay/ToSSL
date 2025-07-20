@@ -206,10 +206,11 @@ test "Comprehensive OIDC flow simulation" {
     }
     
     if {$all_components_present} {
-        return "PASS"
+        set result "PASS"
     } else {
-        return "FAIL"
+        set result "FAIL"
     }
+    set result
 } "PASS"
 
 # Test 10: Error handling for missing OIDC parameters in token exchange
