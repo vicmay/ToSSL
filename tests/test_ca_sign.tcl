@@ -279,7 +279,7 @@ test "Integration with certificate verification" {
     set signed_cert [tossl::ca::sign -ca_key $ca_private -ca_cert $ca_cert -csr $csr -days 365]
     
     # Verify the certificate against the CA
-    if {[catch {tossl::x509::verify -cert $signed_cert -ca $ca_cert} verify_result]} {
+    if {[catch {tossl::x509::verify $signed_cert $ca_cert} verify_result]} {
         puts "    ⚠ Certificate verification failed: $verify_result"
     } else {
         puts "    ✓ Certificate verification successful"
@@ -431,7 +431,7 @@ test "Certificate fingerprint verification" {
     set signed_cert [tossl::ca::sign -ca_key $ca_private -ca_cert $ca_cert -csr $csr -days 365]
     
     # Get certificate fingerprint
-    if {[catch {tossl::x509::fingerprint $signed_cert} fingerprint]} {
+    if {[catch {tossl::x509::fingerprint $signed_cert sha256} fingerprint]} {
         puts "    ⚠ Failed to get certificate fingerprint: $fingerprint"
     } else {
         puts "    ✓ Certificate fingerprint: $fingerprint"
