@@ -38,10 +38,25 @@ set oidc_commands {
 }
 
 set available_commands [info commands tossl::oidc::*]
+set available_provider_commands [info commands tossl::oidc::provider::*]
 set missing_commands {}
 
 foreach cmd $oidc_commands {
-    if {[lsearch $available_commands $cmd] < 0} {
+    # Check both with and without :: prefix
+    set cmd_with_prefix "::$cmd"
+    set found 0
+    
+    # Check in main OIDC commands
+    if {[lsearch $available_commands $cmd] >= 0 || [lsearch $available_commands $cmd_with_prefix] >= 0} {
+        set found 1
+    }
+    
+    # Check in provider commands
+    if {[lsearch $available_provider_commands $cmd] >= 0 || [lsearch $available_provider_commands $cmd_with_prefix] >= 0} {
+        set found 1
+    }
+    
+    if {!$found} {
         lappend missing_commands $cmd
     }
 }
@@ -65,7 +80,9 @@ set available_oauth2 [info commands tossl::oauth2::*]
 set missing_oauth2 {}
 
 foreach cmd $oauth2_commands {
-    if {[lsearch $available_oauth2 $cmd] < 0} {
+    # Check both with and without :: prefix
+    set cmd_with_prefix "::$cmd"
+    if {[lsearch $available_oauth2 $cmd] < 0 && [lsearch $available_oauth2 $cmd_with_prefix] < 0} {
         lappend missing_oauth2 $cmd
     }
 }
@@ -89,7 +106,7 @@ set state [tossl::oauth2::generate_state]
 puts "✅ State generation: $state"
 
 # Test provider presets
-set google_config [tossl::oidc::provider::google]
+set google_config [tossl::oidc::provider::google -client_id "test_client" -client_secret "test_secret"]
 puts "✅ Google provider preset: [dict get $google_config issuer]"
 
 # Test OIDC authorization URL
