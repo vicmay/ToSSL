@@ -10,7 +10,10 @@ int PbeEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     const char *algorithm = Tcl_GetString(objv[1]);
     const char *password = Tcl_GetString(objv[2]);
     const char *salt_data = Tcl_GetString(objv[3]);
-    const char *data = Tcl_GetString(objv[4]);
+    
+    // Get data as string to handle Unicode properly
+    int data_len;
+    const char *data = Tcl_GetStringFromObj(objv[4], &data_len);
     
     // Parse salt
     int salt_len = strlen(salt_data);
@@ -42,7 +45,6 @@ int PbeEncryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    int data_len = strlen(data);
     int out_len;
     unsigned char *out = malloc(data_len + EVP_MAX_BLOCK_LENGTH);
     if (!out) {
@@ -84,7 +86,10 @@ int PbeDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     const char *algorithm = Tcl_GetString(objv[1]);
     const char *password = Tcl_GetString(objv[2]);
     const char *salt_data = Tcl_GetString(objv[3]);
-    const char *data = Tcl_GetString(objv[4]);
+    
+    // Get data as byte array to handle binary data properly
+    int data_len;
+    const unsigned char *data = Tcl_GetByteArrayFromObj(objv[4], &data_len);
     
     // Parse salt
     int salt_len = strlen(salt_data);
@@ -116,7 +121,6 @@ int PbeDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    int data_len = strlen(data);
     int out_len;
     unsigned char *out = malloc(data_len);
     if (!out) {
@@ -142,7 +146,8 @@ int PbeDecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
     
     EVP_CIPHER_CTX_free(ctx);
     
-    Tcl_Obj *result = Tcl_NewByteArrayObj(out, out_len + final_len);
+    // Return as string to preserve Unicode
+    Tcl_Obj *result = Tcl_NewStringObj((char*)out, out_len + final_len);
     free(out);
     Tcl_SetObjResult(interp, result);
     return TCL_OK;
