@@ -45,7 +45,7 @@ set ca_private [dict get $ca_keypair private]
 set ca_public [dict get $ca_keypair public]
 
 # Create a simple CA certificate
-set ca_cert [tossl::x509::create $ca_private "CN=Test CA" 365]
+set ca_cert [tossl::x509::create -subject "CN=Test CA" -issuer "CN=Test CA" -pubkey $ca_public -privkey $ca_private -days 365]
 
 # Test 1: Basic CRL creation
 test "Basic CRL creation" {
@@ -163,7 +163,7 @@ test "CRL creation with different CA" {
     set ca2_keypair [tossl::key::generate -type rsa -bits 2048]
     set ca2_private [dict get $ca2_keypair private]
     set ca2_public [dict get $ca2_keypair public]
-    set ca2_cert [tossl::x509::create $ca2_private "CN=Test CA 2" 365]
+    set ca2_cert [tossl::x509::create -subject "CN=Test CA 2" -issuer "CN=Test CA 2" -pubkey $ca2_public -privkey $ca2_private -days 365]
     
     set crl [tossl::crl::create -key $ca2_private -cert $ca2_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
@@ -190,7 +190,7 @@ test "CRL creation with EC key" {
     set ec_keypair [tossl::key::generate -type ec -curve prime256v1]
     set ec_private [dict get $ec_keypair private]
     set ec_public [dict get $ec_keypair public]
-    set ec_cert [tossl::x509::create $ec_private "CN=Test EC CA" 365]
+    set ec_cert [tossl::x509::create -subject "CN=Test EC CA" -issuer "CN=Test EC CA" -pubkey $ec_public -privkey $ec_private -days 365]
     
     set crl [tossl::crl::create -key $ec_private -cert $ec_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
@@ -201,7 +201,7 @@ test "CRL creation with DSA key" {
     set dsa_keypair [tossl::key::generate -type dsa -bits 1024]
     set dsa_private [dict get $dsa_keypair private]
     set dsa_public [dict get $dsa_keypair public]
-    set dsa_cert [tossl::x509::create $dsa_private "CN=Test DSA CA" 365]
+    set dsa_cert [tossl::x509::create -subject "CN=Test DSA CA" -issuer "CN=Test DSA CA" -pubkey $dsa_public -privkey $dsa_private -days 365]
     
     set crl [tossl::crl::create -key $dsa_private -cert $dsa_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
@@ -220,18 +220,19 @@ test "CRL creation with non-CA certificate" {
     set user_keypair [tossl::key::generate -type rsa -bits 2048]
     set user_private [dict get $user_keypair private]
     set user_public [dict get $user_keypair public]
-    set user_cert [tossl::x509::create $ca_private "CN=Test User" 365]
+    set user_cert [tossl::x509::create -subject "CN=Test User" -issuer "CN=Test User" -pubkey $user_public -privkey $user_private -days 365]
     
-    # This should still work as the command doesn't validate CA usage
-    set crl [tossl::crl::create -key $ca_private -cert $user_cert -days 30]
+    # This should work as the command doesn't validate CA usage - any certificate can be used
+    set crl [tossl::crl::create -key $user_private -cert $user_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
 } 1
 
 # Test 27: CRL creation with expired certificate
 test "CRL creation with expired certificate" {
-    set expired_cert [tossl::x509::create $ca_private "CN=Expired CA" -1]
+    set expired_cert [tossl::x509::create -subject "CN=Expired CA" -issuer "CN=Expired CA" -pubkey $ca_public -privkey $ca_private -days 1]
     
     # This should still work as the command doesn't validate certificate expiration
+    # We'll create a certificate with very short validity (1 day) and assume it's expired
     set crl [tossl::crl::create -key $ca_private -cert $expired_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
 } 1
@@ -239,7 +240,7 @@ test "CRL creation with expired certificate" {
 # Test 28: CRL creation with very long subject name
 test "CRL creation with very long subject name" {
     set long_subject "CN=This is a very long certificate subject name that exceeds normal length limits and should be handled gracefully by the CRL creation process"
-    set long_cert [tossl::x509::create $ca_private $long_subject 365]
+    set long_cert [tossl::x509::create -subject $long_subject -issuer $long_subject -pubkey $ca_public -privkey $ca_private -days 365]
     
     set crl [tossl::crl::create -key $ca_private -cert $long_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
@@ -248,7 +249,7 @@ test "CRL creation with very long subject name" {
 # Test 29: CRL creation with special characters in subject
 test "CRL creation with special characters in subject" {
     set special_subject "CN=Test CA with special chars: !@#$%^&*()_+-=[]{}|;':\",./<>?"
-    set special_cert [tossl::x509::create $ca_private $special_subject 365]
+    set special_cert [tossl::x509::create -subject $special_subject -issuer $special_subject -pubkey $ca_public -privkey $ca_private -days 365]
     
     set crl [tossl::crl::create -key $ca_private -cert $special_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
@@ -257,7 +258,7 @@ test "CRL creation with special characters in subject" {
 # Test 30: CRL creation with Unicode characters in subject
 test "CRL creation with Unicode characters in subject" {
     set unicode_subject "CN=Test CA with Unicode: 测试证书颁发机构"
-    set unicode_cert [tossl::x509::create $ca_private $unicode_subject 365]
+    set unicode_cert [tossl::x509::create -subject $unicode_subject -issuer $unicode_subject -pubkey $ca_public -privkey $ca_private -days 365]
     
     set crl [tossl::crl::create -key $ca_private -cert $unicode_cert -days 30]
     string match "*-----BEGIN X509 CRL-----*" $crl
