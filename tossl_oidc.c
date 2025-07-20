@@ -2431,7 +2431,319 @@ int OidcValidateLogoutResponseCmd(ClientData cd, Tcl_Interp *interp, int objc, T
     return TCL_OK;
 }
 
+// Helper functions for format validation
+static int validate_email_format(const char *email) {
+    if (!email || strlen(email) == 0) return 0;
+    
+    // Basic email validation: contains @ and has valid format
+    const char *at_sign = strchr(email, '@');
+    if (!at_sign) return 0;
+    
+    // Check for domain part
+    const char *domain = at_sign + 1;
+    if (strlen(domain) == 0) return 0;
+    
+    // Check for TLD (at least 2 characters after last dot)
+    const char *last_dot = strrchr(domain, '.');
+    if (!last_dot || strlen(last_dot) < 2) return 0;
+    
+    return 1;
+}
 
+static int validate_phone_format(const char *phone) {
+    if (!phone || strlen(phone) == 0) return 0;
+    
+    // Basic phone validation: contains only digits, spaces, dashes, parentheses, and +
+    for (int i = 0; phone[i]; i++) {
+        char c = phone[i];
+        if (!((c >= '0' && c <= '9') || c == ' ' || c == '-' || c == '(' || c == ')' || c == '+')) {
+            return 0;
+        }
+    }
+    
+    // Must have at least 7 digits
+    int digit_count = 0;
+    for (int i = 0; phone[i]; i++) {
+        if (phone[i] >= '0' && phone[i] <= '9') {
+            digit_count++;
+        }
+    }
+    
+    return digit_count >= 7;
+}
+
+static int validate_url_format(const char *url) {
+    if (!url || strlen(url) == 0) return 0;
+    
+    // Basic URL validation: starts with http:// or https://
+    if (strncmp(url, "http://", 7) != 0 && strncmp(url, "https://", 8) != 0) {
+        return 0;
+    }
+    
+    // Must have a domain part
+    const char *domain_start = (strncmp(url, "https://", 8) == 0) ? url + 8 : url + 7;
+    if (strlen(domain_start) == 0) return 0;
+    
+    // Must contain at least one dot
+    if (!strchr(domain_start, '.')) return 0;
+    
+    return 1;
+}
+
+static int validate_boolean_format(const char *value) {
+    if (!value) return 0;
+    
+    // Accept various boolean representations
+    return (strcmp(value, "true") == 0 || strcmp(value, "false") == 0 ||
+            strcmp(value, "1") == 0 || strcmp(value, "0") == 0 ||
+            strcmp(value, "yes") == 0 || strcmp(value, "no") == 0);
+}
+
+static int validate_timestamp_format(const char *value) {
+    if (!value) return 0;
+    
+    // Check if it's a valid integer
+    char *endptr;
+    long timestamp = strtol(value, &endptr, 10);
+    
+    // Must be a valid number and not empty
+    if (*endptr != '\0' || endptr == value) return 0;
+    
+    // Must be a reasonable timestamp (after 1970, before year 2100)
+    if (timestamp < 0 || timestamp > 4102444800L) return 0;
+    
+    return 1;
+}
+
+// Validate OIDC standard claims
+int OidcValidateClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc < 5 || objc % 2 == 0) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-claims <claims_dict> -required_claims {claim1 claim2 ...}");
+        return TCL_ERROR;
+    }
+    
+    const char *claims_data = NULL;
+    Tcl_Obj *required_claims_obj = NULL;
+    
+    // Parse arguments
+    for (int i = 1; i < objc; i += 2) {
+        if (i + 1 >= objc) break;
+        
+        const char *arg = Tcl_GetString(objv[i]);
+        
+        if (strcmp(arg, "-claims") == 0) {
+            claims_data = Tcl_GetString(objv[i + 1]);
+        } else if (strcmp(arg, "-required_claims") == 0) {
+            required_claims_obj = objv[i + 1];
+        }
+    }
+    
+    if (!claims_data || !required_claims_obj) {
+        Tcl_SetResult(interp, "Missing required parameters: -claims, -required_claims", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Parse claims JSON
+    json_object *claims_json = json_tokener_parse(claims_data);
+    if (!claims_json) {
+        Tcl_SetResult(interp, "Invalid claims data", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Get required claims list
+    int required_count;
+    Tcl_Obj **required_claims;
+    if (Tcl_ListObjGetElements(interp, required_claims_obj, &required_count, &required_claims) != TCL_OK) {
+        json_object_put(claims_json);
+        Tcl_SetResult(interp, "Invalid required_claims format", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Create result
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_Obj *missing_claims = Tcl_NewListObj(0, NULL);
+    Tcl_Obj *invalid_claims = Tcl_NewListObj(0, NULL);
+    int valid = 1;
+    
+    // Check each required claim
+    for (int i = 0; i < required_count; i++) {
+        const char *claim_name = Tcl_GetString(required_claims[i]);
+        json_object *claim_value;
+        
+        if (!json_object_object_get_ex(claims_json, claim_name, &claim_value)) {
+            // Claim is missing
+            Tcl_ListObjAppendElement(interp, missing_claims, Tcl_NewStringObj(claim_name, -1));
+            valid = 0;
+        } else {
+            // Validate claim format if it's a known format
+            if (strcmp(claim_name, "email") == 0) {
+                const char *email = json_object_get_string(claim_value);
+                if (!validate_email_format(email)) {
+                    Tcl_ListObjAppendElement(interp, invalid_claims, Tcl_NewStringObj(claim_name, -1));
+                    valid = 0;
+                }
+            } else if (strcmp(claim_name, "phone_number") == 0) {
+                const char *phone = json_object_get_string(claim_value);
+                if (!validate_phone_format(phone)) {
+                    Tcl_ListObjAppendElement(interp, invalid_claims, Tcl_NewStringObj(claim_name, -1));
+                    valid = 0;
+                }
+            } else if (strcmp(claim_name, "profile") == 0 || 
+                       strcmp(claim_name, "picture") == 0 || 
+                       strcmp(claim_name, "website") == 0) {
+                const char *url = json_object_get_string(claim_value);
+                if (!validate_url_format(url)) {
+                    Tcl_ListObjAppendElement(interp, invalid_claims, Tcl_NewStringObj(claim_name, -1));
+                    valid = 0;
+                }
+            } else if (strcmp(claim_name, "email_verified") == 0 || 
+                       strcmp(claim_name, "phone_number_verified") == 0) {
+                if (json_object_get_type(claim_value) != json_type_boolean) {
+                    Tcl_ListObjAppendElement(interp, invalid_claims, Tcl_NewStringObj(claim_name, -1));
+                    valid = 0;
+                }
+            } else if (strcmp(claim_name, "updated_at") == 0 || 
+                       strcmp(claim_name, "iat") == 0 || 
+                       strcmp(claim_name, "exp") == 0 || 
+                       strcmp(claim_name, "nbf") == 0) {
+                if (json_object_get_type(claim_value) != json_type_int) {
+                    Tcl_ListObjAppendElement(interp, invalid_claims, Tcl_NewStringObj(claim_name, -1));
+                    valid = 0;
+                }
+            }
+        }
+    }
+    
+    // Build result
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(valid));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("missing_claims", -1), missing_claims);
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("invalid_claims", -1), invalid_claims);
+    
+    json_object_put(claims_json);
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// Check for specific OIDC claim values
+int OidcCheckClaimCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 7) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-claims <claims_dict> -claim <claim_name> -value <expected_value>");
+        return TCL_ERROR;
+    }
+    
+    const char *claims_data = Tcl_GetString(objv[2]);
+    const char *claim_name = Tcl_GetString(objv[4]);
+    const char *expected_value = Tcl_GetString(objv[6]);
+    
+    // Parse claims JSON
+    json_object *claims_json = json_tokener_parse(claims_data);
+    if (!claims_json) {
+        Tcl_SetResult(interp, "Invalid claims data", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Get claim value
+    json_object *claim_value;
+    if (!json_object_object_get_ex(claims_json, claim_name, &claim_value)) {
+        json_object_put(claims_json);
+        Tcl_SetResult(interp, "Claim not found", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Compare values based on type
+    int matches = 0;
+    json_type value_type = json_object_get_type(claim_value);
+    
+    if (value_type == json_type_string) {
+        const char *actual_value = json_object_get_string(claim_value);
+        matches = (strcmp(actual_value, expected_value) == 0);
+    } else if (value_type == json_type_boolean) {
+        int expected_bool = (strcmp(expected_value, "true") == 0 || strcmp(expected_value, "1") == 0);
+        int actual_bool = json_object_get_boolean(claim_value);
+        matches = (expected_bool == actual_bool);
+    } else if (value_type == json_type_int) {
+        long expected_int = atol(expected_value);
+        long actual_int = json_object_get_int64(claim_value);
+        matches = (expected_int == actual_int);
+    } else {
+        // For other types, convert to string and compare
+        const char *actual_value = json_object_to_json_string(claim_value);
+        matches = (strcmp(actual_value, expected_value) == 0);
+    }
+    
+    // Create result
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("matches", -1), Tcl_NewBooleanObj(matches));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("claim_name", -1), Tcl_NewStringObj(claim_name, -1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("expected_value", -1), Tcl_NewStringObj(expected_value, -1));
+    
+    // Add actual value for reference
+    if (value_type == json_type_string) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("actual_value", -1), 
+                      Tcl_NewStringObj(json_object_get_string(claim_value), -1));
+    } else {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("actual_value", -1), 
+                      Tcl_NewStringObj(json_object_to_json_string(claim_value), -1));
+    }
+    
+    json_object_put(claims_json);
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
+
+// Validate claim formats (email, phone, etc.)
+int OidcValidateClaimFormatCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    if (objc != 5) {
+        Tcl_WrongNumArgs(interp, 1, objv, "-claim <claim_name> -value <claim_value>");
+        return TCL_ERROR;
+    }
+    
+    const char *claim_name = Tcl_GetString(objv[2]);
+    const char *claim_value = Tcl_GetString(objv[4]);
+    
+    int valid = 0;
+    const char *error_msg = NULL;
+    
+    // Validate based on claim type
+    if (strcmp(claim_name, "email") == 0) {
+        valid = validate_email_format(claim_value);
+        if (!valid) error_msg = "Invalid email format";
+    } else if (strcmp(claim_name, "phone_number") == 0) {
+        valid = validate_phone_format(claim_value);
+        if (!valid) error_msg = "Invalid phone number format";
+    } else if (strcmp(claim_name, "profile") == 0 || 
+               strcmp(claim_name, "picture") == 0 || 
+               strcmp(claim_name, "website") == 0) {
+        valid = validate_url_format(claim_value);
+        if (!valid) error_msg = "Invalid URL format";
+    } else if (strcmp(claim_name, "email_verified") == 0 || 
+               strcmp(claim_name, "phone_number_verified") == 0) {
+        valid = validate_boolean_format(claim_value);
+        if (!valid) error_msg = "Invalid boolean format";
+    } else if (strcmp(claim_name, "updated_at") == 0 || 
+               strcmp(claim_name, "iat") == 0 || 
+               strcmp(claim_name, "exp") == 0 || 
+               strcmp(claim_name, "nbf") == 0) {
+        valid = validate_timestamp_format(claim_value);
+        if (!valid) error_msg = "Invalid timestamp format";
+    } else {
+        // Unknown claim type - assume valid
+        valid = 1;
+    }
+    
+    // Create result
+    Tcl_Obj *result = Tcl_NewDictObj();
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("valid", -1), Tcl_NewBooleanObj(valid));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("claim_name", -1), Tcl_NewStringObj(claim_name, -1));
+    Tcl_DictObjPut(interp, result, Tcl_NewStringObj("claim_value", -1), Tcl_NewStringObj(claim_value, -1));
+    
+    if (error_msg) {
+        Tcl_DictObjPut(interp, result, Tcl_NewStringObj("error", -1), Tcl_NewStringObj(error_msg, -1));
+    }
+    
+    Tcl_SetObjResult(interp, result);
+    return TCL_OK;
+}
 
 // Google OIDC Provider Configuration
 int OidcProviderGoogleCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -2884,6 +3196,9 @@ int Tossl_OidcInit(Tcl_Interp *interp) {
     Tcl_CreateObjCommand(interp, "tossl::oidc::logout_url", OidcLogoutUrlCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::end_session", OidcEndSessionCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "tossl::oidc::validate_logout_response", OidcValidateLogoutResponseCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::validate_claims", OidcValidateClaimsCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::check_claim", OidcCheckClaimCmd, NULL, NULL);
+    Tcl_CreateObjCommand(interp, "tossl::oidc::validate_claim_format", OidcValidateClaimFormatCmd, NULL, NULL);
     
     // Provider preset commands
     Tcl_CreateObjCommand(interp, "tossl::oidc::provider::google", OidcProviderGoogleCmd, NULL, NULL);

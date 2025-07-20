@@ -167,6 +167,9 @@ int OidcExtractUserClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Ob
 int OidcLogoutUrlCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcEndSessionCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcValidateLogoutResponseCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int OidcValidateClaimsCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int OidcCheckClaimCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+int OidcValidateClaimFormatCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcProviderGoogleCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcProviderMicrosoftCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
 int OidcProviderGithubCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
