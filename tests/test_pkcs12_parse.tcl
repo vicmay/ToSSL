@@ -32,7 +32,7 @@ set private_key [dict get $keypair private]
 set public_key [dict get $keypair public]
 
 # Create a self-signed certificate
-set cert [tossl::x509::create $private_key "CN=test.example.com" 365]
+set cert [tossl::x509::create -subject "CN=test.example.com" -issuer "CN=test.example.com" -pubkey $public_key -privkey $private_key -days 365]
 
 # Create PKCS#12 bundle
 set password "password"
