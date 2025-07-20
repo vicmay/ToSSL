@@ -39,7 +39,8 @@ puts "=== Testing ::tossl::crl::parse ==="
 # Generate test CA key and certificate
 set ca_keypair [tossl::key::generate -type rsa -bits 2048]
 set ca_private [dict get $ca_keypair private]
-set ca_cert [tossl::x509::create $ca_private "CN=Test CA" 365]
+set ca_public [dict get $ca_keypair public]
+set ca_cert [tossl::x509::create -subject "CN=Test CA" -issuer "CN=Test CA" -pubkey $ca_public -privkey $ca_private -days 365]
 
 # Create a CRL
 set crl [tossl::crl::create -key $ca_private -cert $ca_cert -days 30]
@@ -99,7 +100,7 @@ test "Parsing CRL with revoked certs (num_revoked > 0)" {
 # Test 10: Parsing a CRL with long issuer name
 test "Parsing CRL with long issuer name" {
     set long_subject "CN=This is a very long certificate subject name for CRL parsing test"
-    set long_cert [tossl::x509::create $ca_private $long_subject 365]
+    set long_cert [tossl::x509::create -subject $long_subject -issuer $long_subject -pubkey $ca_public -privkey $ca_private -days 365]
     puts "DEBUG: long_cert=$long_cert"
     set long_crl [tossl::crl::create -key $ca_private -cert $long_cert -days 30]
     puts "DEBUG: long_crl=$long_crl"
