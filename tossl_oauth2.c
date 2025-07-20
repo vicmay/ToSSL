@@ -1885,7 +1885,8 @@ int Oauth2AutoRefreshCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *c
 
 // OIDC-enhanced authorization URL with nonce support
 int Oauth2AuthUrlOidcCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc < 13 || objc > 17) {
+    // Check for minimum required arguments (6 required parameters = 12 args + command name)
+    if (objc < 13) {
         Tcl_WrongNumArgs(interp, 1, objv, "-client_id <id> -redirect_uri <uri> -scope <scope> -state <state> -authorization_url <url> -nonce <nonce> ?-max_age <seconds>? ?-acr_values <acr>?");
         return TCL_ERROR;
     }
@@ -2048,7 +2049,8 @@ int Oauth2ExchangeCodeOidcCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_O
 
 // OIDC-enhanced token refresh
 int Oauth2RefreshTokenOidcCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-    if (objc < 9 || objc > 11) {
+    // Check for minimum required arguments (4 required parameters = 8 args + command name)
+    if (objc < 9) {
         Tcl_WrongNumArgs(interp, 1, objv, "-client_id <id> -client_secret <secret> -refresh_token <token> -token_url <url> ?-scope <scope>?");
         return TCL_ERROR;
     }

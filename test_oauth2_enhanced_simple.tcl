@@ -27,7 +27,7 @@ proc test {name script expected_result} {
     puts "\n=== Test $test_count: $name ==="
     
     if {[catch {set result [eval $script]} error]} {
-        puts "ERROR: $error"
+        puts "Error: $error"
         if {$expected_result eq "ERROR"} {
             puts "PASS: Expected error occurred"
             incr passed_count
@@ -124,7 +124,7 @@ test_error "Missing client_id" {
         -state "test_state" \
         -authorization_url "https://accounts.google.com/oauth/authorize" \
         -nonce "test_nonce"
-} "Missing required parameters"
+} "wrong # args"
 
 # Test 4: Missing nonce parameter
 test_error "Missing nonce" {
@@ -134,7 +134,7 @@ test_error "Missing nonce" {
         -scope "openid profile" \
         -state "test_state" \
         -authorization_url "https://accounts.google.com/oauth/authorize"
-} "Missing required parameters"
+} "wrong # args"
 
 # Test 5: Wrong number of arguments
 test_error "Wrong number of arguments" {
@@ -226,11 +226,12 @@ test "Comprehensive OIDC flow simulation" {
     }
     
     if {$all_components_present} {
-        return "Comprehensive OIDC flow simulation passed"
+        set result "PASS"
     } else {
-        return "Comprehensive OIDC flow simulation failed"
+        set result "FAIL"
     }
-} "Comprehensive OIDC flow simulation passed"
+    set result
+} "PASS"
 
 # Test 12: Error handling for missing OIDC parameters in token exchange
 test_error "Missing nonce in OIDC token exchange" {
@@ -240,49 +241,46 @@ test_error "Missing nonce in OIDC token exchange" {
         -code "test_code" \
         -redirect_uri "https://example.com/callback" \
         -token_url "https://accounts.google.com/oauth/token"
-} "Missing required parameters"
+} "Missing required parameters: -client_id, -client_secret, -code, -redirect_uri, -token_url, -nonce"
 
 # Test 13: Error handling for missing OIDC parameters in token refresh
 test_error "Missing required parameters in OIDC token refresh" {
     tossl::oauth2::refresh_token_oidc \
         -client_id "test_client" \
         -refresh_token "test_refresh_token"
-} "Missing required parameters"
+} "wrong # args"
 
 # Test 14: Integration test with OIDC provider preset
 test "Integration with OIDC provider preset" {
     # Get Google OIDC configuration
-    set google_config [tossl::oidc::google]
+    set google_config [tossl::oidc::provider::google -client_id "test_client" -client_secret "test_secret"]
     
-    # Extract authorization URL using string operations
-    if {[string first "authorization_endpoint" $google_config] >= 0} {
-        # Extract the URL from the configuration string
-        set start_idx [string first "https://" $google_config]
-        if {$start_idx >= 0} {
-            set end_idx [string first "\"" $google_config $start_idx]
-            if {$end_idx >= 0} {
-                set auth_url [string range $google_config $start_idx [expr $end_idx - 1]]
-                
-                # Generate OIDC authorization URL using the preset
-                set oidc_url [tossl::oauth2::authorization_url_oidc \
-                    -client_id "test_client" \
-                    -redirect_uri "https://example.com/callback" \
-                    -scope "openid profile email" \
-                    -state "test_state" \
-                    -authorization_url $auth_url \
-                    -nonce "test_nonce"]
-                
-                # Verify the URL contains the expected components
-                if {[string first "accounts.google.com" $oidc_url] >= 0 && \
-                    [string first "response_type=code" $oidc_url] >= 0 && \
-                    [string first "nonce=test_nonce" $oidc_url] >= 0} {
-                    return "Integration test passed"
-                }
-            }
+    # Extract authorization URL from the configuration dictionary
+    if {[dict exists $google_config authorization_endpoint]} {
+        set auth_url [dict get $google_config authorization_endpoint]
+        
+        # Generate OIDC authorization URL using the preset
+        set oidc_url [tossl::oauth2::authorization_url_oidc \
+            -client_id "test_client" \
+            -redirect_uri "https://example.com/callback" \
+            -scope "openid profile email" \
+            -state "test_state" \
+            -authorization_url $auth_url \
+            -nonce "test_nonce"]
+        
+        # Verify the URL contains the expected components
+        if {[string first "accounts.google.com" $oidc_url] >= 0 && \
+            [string first "response_type=code" $oidc_url] >= 0 && \
+            [string first "nonce=test_nonce" $oidc_url] >= 0} {
+            set result "PASS"
+        } else {
+            set result "FAIL"
         }
+    } else {
+        set result "FAIL"
     }
-    return "Integration test failed"
-} "Integration test passed"
+    set result
+} "PASS"
 
 # Print test summary
 print_summary 

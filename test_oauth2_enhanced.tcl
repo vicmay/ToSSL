@@ -275,7 +275,7 @@ test "OIDC authorization URL with multiple acr_values" {
 # Test 15: Integration test with OIDC provider preset
 test "Integration with OIDC provider preset" {
     # Get Google OIDC configuration
-    set google_config [tossl::oidc::google]
+    set google_config [tossl::oidc::provider::google -client_id "test_client" -client_secret "test_secret"]
     
     # Extract authorization URL using string operations
     if {[string first "authorization_endpoint" $google_config] >= 0} {
