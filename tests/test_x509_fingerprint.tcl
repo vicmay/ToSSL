@@ -42,7 +42,7 @@ set priv [dict get $keys private]
 set pub [dict get $keys public]
 
 ;# Create a self-signed certificate
-set cert [tossl::x509::create $priv "/CN=Test Certificate" 365]
+set cert [tossl::x509::create -subject "/CN=Test Certificate" -issuer "/CN=Test Certificate" -pubkey $pub -privkey $priv -days 365]
 
 ;# Test 1: Basic fingerprint with SHA256
 test "Basic fingerprint with SHA256" {
@@ -115,7 +115,7 @@ test "Fingerprint format should be hex" {
 
 ;# Test 13: Different certificates should produce different fingerprints
 test "Different certificates produce different fingerprints" {
-    set cert2 [tossl::x509::create $priv "/CN=Test Certificate 2" 365]
+    set cert2 [tossl::x509::create -subject "/CN=Test Certificate 2" -issuer "/CN=Test Certificate 2" -pubkey $pub -privkey $priv -days 365]
     set fp1 [tossl::x509::fingerprint $cert sha256]
     set fp2 [tossl::x509::fingerprint $cert2 sha256]
     expr {$fp1 ne $fp2}

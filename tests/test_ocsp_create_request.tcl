@@ -32,7 +32,7 @@ set ca_private_key [dict get $ca_keypair private]
 set ca_public_key [dict get $ca_keypair public]
 
 # Create CA certificate
-set ca_cert [tossl::x509::create $ca_private_key "CN=Test CA" 3650]
+set ca_cert [tossl::x509::create -subject "CN=Test CA" -issuer "CN=Test CA" -pubkey $ca_public_key -privkey $ca_private_key -days 3650]
 
 # Generate server key pair
 set server_keypair [tossl::key::generate -type rsa -bits 2048]
@@ -40,7 +40,7 @@ set server_private_key [dict get $server_keypair private]
 set server_public_key [dict get $server_keypair public]
 
 # Create server certificate signed by CA
-set server_cert [tossl::x509::create $server_private_key "CN=test.example.com" 365]
+set server_cert [tossl::x509::create -subject "CN=test.example.com" -issuer "CN=Test CA" -pubkey $server_public_key -privkey $ca_private_key -days 365]
 
 # Create OCSP request
 set ocsp_request [tossl::ocsp::create_request $server_cert $ca_cert]
@@ -70,7 +70,8 @@ puts "Testing ocsp::create_request: mismatched certificate and issuer..."
 # Create a different CA certificate
 set ca2_keypair [tossl::key::generate -type rsa -bits 2048]
 set ca2_private_key [dict get $ca2_keypair private]
-set ca2_cert [tossl::x509::create $ca2_private_key "CN=Different CA" 3650]
+set ca2_public_key [dict get $ca2_keypair public]
+set ca2_cert [tossl::x509::create -subject "CN=Different CA" -issuer "CN=Different CA" -pubkey $ca2_public_key -privkey $ca2_private_key -days 3650]
 
 # This should still work as OCSP requests can be created for any certificate/issuer pair
 set ocsp_request2 [tossl::ocsp::create_request $server_cert $ca2_cert]
@@ -82,7 +83,7 @@ puts "OCSP request with different issuer created successfully: OK"
 
 puts "Testing ocsp::create_request: self-signed certificate..."
 # Create a self-signed certificate
-set self_signed_cert [tossl::x509::create $server_private_key "CN=self.example.com" 365]
+set self_signed_cert [tossl::x509::create -subject "CN=self.example.com" -issuer "CN=self.example.com" -pubkey $server_public_key -privkey $server_private_key -days 365]
 
 # Create OCSP request for self-signed certificate (issuer is the same as certificate)
 set ocsp_request3 [tossl::ocsp::create_request $self_signed_cert $self_signed_cert]

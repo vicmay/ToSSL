@@ -94,14 +94,14 @@ set dsa_rc [catch {set keys_dsa [tossl::key::generate -type dsa -bits 1024]} dsa
 if {$dsa_rc == 0} {
     set priv_dsa [dict get $keys_dsa private]
     set pub_dsa  [dict get $keys_dsa public]
-    set sig_dsa [tossl::dsa::sign -privkey $priv_dsa -alg sha256 $data]
-    test "dsa verify valid" {tossl::dsa::verify -pubkey $pub_dsa -alg sha256 $data $sig_dsa} bool
+    set sig_dsa [tossl::dsa::sign -key $priv_dsa -data $::data -alg sha256]
+    test "dsa verify valid" {tossl::dsa::verify -key $pub_dsa -data $::data -sig $sig_dsa -alg sha256} bool
 } else {
     puts "dsa sign/verify... SKIPPED (not supported)"
 }
 
 # X.509 certificate creation
-set cert [tossl::x509::create $priv "Test CN" 1]
+set cert [tossl::x509::create -subject "Test CN" -issuer "Test CN" -pubkey $::pub -privkey $::priv -days 1]
 test "x509 create PEM header" {expr {[string match "-----BEGIN CERTIFICATE-----*" $::cert]}} ok
 
 # Write plaintext to file for OpenSSL CLI test

@@ -32,11 +32,13 @@ puts "Testing ocsp::parse_response: basic functionality..."
 # Generate test CA and certificate
 set ca_keypair [tossl::key::generate -type rsa -bits 2048]
 set ca_private_key [dict get $ca_keypair private]
-set ca_cert [tossl::x509::create $ca_private_key "CN=Test CA" 3650]
+set ca_public_key [dict get $ca_keypair public]
+set ca_cert [tossl::x509::create -subject "CN=Test CA" -issuer "CN=Test CA" -pubkey $ca_public_key -privkey $ca_private_key -days 3650]
 
 set server_keypair [tossl::key::generate -type rsa -bits 2048]
 set server_private_key [dict get $server_keypair private]
-set server_cert [tossl::x509::create $server_private_key "CN=test.example.com" 365]
+set server_public_key [dict get $server_keypair public]
+set server_cert [tossl::x509::create -subject "CN=test.example.com" -issuer "CN=Test CA" -pubkey $server_public_key -privkey $ca_private_key -days 365]
 
 # Create OCSP request
 set ocsp_request [tossl::ocsp::create_request $server_cert $ca_cert]
