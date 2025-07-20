@@ -244,10 +244,27 @@ if {$result1 eq $result2} {
 
 puts "pbe::encrypt parameter variation: OK"
 
-puts "Testing pbe::encrypt: round-trip with pbe::decrypt (skipped due to decrypt implementation bug)..."
-puts "Note: pbe::decrypt has a bug where it uses strlen() on binary data, causing truncation"
-puts "This test will be enabled when the decrypt implementation is fixed"
-puts "pbe::encrypt round-trip test: SKIPPED"
+puts "Testing pbe::encrypt: round-trip with pbe::decrypt..."
+set test_data "Test data for round-trip validation"
+set rc [catch {set encrypted [tossl::pbe::encrypt $algorithm $password $salt $test_data]} err]
+if {$rc != 0} {
+    puts "FAIL: Could not encrypt for round-trip test - $err"
+    exit 1
+}
+
+set rc [catch {set decrypted [tossl::pbe::decrypt $algorithm $password $salt $encrypted]} err]
+if {$rc != 0} {
+    puts "FAIL: Could not decrypt for round-trip test - $err"
+    exit 1
+}
+
+if {$test_data eq $decrypted} {
+    puts "pbe::encrypt round-trip test: OK"
+} else {
+    puts "FAIL: Round-trip test failed - data mismatch"
+    exit 1
+}
+puts "pbe::encrypt round-trip test: OK"
 
 puts "Testing pbe::encrypt: error handling..."
 puts "Note: Implementation does not validate parameters (empty password/salt/algorithm are accepted)"

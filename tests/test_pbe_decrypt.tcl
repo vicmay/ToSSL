@@ -40,11 +40,11 @@ if {$rc != 0} {
     exit 1
 }
 
-# Now test decryption (may fail due to known strlen() bug)
+# Now test decryption
 set rc [catch {set result [tossl::pbe::decrypt "sha256" $test_password $test_salt $encrypted]} err]
 if {$rc != 0} {
-    puts "WARNING: pbe::decrypt basic test failed (expected due to strlen() bug) - $err"
-    puts "This is a known implementation issue where strlen() is used on binary data"
+    puts "FAIL: pbe::decrypt basic test failed - $err"
+    exit 1
 } else {
     if {[string length $result] == 0} {
         puts "FAIL: Empty result from pbe::decrypt"
@@ -52,7 +52,7 @@ if {$rc != 0} {
     }
     puts "pbe::decrypt basic functionality: OK - [string length $result] bytes"
 }
-puts "pbe::decrypt basic functionality: OK (with known limitations)"
+puts "pbe::decrypt basic functionality: OK"
 
 puts "Testing pbe::decrypt: different algorithms (note: algorithm parameter is ignored in implementation)..."
 set algorithms {
@@ -74,19 +74,21 @@ foreach algorithm $algorithms {
         exit 1
     }
     
-    # Decrypt with the same algorithm (may fail due to strlen() bug)
+    # Decrypt with the same algorithm
     set rc [catch {set result [tossl::pbe::decrypt $algorithm $test_password $test_salt $encrypted]} err]
     if {$rc != 0} {
-        puts "WARNING: pbe::decrypt $algorithm failed (expected due to strlen() bug) - $err"
+        puts "FAIL: pbe::decrypt $algorithm failed - $err"
+        exit 1
     } else {
         if {[string length $result] == 0} {
-            puts "WARNING: Empty result from pbe::decrypt $algorithm (expected due to strlen() bug)"
+            puts "FAIL: Empty result from pbe::decrypt $algorithm"
+            exit 1
         } else {
             puts "pbe::decrypt $algorithm: OK - [string length $result] bytes"
         }
     }
 }
-puts "pbe::decrypt different algorithms: OK (with known limitations)"
+puts "pbe::decrypt different algorithms: OK"
 
 puts "Testing pbe::decrypt: different data sizes..."
 set test_password "test_password_123"
@@ -109,19 +111,21 @@ foreach data $data_sizes {
         exit 1
     }
     
-    # Decrypt the data (may fail due to strlen() bug)
+    # Decrypt the data
     set rc [catch {set result [tossl::pbe::decrypt $algorithm $test_password $test_salt $encrypted]} err]
     if {$rc != 0} {
-        puts "WARNING: pbe::decrypt data size test failed for '[string length $data]' chars (expected due to strlen() bug) - $err"
+        puts "FAIL: pbe::decrypt data size test failed for '[string length $data]' chars - $err"
+        exit 1
     } else {
         if {[string length $result] == 0 && [string length $data] > 0} {
-            puts "WARNING: Empty result from pbe::decrypt for '[string length $data]' chars (expected due to strlen() bug)"
+            puts "FAIL: Empty result from pbe::decrypt for '[string length $data]' chars"
+            exit 1
         } else {
             puts "pbe::decrypt data size [string length $data]: OK - [string length $result] bytes"
         }
     }
 }
-puts "pbe::decrypt different data sizes: OK (with known limitations)"
+puts "pbe::decrypt different data sizes: OK"
 
 puts "Testing pbe::decrypt: different passwords..."
 set test_salt "test_salt_456"
@@ -144,19 +148,21 @@ foreach password $passwords {
         exit 1
     }
     
-    # Decrypt with the same password (may fail due to strlen() bug)
+    # Decrypt with the same password
     set rc [catch {set result [tossl::pbe::decrypt $algorithm $password $test_salt $encrypted]} err]
     if {$rc != 0} {
-        puts "WARNING: pbe::decrypt password test failed for '[string length $password]' chars (expected due to strlen() bug) - $err"
+        puts "FAIL: pbe::decrypt password test failed for '[string length $password]' chars - $err"
+        exit 1
     } else {
         if {[string length $result] == 0} {
-            puts "WARNING: Empty result from pbe::decrypt for password '[string length $password]' chars (expected due to strlen() bug)"
+            puts "FAIL: Empty result from pbe::decrypt for password '[string length $password]' chars"
+            exit 1
         } else {
             puts "pbe::decrypt password [string length $password]: OK - [string length $result] bytes"
         }
     }
 }
-puts "pbe::decrypt different passwords: OK (with known limitations)"
+puts "pbe::decrypt different passwords: OK"
 
 puts "Testing pbe::decrypt: different salts..."
 set test_password "test_password_123"
@@ -179,19 +185,21 @@ foreach salt $salts {
         exit 1
     }
     
-    # Decrypt with the same salt (may fail due to strlen() bug)
+    # Decrypt with the same salt
     set rc [catch {set result [tossl::pbe::decrypt $algorithm $test_password $salt $encrypted]} err]
     if {$rc != 0} {
-        puts "WARNING: pbe::decrypt salt test failed for '[string length $salt]' chars (expected due to strlen() bug) - $err"
+        puts "FAIL: pbe::decrypt salt test failed for '[string length $salt]' chars - $err"
+        exit 1
     } else {
         if {[string length $result] == 0} {
-            puts "WARNING: Empty result from pbe::decrypt for salt '[string length $salt]' chars (expected due to strlen() bug)"
+            puts "FAIL: Empty result from pbe::decrypt for salt '[string length $salt]' chars"
+            exit 1
         } else {
             puts "pbe::decrypt salt [string length $salt]: OK - [string length $result] bytes"
         }
     }
 }
-puts "pbe::decrypt different salts: OK (with known limitations)"
+puts "pbe::decrypt different salts: OK"
 
 puts "Testing pbe::decrypt: round-trip validation..."
 set algorithm "sha256"
@@ -206,22 +214,23 @@ if {$rc != 0} {
     exit 1
 }
 
-# Decrypt (may fail due to known strlen() bug)
+# Decrypt
 set rc [catch {set decrypted [tossl::pbe::decrypt $algorithm $password $salt $encrypted]} err]
 if {$rc != 0} {
-    puts "WARNING: Round-trip test failed (expected due to strlen() bug) - $err"
-    puts "This is a known implementation issue where strlen() is used on binary data"
+    puts "FAIL: Round-trip test failed - $err"
+    exit 1
 } else {
     # Compare
     if {$original_data eq $decrypted} {
         puts "pbe::decrypt round-trip validation: OK"
     } else {
-        puts "WARNING: Round-trip test failed - data mismatch (expected due to strlen() bug)"
+        puts "FAIL: Round-trip test failed - data mismatch"
         puts "Original: '$original_data'"
         puts "Decrypted: '$decrypted'"
+        exit 1
     }
 }
-puts "pbe::decrypt round-trip validation: OK (with known limitations)"
+puts "pbe::decrypt round-trip validation: OK"
 
 puts "Testing pbe::decrypt: wrong password..."
 set algorithm "sha256"
@@ -299,7 +308,7 @@ set algorithm "sha256"
 set password "test_password"
 set salt "test_salt"
 
-# Test with binary data (this may fail due to the strlen() bug)
+# Test with binary data
 set binary_data [binary format H* "48656c6c6f20576f726c64"] ;# "Hello World" in hex
 set rc [catch {set encrypted [tossl::pbe::encrypt $algorithm $password $salt $binary_data]} err]
 if {$rc != 0} {
@@ -309,7 +318,8 @@ if {$rc != 0} {
 
 set rc [catch {set result [tossl::pbe::decrypt $algorithm $password $salt $encrypted]} err]
 if {$rc != 0} {
-    puts "WARNING: Binary data decryption failed (expected due to strlen() bug) - $err"
+    puts "FAIL: Binary data decryption failed - $err"
+    exit 1
 } else {
     puts "pbe::decrypt binary data: OK - [string length $result] bytes"
 }
@@ -325,7 +335,8 @@ if {$rc != 0} {
 
 set rc [catch {set result [tossl::pbe::decrypt $algorithm $password $salt $encrypted]} err]
 if {$rc != 0} {
-    puts "WARNING: Unicode data decryption failed (expected due to strlen() bug) - $err"
+    puts "FAIL: Unicode data decryption failed - $err"
+    exit 1
 } else {
     puts "pbe::decrypt unicode data: OK - [string length $result] bytes"
 }
@@ -341,7 +352,8 @@ if {$rc != 0} {
 
 set rc [catch {set result [tossl::pbe::decrypt $algorithm $password $salt $encrypted]} err]
 if {$rc != 0} {
-    puts "WARNING: Long data decryption failed (expected due to strlen() bug) - $err"
+    puts "FAIL: Long data decryption failed - $err"
+    exit 1
 } else {
     puts "pbe::decrypt long data: OK - [string length $result] bytes"
 }
@@ -373,7 +385,7 @@ for {set i 0} {$i < 100} {incr i} {
 set end_time [clock milliseconds]
 set duration [expr {$end_time - $start_time}]
 
-puts "pbe::decrypt performance: OK - $success_count/100 iterations succeeded in ${duration}ms (expected failures due to strlen() bug)"
+puts "pbe::decrypt performance: OK - $success_count/100 iterations succeeded in ${duration}ms"
 
 puts "Testing pbe::decrypt: error handling..."
 puts "Note: Implementation does not validate parameters (empty password/salt/algorithm are accepted)"
@@ -405,9 +417,8 @@ if {$rc == 0} {
 
 puts "pbe::decrypt error handling: OK"
 
-puts "Testing pbe::decrypt: known implementation issues..."
-puts "Known issue: Implementation uses strlen() on binary data, causing truncation"
-puts "This affects decryption of data that contains null bytes"
+puts "Testing pbe::decrypt: data with null bytes..."
+puts "Testing decryption of data containing null bytes (previously problematic)"
 
 # Test with data containing null bytes
 set data_with_nulls "Hello\0World\0Test"
@@ -419,13 +430,18 @@ if {$rc != 0} {
 
 set rc [catch {set result [tossl::pbe::decrypt $algorithm $password $salt $encrypted]} err]
 if {$rc != 0} {
-    puts "pbe::decrypt data with nulls: FAILED (expected due to strlen() bug) - $err"
+    puts "FAIL: pbe::decrypt data with nulls failed - $err"
+    exit 1
 } else {
-    puts "WARNING: pbe::decrypt data with nulls succeeded (unexpected)"
-    puts "Result length: [string length $result] bytes"
-    puts "Expected truncation due to strlen() bug"
+    puts "pbe::decrypt data with nulls: OK - [string length $result] bytes"
+    if {$data_with_nulls eq $result} {
+        puts "Data integrity verified - null bytes preserved correctly"
+    } else {
+        puts "FAIL: Data mismatch - null bytes not preserved"
+        exit 1
+    }
 }
-puts "pbe::decrypt known implementation issues: OK"
+puts "pbe::decrypt data with null bytes: OK"
 
 puts "Testing pbe::decrypt: integration with other PBE commands..."
 # Test integration with saltgen
@@ -438,17 +454,19 @@ if {$rc != 0} {
 
 set rc [catch {set result [tossl::pbe::decrypt $algorithm $password $generated_salt $encrypted]} err]
 if {$rc != 0} {
-    puts "WARNING: Could not decrypt with generated salt (expected due to strlen() bug) - $err"
+    puts "FAIL: Could not decrypt with generated salt - $err"
+    exit 1
 } else {
     if {$test_data eq $result} {
         puts "pbe::decrypt integration with saltgen: OK"
     } else {
-        puts "WARNING: Integration test failed - data mismatch (expected due to strlen() bug)"
+        puts "FAIL: Integration test failed - data mismatch"
+        exit 1
     }
 }
 
-puts "pbe::decrypt integration: OK (with known limitations)"
+puts "pbe::decrypt integration: OK"
 
 puts "All pbe::decrypt tests completed successfully!"
-puts "Note: Some tests may fail due to the known strlen() bug in the implementation"
-puts "This is expected behavior until the implementation is fixed" 
+puts "✅ PBE implementation is working correctly - all tests passed!"
+puts "The strlen() bug has been successfully fixed." 
