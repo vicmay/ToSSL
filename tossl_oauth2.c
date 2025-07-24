@@ -2042,7 +2042,7 @@ int Oauth2ExchangeCodeOidcCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_O
     }
     
     // Return the token response
-    Tcl_SetResult(interp, token_json, TCL_VOLATILE);
+    Tcl_SetResult(interp, (char *)token_json, TCL_VOLATILE);
     json_object_put(token_obj);
     return TCL_OK;
 }

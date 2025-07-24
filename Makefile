@@ -2,7 +2,6 @@ CC = gcc
 CFLAGS = -fPIC -O2 -Wall -I/usr/include/tcl -I/usr/include -I/usr/local/include
 # Add OpenSSL 3.x specific flags
 CFLAGS += -DOPENSSL_API_COMPAT=0x30000000L
-CFLAGS += -DOPENSSL_NO_DEPRECATED
 # Add libcurl and jsoncpp flags
 CFLAGS += $(shell pkg-config --cflags libcurl 2>/dev/null || echo "-I/usr/include/x86_64-linux-gnu")
 CFLAGS += $(shell pkg-config --cflags json-c 2>/dev/null || echo "-I/usr/include/json-c")

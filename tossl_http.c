@@ -638,7 +638,7 @@ int Tossl_HttpSessionCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_
     
     sessions[session_count++] = session;
     
-    Tcl_SetResult(interp, session_id, TCL_STATIC);
+    Tcl_SetResult(interp, (char *)session_id, TCL_STATIC);
     return TCL_OK;
 }
 

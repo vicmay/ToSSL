@@ -1,4 +1,5 @@
 #include "tossl.h"
+#include <openssl/evp.h>
 
 // CRL create command
 int CrlCreateCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {

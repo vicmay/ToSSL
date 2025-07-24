@@ -47,7 +47,7 @@ Tcl_Obj* json_to_tcl(json_object *json_obj) {
 json_object* tcl_to_json(Tcl_Interp *interp, Tcl_Obj *obj) {
     if (!obj) return NULL;
 
-    Tcl_ObjType *typePtr = obj->typePtr;
+    const Tcl_ObjType *typePtr = obj->typePtr;
     if (typePtr && strcmp(typePtr->name, "dict") == 0) {
         int dict_size = 0;
         Tcl_DictObjSize(interp, obj, &dict_size);

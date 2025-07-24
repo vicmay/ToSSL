@@ -36,6 +36,7 @@ int modern_rsa_public_check(EVP_PKEY *pkey);
 // DSA-specific modern functions
 int modern_dsa_get_key_params(EVP_PKEY *pkey, BIGNUM **p, BIGNUM **q, BIGNUM **g, BIGNUM **pub_key, BIGNUM **priv_key);
 int modern_dsa_validate_key(EVP_PKEY *pkey);
+int modern_dsa_public_check(EVP_PKEY *pkey);
 
 // EC-specific modern functions
 int modern_ec_get_key_params(EVP_PKEY *pkey, BIGNUM **x, BIGNUM **y, BIGNUM **d);

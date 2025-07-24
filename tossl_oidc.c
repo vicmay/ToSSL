@@ -924,7 +924,7 @@ int OidcGetJwkCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
             if (json_object_object_get_ex(key_obj, "kid", &key_kid)) {
                 if (strcmp(json_object_get_string(key_kid), kid) == 0) {
                     // Found matching key
-                    Tcl_SetResult(interp, json_object_to_json_string(key_obj), TCL_VOLATILE);
+                    Tcl_SetResult(interp, (char *)json_object_to_json_string(key_obj), TCL_VOLATILE);
                     json_object_put(jwks_json);
                     return TCL_OK;
                 }

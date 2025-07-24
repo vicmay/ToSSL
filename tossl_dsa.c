@@ -1,4 +1,5 @@
 #include "tossl.h"
+#include "tossl_modern.h"
 
 // tossl::dsa::sign -key <pem> -data <data> ?-alg <digest>?
 int DsaSignCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
