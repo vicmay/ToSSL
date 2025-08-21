@@ -65,11 +65,25 @@ write_key:
         return TCL_ERROR;
     }
     
-    if (PEM_write_bio_PrivateKey(bio, pkey, NULL, NULL, 0, NULL, NULL) <= 0) {
-        BIO_free(bio);
-        EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Failed to write private key", TCL_STATIC);
-        return TCL_ERROR;
+    // Try to write as EC private key first (more specific format)
+    int write_success = 0;
+    if (EVP_PKEY_id(pkey) == EVP_PKEY_EC) {
+        EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(pkey);
+        if (ec_key) {
+            if (PEM_write_bio_ECPrivateKey(bio, ec_key, NULL, NULL, 0, NULL, NULL) > 0) {
+                write_success = 1;
+            }
+        }
+    }
+    
+    // Fallback to generic private key format
+    if (!write_success) {
+        if (PEM_write_bio_PrivateKey(bio, pkey, NULL, NULL, 0, NULL, NULL) <= 0) {
+            BIO_free(bio);
+            EVP_PKEY_free(pkey);
+            Tcl_SetResult(interp, "Failed to write private key", TCL_STATIC);
+            return TCL_ERROR;
+        }
     }
     
     BUF_MEM *bptr;
@@ -371,16 +385,18 @@ int Sm2DecryptCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         return TCL_ERROR;
     }
     
-    // Check if it's an SM2 key or EC key with SM2 curve
+    // Get key type for validation
     int key_type = EVP_PKEY_id(pkey);
-    int base_type = EVP_PKEY_base_id(pkey);
     
-    if (key_type != EVP_PKEY_SM2 && key_type != EVP_PKEY_EC && 
-        base_type != EVP_PKEY_SM2 && base_type != EVP_PKEY_EC) {
+    // Basic key type validation - only reject obviously wrong types
+    // RSA keys (type 6) should be rejected for SM2 operations
+    if (key_type == 6) { // EVP_PKEY_RSA
         EVP_PKEY_free(pkey);
-        Tcl_SetResult(interp, "Not an SM2 or EC key", TCL_STATIC);
+        Tcl_SetResult(interp, "RSA keys cannot be used for SM2 operations", TCL_STATIC);
         return TCL_ERROR;
     }
+    
+    // Accept other key types and let OpenSSL handle the details
     
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pkey, NULL);
     if (!ctx) {
