@@ -318,70 +318,131 @@ int Base64UrlDecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
         Tcl_WrongNumArgs(interp, 1, objv, "data");
         return TCL_ERROR;
     }
+    
     const char *data = Tcl_GetString(objv[1]);
-    int inlen = strlen(data);
-    if (inlen == 0) {
+    int data_len = strlen(data);
+    
+    // Handle empty input
+    if (data_len == 0) {
         Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(NULL, 0));
         return TCL_OK;
     }
-    int pad = (4 - (inlen % 4)) % 4;
-    int buflen = inlen + pad + 1;
-    char *modified = Tcl_Alloc(buflen);
-    strcpy(modified, data);
-    for (int i = 0; modified[i]; i++) {
-        if (modified[i] == '-') modified[i] = '+';
-        else if (modified[i] == '_') modified[i] = '/';
-    }
-    for (int i = 0; i < pad; i++) {
-        modified[inlen + i] = '=';
-    }
-    modified[inlen + pad] = '\0';
-    BIO *bio = BIO_new_mem_buf(modified, buflen);
-    BIO *b64 = BIO_new(BIO_f_base64());
-    bio = BIO_push(b64, bio);
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
     
-    // Calculate expected output size
-    int expected_len = (buflen / 4) * 3;
-    if (buflen % 4 != 0) {
-        expected_len += 3;
+    // Check for newlines - if present, return empty string (fail)
+    for (int i = 0; i < data_len; i++) {
+        if (data[i] == '\n' || data[i] == '\r') {
+            Tcl_SetResult(interp, "", TCL_STATIC);
+            return TCL_OK;
+        }
     }
     
-    // Allocate buffer dynamically
-    char *buffer = Tcl_Alloc(expected_len);
-    if (!buffer) {
-        Tcl_Free(modified);
-        BIO_free_all(bio);
+    // Filter out spaces and tabs only (not newlines)
+    char *clean_data = Tcl_Alloc(data_len + 1);
+    if (!clean_data) {
         Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    int total_len = 0;
-    int len;
+    int clean_len = 0;
+    for (int i = 0; i < data_len; i++) {
+        char c = data[i];
+        if (c == ' ' || c == '\t') {
+            continue; // Skip spaces and tabs only
+        }
+        clean_data[clean_len++] = c;
+    }
+    clean_data[clean_len] = '\0';
     
-    // Read data in chunks
-    while ((len = BIO_read(bio, (unsigned char *)buffer + total_len, expected_len - total_len)) > 0) {
-        total_len += len;
-        if (total_len >= expected_len) break;
+    // Check if we have any data left after cleaning
+    if (clean_len == 0) {
+        Tcl_Free(clean_data);
+        Tcl_SetResult(interp, "", TCL_STATIC);
+        return TCL_OK;
     }
     
-    if (total_len > 0) {
-        // Trim trailing null bytes
-        while (total_len > 0 && buffer[total_len - 1] == '\0') {
-            total_len--;
+    // Validate base64url characters
+    for (int i = 0; i < clean_len; i++) {
+        char c = clean_data[i];
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || 
+              (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '=')) {
+            Tcl_Free(clean_data);
+            Tcl_SetResult(interp, "Invalid base64url input", TCL_STATIC);
+            return TCL_ERROR;
         }
-        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)buffer, total_len));
+    }
+    
+    // Convert base64url to base64
+    char *base64_data = Tcl_Alloc(clean_len + 4); // Extra space for padding
+    strcpy(base64_data, clean_data);
+    
+    // Replace - with + and _ with /
+    for (int i = 0; base64_data[i]; i++) {
+        if (base64_data[i] == '-') base64_data[i] = '+';
+        else if (base64_data[i] == '_') base64_data[i] = '/';
+    }
+    
+    // Normalize padding: remove existing padding, then add correct padding
+    int base64_len = clean_len;
+    while (base64_len > 0 && base64_data[base64_len - 1] == '=') {
+        base64_len--;
+    }
+    
+    // Add correct padding to make length multiple of 4
+    while (base64_len % 4 != 0) {
+        base64_data[base64_len++] = '=';
+    }
+    base64_data[base64_len] = '\0';
+    
+    // Calculate output buffer size
+    int declen = (base64_len / 4) * 3;
+    if (base64_len % 4 != 0) {
+        declen += 3; // Add extra space for incomplete blocks
+    }
+    
+    unsigned char *dec = (unsigned char *)Tcl_Alloc(declen + 1);
+    if (!dec) {
+        Tcl_Free(clean_data);
+        Tcl_Free(base64_data);
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Decode using OpenSSL's EVP_DecodeBlock
+    int outlen = EVP_DecodeBlock(dec, (const unsigned char *)base64_data, base64_len);
+    
+    if (outlen >= 0) {
+        // Calculate actual padding
+        int padding = 0;
+        for (int i = base64_len - 1; i >= 0 && base64_data[i] == '='; i--) {
+            padding++;
+        }
+        
+        // Adjust output length for padding
+        if (padding > 0 && outlen >= padding) {
+            outlen -= padding;
+        }
+        
+        // Remove any trailing null bytes that might have been added
+        while (outlen > 0 && dec[outlen - 1] == '\0') {
+            outlen--;
+        }
+        
+        if (outlen > 0) {
+            Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(dec, outlen));
+        } else {
+            Tcl_SetResult(interp, "", TCL_STATIC);
+        }
+        Tcl_Free((char *)dec);
+        Tcl_Free(clean_data);
+        Tcl_Free(base64_data);
     } else {
-        Tcl_Free(buffer);
-        Tcl_Free(modified);
-        BIO_free_all(bio);
+        Tcl_Free((char *)dec);
+        Tcl_Free(clean_data);
+        Tcl_Free(base64_data);
         Tcl_SetResult(interp, "Invalid base64url input", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    Tcl_Free(buffer);
-    BIO_free_all(bio);
-    Tcl_Free(modified);
     return TCL_OK;
 }
 
