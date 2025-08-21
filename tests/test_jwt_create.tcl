@@ -436,7 +436,7 @@ test "Integration test - create and validate" {
     }
     
     # Test claims extraction
-    set claims [tossl::jwt::extract_claims -token $jwt]
+    set claims [tossl::jwt::extract_claims -token $jwt -key "integration_secret" -alg "HS256"]
     if {[dict get $claims issuer] != "integration-test.com"} {
         error "Claims extraction failed"
     }
