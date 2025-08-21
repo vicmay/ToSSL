@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 // Enhanced HTTP response structure
 struct HttpResponse {
@@ -490,6 +491,25 @@ int Tossl_HttpUploadCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *co
     const char *field_name = "file";
     const char *additional_fields = NULL;
     const char *headers = NULL;
+    
+    // Check if file exists before proceeding
+    if (access(file_path, F_OK) != 0) {
+        // Return a response with status_code 0 to indicate error
+        struct HttpResponse response = {malloc(1), 0, 0, malloc(1), 0, 0.0, 0, NULL, strdup("File does not exist"), 0};
+        response.data[0] = '\0';
+        response.headers[0] = '\0';
+        
+        struct HttpOptions options = {0};
+        options.return_details = 1;
+        Tcl_Obj *result = CreateHttpResponseDict(interp, &response, &options);
+        Tcl_SetObjResult(interp, result);
+        
+        free(response.data);
+        free(response.headers);
+        if (response.error_message) free(response.error_message);
+        
+        return TCL_OK;
+    }
     
     // Parse options
     for (int i = 3; i < objc; i += 2) {
