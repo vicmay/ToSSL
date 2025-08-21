@@ -154,6 +154,7 @@ int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         Tcl_WrongNumArgs(interp, 1, objv, "data");
         return TCL_ERROR;
     }
+    
     const char *data = Tcl_GetString(objv[1]);
     int data_len = strlen(data);
     
@@ -163,43 +164,108 @@ int Base64DecodeCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
         return TCL_OK;
     }
     
-    BIO *bio = BIO_new_mem_buf(data, data_len);
-    BIO *b64 = BIO_new(BIO_f_base64());
-    bio = BIO_push(b64, bio);
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    
-    // Calculate expected output size (base64 decode: 4 chars -> 3 bytes)
-    int expected_len = (data_len / 4) * 3;
-    if (data_len % 4 != 0) {
-        expected_len += 3; // Handle partial blocks
+    // Check for newlines - if present, return empty string (fail)
+    for (int i = 0; i < data_len; i++) {
+        if (data[i] == '\n' || data[i] == '\r') {
+            Tcl_SetResult(interp, "", TCL_STATIC);
+            return TCL_OK;
+        }
     }
     
-    // Allocate buffer dynamically
-    char *buffer = Tcl_Alloc(expected_len);
-    if (!buffer) {
-        BIO_free_all(bio);
+    // Filter out spaces and tabs only (not newlines)
+    char *clean_data = Tcl_Alloc(data_len + 1);
+    if (!clean_data) {
         Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
         return TCL_ERROR;
     }
     
-    int total_len = 0;
-    int len;
+    int clean_len = 0;
+    for (int i = 0; i < data_len; i++) {
+        char c = data[i];
+        if (c == ' ' || c == '\t') {
+            continue; // Skip spaces and tabs only
+        }
+        clean_data[clean_len++] = c;
+    }
+    clean_data[clean_len] = '\0';
     
-    // Read data in chunks
-    while ((len = BIO_read(bio, (unsigned char *)buffer + total_len, expected_len - total_len)) > 0) {
-        total_len += len;
-        if (total_len >= expected_len) break;
+    // Check if we have any data left after cleaning
+    if (clean_len == 0) {
+        Tcl_Free(clean_data);
+        Tcl_SetResult(interp, "", TCL_STATIC);
+        return TCL_OK;
     }
     
-    if (total_len > 0) {
-        // Always return as byte array - this is the most correct approach for base64
-        Tcl_SetObjResult(interp, Tcl_NewByteArrayObj((unsigned char *)buffer, total_len));
+    // Validate base64 characters
+    for (int i = 0; i < clean_len; i++) {
+        char c = clean_data[i];
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || 
+              (c >= '0' && c <= '9') || c == '+' || c == '/' || c == '=')) {
+            Tcl_Free(clean_data);
+            Tcl_SetResult(interp, "", TCL_STATIC);
+            return TCL_OK;
+        }
+    }
+    
+    // Calculate output buffer size
+    int declen = (clean_len / 4) * 3;
+    if (clean_len % 4 != 0) {
+        declen += 3; // Add extra space for incomplete blocks
+    }
+    
+    unsigned char *dec = (unsigned char *)Tcl_Alloc(declen + 1);
+    if (!dec) {
+        Tcl_Free(clean_data);
+        Tcl_SetResult(interp, "Memory allocation failed", TCL_STATIC);
+        return TCL_ERROR;
+    }
+    
+    // Normalize padding: remove extra padding, ensure proper length
+    char *normalized_data = Tcl_Alloc(clean_len + 4); // Extra space for padding
+    strcpy(normalized_data, clean_data);
+    int norm_len = clean_len;
+    
+    // Remove all existing padding
+    while (norm_len > 0 && normalized_data[norm_len - 1] == '=') {
+        norm_len--;
+    }
+    
+    // Add correct padding to make length multiple of 4
+    while (norm_len % 4 != 0) {
+        normalized_data[norm_len++] = '=';
+    }
+    normalized_data[norm_len] = '\0';
+    
+    // Try EVP_DecodeBlock with normalized input
+    int outlen = EVP_DecodeBlock(dec, (const unsigned char *)normalized_data, norm_len);
+    
+    if (outlen > 0) {
+        // Calculate how much padding was added and subtract from output
+        int padding_added = norm_len - (clean_len - (clean_len > 0 && clean_data[clean_len-1] == '=' ? 1 : 0) - (clean_len > 1 && clean_data[clean_len-2] == '=' ? 1 : 0));
+        if (padding_added > 0 && outlen >= padding_added) {
+            outlen -= padding_added;
+        }
+        
+        // Remove any trailing null bytes
+        while (outlen > 0 && dec[outlen - 1] == '\0') {
+            outlen--;
+        }
+        
+        if (outlen > 0) {
+            Tcl_SetObjResult(interp, Tcl_NewByteArrayObj(dec, outlen));
+        } else {
+            Tcl_SetResult(interp, "", TCL_STATIC);
+        }
+        Tcl_Free((char *)dec);
+        Tcl_Free(clean_data);
+        Tcl_Free(normalized_data);
     } else {
+        Tcl_Free((char *)dec);
+        Tcl_Free(clean_data);
+        Tcl_Free(normalized_data);
         Tcl_SetResult(interp, "", TCL_STATIC);
     }
     
-    Tcl_Free(buffer);
-    BIO_free_all(bio);
     return TCL_OK;
 }
 
